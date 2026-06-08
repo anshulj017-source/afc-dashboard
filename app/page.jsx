@@ -60,8 +60,8 @@ export default function App() {
   // Advanced Filter States
   const [isFilterOpen, setIsFilterOpen] = useState(false);
   const [dateRange, setDateRange] = useState({ start: '', end: '' });
-  const [compareWeeks, setCompareWeeks] = useState([]); // Array of timeKeys (YYYYWW)
-  const [trafficFilter, setTrafficFilter] = useState('All'); // 'All', 'Paid', 'Organic'
+  const [compareWeeks, setCompareWeeks] = useState([]); 
+  const [trafficFilter, setTrafficFilter] = useState('All'); 
 
   // --- FETCH LIVE DATA FROM MULTIPLE SHEETS ---
   useEffect(() => {
@@ -70,7 +70,6 @@ export default function App() {
       d3.csv(RAW_ADJUST_CSV_URL)
     ])
       .then(([adData, mmpData]) => {
-        // Map Ad Data (Sheet 1)
         const s1 = adData.map(row => {
           const week = parseInt(row['Week'] || row['week']) || 0;
           const year = parseInt(row['Year'] || row['year']) || 0;
@@ -85,20 +84,17 @@ export default function App() {
             market: normalizeMarket(row['Country'] || row['Channel Country']),
             channel: (!row['Channel'] || row['Channel'] === 'BLANK') ? 'Other' : row['Channel'],
             source: 'AdNetwork',
-            trafficType: 'Paid' // Ad spend is inherently paid
+            trafficType: 'Paid' 
           };
         });
 
-        // Map Adjust MMP Data (Sheet 2)
         const s2 = mmpData.map(row => {
           const week = parseInt(row['Week'] || row['week'] || row['Wk']) || 0;
           const year = parseInt(row['Year'] || row['year'] || row['Yr']) || 0;
           
-          // COLUMN L (Index 11): Classification
           const rawClass = Object.values(row)[11] || row['Classification'] || row['Network classification'] || '';
           const trafficType = rawClass.toString().toLowerCase().includes('organic') ? 'Organic' : 'Paid';
 
-          // COLUMN H (Index 7): Purchases
           const purchases = parseMetric(Object.values(row)[7] || row['Purchases'] || row['Total Purchases']);
 
           return {
@@ -140,13 +136,10 @@ export default function App() {
   // Master Filter Engine
   const filteredData = useMemo(() => {
     return processedData.filter(d => {
-      // 1. Traffic Filter
       let passTraffic = true;
       if (trafficFilter !== 'All') {
         passTraffic = d.trafficType === trafficFilter;
       }
-
-      // 2. Time Filter (Compare Weeks overrides Date Range if active)
       let passTime = true;
       if (compareWeeks.length > 0) {
         passTime = compareWeeks.includes(d.timeKey);
@@ -154,7 +147,6 @@ export default function App() {
         if (dateRange.start) passTime = passTime && d.date >= new Date(dateRange.start);
         if (dateRange.end) passTime = passTime && d.date <= new Date(dateRange.end);
       }
-
       return passTraffic && passTime;
     });
   }, [processedData, dateRange, compareWeeks, trafficFilter]);
@@ -194,7 +186,7 @@ export default function App() {
   const marketBreakdown = useMemo(() => {
     return d3.groups(filteredData, d => d.market)
       .map(([name, values]) => ({ name, ...aggregate(values) }))
-      .filter(m => m.cost >= 1) // STRICT $1 MINIMUM AD SPEND
+      .filter(m => m.cost >= 1) 
       .sort((a, b) => b.cost - a.cost);
   }, [filteredData]);
 
@@ -204,6 +196,32 @@ export default function App() {
       .sort((a, b) => b.cost - a.cost);
   }, [filteredData]);
 
+
+  // --- DYNAMIC AI INSIGHTS ---
+  const getAIInsight = (context) => {
+    if (filteredData.length === 0) return "No data available for the current selection.";
+    
+    if (context === 'summary') {
+      const cvrToPurchase = metrics.installs > 0 ? ((metrics.purchases / metrics.installs) * 100).toFixed(1) : 0;
+      return `Funnel Efficiency: ${cvrToPurchase}% of all installs convert into a purchase, yielding a global Cost Per Purchase (CPP) of $${metrics.cpp.toFixed(2)}. ${marketBreakdown[0]?.name || 'Top market'} remains your heaviest investment vehicle.`;
+    }
+    if (context === 'weekly') {
+      if (weeklyTimeline.length > 1) {
+        const sortedByCPP = [...weeklyTimeline].filter(w => w.purchases > 0).sort((a,b)=>a.cpp-b.cpp);
+        const worstCPP = [...weeklyTimeline].filter(w => w.purchases > 0).sort((a,b)=>b.cpp-a.cpp)[0];
+        
+        let string = `Week ${sortedByCPP[0]?.week} yielded the highest conversion efficiency ($${sortedByCPP[0]?.cpp.toFixed(2)} CPP). `;
+        if (worstCPP && worstCPP.cpp > sortedByCPP[0].cpp * 1.5) {
+           string += `Conversely, Week ${worstCPP.week} saw CPP spike to $${worstCPP.cpp.toFixed(2)}, indicating heavy ad waste or tracking drop-off.`;
+        } else {
+           string += `Overall stability is strong across the selected timeframe.`;
+        }
+        return string;
+      }
+      return "Analyzing single week data. Add more weeks to see CPI & CPP progression trends over time.";
+    }
+    return "";
+  };
 
   // --- COMPONENTS ---
   const MetricCard = ({ label, value, icon: Icon, color }) => (
@@ -245,11 +263,15 @@ export default function App() {
                 <span className="text-xs font-bold text-slate-700 truncate max-w-[150px]">{item[labelKey]}</span>
                 <span className="text-[10px] font-black text-slate-400 tabular-nums">{formattedVal}</span>
               </div>
-              <div className="h-2.5 bg-slate-50 rounded-full overflow-hidden" title={`${item[labelKey]}: ${formattedVal}`}>
+              <div className="h-2.5 bg-slate-50 rounded-full overflow-hidden relative">
                 <div 
-                  className={`h-full ${color} rounded-full transition-all duration-1000 group-hover:opacity-80`}
+                  className={`h-full ${color} rounded-full transition-all duration-1000 group-hover:opacity-70`}
                   style={{ width: `${(item[valueKey] / maxVal) * 100}%` }}
                 />
+              </div>
+              {/* Custom Tooltip */}
+              <div className="absolute -top-10 right-0 bg-slate-800 text-white text-[10px] py-1.5 px-3 rounded-lg shadow-xl opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none z-50 whitespace-nowrap border border-slate-700">
+                <span className="font-bold">{item[labelKey]}</span> <span className="text-slate-400 mx-1">|</span> {formattedVal}
               </div>
             </div>
           );
@@ -295,7 +317,6 @@ export default function App() {
       <div className="flex flex-col h-full">
         <svg width="100%" height="100%" viewBox={`0 0 ${width} ${height}`} preserveAspectRatio="xMidYMid meet" className="overflow-visible min-h-[250px] flex-1">
           <g transform={`translate(${margin.left},${margin.top})`}>
-            {/* Grid & Axes */}
             {yLeft.ticks(5).map(t => (
               <g key={`l-${t}`} transform={`translate(0, ${yLeft(t)})`}>
                 <line x2={iw} stroke="#f1f5f9" strokeWidth="1" />
@@ -308,23 +329,24 @@ export default function App() {
                </g>
             ))}
             
-            {/* Lines */}
             <path d={lineLeft(chartData)} fill="none" stroke={leftColorHex} strokeWidth="4" strokeLinecap="round" />
             <path d={lineRight(chartData)} fill="none" stroke={rightColorHex} strokeWidth="4" strokeLinecap="round" strokeDasharray="6,6" />
             
-            {/* Interactive Nodes (Tooltips) */}
+            {/* Custom Interactive Tooltip Crosshairs */}
             {chartData.map((d, i) => (
-              <g key={`nodes-${i}`}>
-                <circle cx={x(`W${d.week}`)} cy={yLeft(d[leftKey])} r="6" fill={leftColorHex} className="cursor-pointer hover:opacity-75 transition-opacity" stroke="#fff" strokeWidth="2">
-                   <title>{`Week ${d.week}: ${isLeftCurrency ? '$' : ''}${d3.format(",.2f")(d[leftKey])}`}</title>
-                </circle>
-                <circle cx={x(`W${d.week}`)} cy={yRight(d[rightKey])} r="6" fill={rightColorHex} className="cursor-pointer hover:opacity-75 transition-opacity" stroke="#fff" strokeWidth="2">
-                   <title>{`Week ${d.week}: ${isRightCurrency ? '$' : ''}${d3.format(",.2f")(d[rightKey])}`}</title>
-                </circle>
-              </g>
+               <g key={`hover-${i}`} className="group cursor-pointer">
+                 <rect x={x(`W${d.week}`) - 15} y={0} width={30} height={ih} fill="transparent" />
+                 <line x1={x(`W${d.week}`)} x2={x(`W${d.week}`)} y1={0} y2={ih} stroke="#94a3b8" strokeWidth="1" strokeDasharray="4,4" className="opacity-0 group-hover:opacity-100" />
+                 <foreignObject x={x(`W${d.week}`) > iw / 2 ? x(`W${d.week}`) - 140 : x(`W${d.week}`) + 10} y={10} width="130" height="90" className="opacity-0 group-hover:opacity-100 pointer-events-none transition-opacity z-50">
+                   <div className="bg-slate-800 text-white text-[10px] p-2.5 rounded-xl shadow-2xl flex flex-col gap-1.5 border border-slate-700">
+                     <span className="font-black text-slate-300 border-b border-slate-600 pb-1">Week {d.week}, {d.year}</span>
+                     <div className="flex justify-between"><span className={leftColorText.replace('fill-', 'text-').replace('300', '400')}>{leftKey.toUpperCase()}:</span> <span>{isLeftCurrency ? '$' : ''}{d3.format(",.2f")(d[leftKey])}</span></div>
+                     <div className="flex justify-between"><span className={rightColorText.replace('fill-', 'text-').replace('300', '400')}>{rightKey.toUpperCase()}:</span> <span>{isRightCurrency ? '$' : ''}{d3.format(",.2f")(d[rightKey])}</span></div>
+                   </div>
+                 </foreignObject>
+               </g>
             ))}
 
-            {/* X Axis Labels */}
             {chartData.map((d, i) => (
               (i % skipCount === 0 || i === chartData.length - 1) && (
                 <g key={`x-${i}`} transform={`translate(${x(`W${d.week}`)}, ${ih})`}>
@@ -335,8 +357,9 @@ export default function App() {
           </g>
         </svg>
         {insight && (
-          <div className="bg-slate-50 p-4 rounded-2xl mt-6 border border-slate-100">
-             <p className="text-xs font-bold text-slate-600">"{insight}"</p>
+          <div className="bg-slate-50 p-4 rounded-2xl mt-6 border border-slate-100 relative overflow-hidden group">
+             <Zap className="w-12 h-12 absolute -right-2 -top-2 opacity-5 text-indigo-500 group-hover:scale-125 transition-transform" />
+             <p className="text-xs font-bold text-slate-600 relative z-10">"{insight}"</p>
           </div>
         )}
       </div>
@@ -357,7 +380,7 @@ export default function App() {
         <MetricCard label="CPP" value={`$${metrics.cpp.toFixed(2)}`} icon={Target} color="bg-red-500" />
       </div>
 
-      <InsightBox text={`Overall funnel analysis shows an aggregated Cost Per Purchase (CPP) of $${metrics.cpp.toFixed(2)}. Out of ${d3.format(",.0f")(metrics.installs)} installs generated, ${d3.format(",.0f")(metrics.purchases)} translated into actual purchases.`} />
+      <InsightBox text={getAIInsight('summary')} />
 
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
         <div className="lg:col-span-2 bg-white p-8 rounded-[2.5rem] border border-slate-100 shadow-sm flex flex-col">
@@ -390,6 +413,55 @@ export default function App() {
     </div>
   );
 
+  const renderWeekly = () => (
+    <div className="animate-in fade-in duration-500">
+      <div className="mb-8">
+        <h2 className="text-3xl font-black text-slate-900 tracking-tight">Weekly Funnel Matrix</h2>
+        <p className="text-slate-500 font-medium italic">Combining upper-funnel ad data with bottom-funnel adjust conversions.</p>
+      </div>
+      <InsightBox text={getAIInsight('weekly')} />
+      <div className="bg-white rounded-[2rem] border border-slate-100 shadow-sm overflow-hidden mb-8">
+        <div className="overflow-x-auto">
+          <table className="w-full text-left min-w-[900px]">
+            <thead className="bg-slate-50/50 border-b border-slate-100">
+              <tr className="text-[10px] font-black uppercase tracking-widest text-slate-400">
+                <th className="px-8 py-5">Fiscal Window</th>
+                <th className="px-8 py-5 text-right text-indigo-500">Cost</th>
+                <th className="px-8 py-5 text-right">Clicks</th>
+                <th className="px-8 py-5 text-right text-emerald-500">Installs</th>
+                <th className="px-8 py-5 text-right text-fuchsia-500">Purchases</th>
+                <th className="px-8 py-5 text-right text-amber-500">CPI</th>
+                <th className="px-8 py-5 text-right text-red-500">CPP</th>
+              </tr>
+            </thead>
+            <tbody className="divide-y divide-slate-50">
+              {weeklyTimeline.map((w, i) => (
+                <tr key={i} className="hover:bg-slate-50/30 transition-colors group">
+                  <td className="px-8 py-5">
+                    <div className="flex items-center gap-3">
+                      <div className="w-2 h-2 rounded-full bg-indigo-500" />
+                      <span className="font-black text-slate-800">W{w.week} - {getMonthFromWeek(w.week, w.year)} {w.year}</span>
+                    </div>
+                  </td>
+                  <td className="px-8 py-5 text-right font-mono font-bold text-slate-600">${w.cost.toLocaleString(undefined, {minimumFractionDigits: 2})}</td>
+                  <td className="px-8 py-5 text-right font-mono text-slate-400">{w.clicks.toLocaleString()}</td>
+                  <td className="px-8 py-5 text-right font-mono font-bold text-emerald-600">{w.installs.toLocaleString()}</td>
+                  <td className="px-8 py-5 text-right font-mono font-bold text-fuchsia-600">{w.purchases.toLocaleString()}</td>
+                  <td className="px-8 py-5 text-right">
+                    <span className="bg-amber-50 text-amber-700 px-3 py-1 rounded-full text-[10px] font-black">${w.cpi.toFixed(2)}</span>
+                  </td>
+                  <td className="px-8 py-5 text-right">
+                    <span className="bg-red-50 text-red-700 px-3 py-1 rounded-full text-[10px] font-black">${w.cpp.toFixed(2)}</span>
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+  );
+
   const renderMarket = () => {
     const sortedByInstalls = [...marketBreakdown].sort((a, b) => b.installs - a.installs);
     const sortedByPurchases = [...marketBreakdown].sort((a, b) => b.purchases - a.purchases);
@@ -403,6 +475,21 @@ export default function App() {
           .sort((a,b) => a.week - b.week);
           
     const activeMarketSummary = selectedMarketView === 'All' ? null : marketBreakdown.find(m => m.name === selectedMarketView);
+
+    // Dynamic Market Insight Computations
+    const calculateInsight = (dataArray, metricName, metricKey, isCurrency) => {
+      if (!dataArray || dataArray.length < 2) return `Monitoring ${metricName} stabilization trends over time.`;
+      const avg = d3.sum(dataArray, d => d[metricKey]) / dataArray.length;
+      const recent = dataArray[dataArray.length - 1];
+      const previous = dataArray[dataArray.length - 2];
+      const diff = ((recent[metricKey] - previous[metricKey]) / (previous[metricKey] || 1)) * 100;
+      
+      const format = (val) => isCurrency ? `$${val.toFixed(2)}` : d3.format(",.0f")(val);
+      
+      if (Math.abs(diff) < 5) return `Recent ${metricName} (${format(recent[metricKey])}) aligns with historical averages. Consistency achieved.`;
+      const direction = diff > 0 ? 'grew' : 'dropped';
+      return `Noticeable shift: ${metricName} ${direction} by ${Math.abs(diff).toFixed(1)}% in the most recent tracked period compared to the prior week.`;
+    };
 
     return (
       <div className="animate-in fade-in duration-500">
@@ -433,13 +520,13 @@ export default function App() {
         {selectedMarketView === 'All' ? (
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
             <MarketBarChartCard title="Total Installs" icon={Download} data={sortedByInstalls} dataKey="installs" color="bg-emerald-500" 
-              insight={`${sortedByInstalls[0]?.name || 'Top market'} leads acquisition volume, accounting for significant portion of total installs.`} />
+              insight={`${sortedByInstalls[0]?.name || 'Top market'} leads acquisition volume, accounting for ${(sortedByInstalls[0]?.installs / (metrics.installs || 1) * 100).toFixed(1)}% of total installs.`} />
             <MarketBarChartCard title="Total Purchases" icon={ShoppingCart} data={sortedByPurchases} dataKey="purchases" color="bg-fuchsia-500" 
-              insight={`${sortedByPurchases[0]?.name || 'Top market'} drives the highest bottom-funnel intent matching the traffic profile.`} />
+              insight={`${sortedByPurchases[0]?.name || 'Top market'} drives the highest bottom-funnel intent, producing ${sortedByPurchases[0]?.purchases.toLocaleString()} conversions.`} />
             <MarketBarChartCard title="Cost Per Install (CPI)" icon={Activity} data={validCPI.slice(0, 8)} dataKey="cpi" color="bg-amber-500" isCurrency={true} 
               insight={`${validCPI[0]?.name || 'Top market'} offers the most cost-effective top-funnel acquisition at $${validCPI[0]?.cpi.toFixed(2)} CPI.`} />
             <MarketBarChartCard title="Cost Per Purchase (CPP)" icon={Target} data={validCPP.slice(0, 8)} dataKey="cpp" color="bg-red-500" isCurrency={true} 
-              insight={`${validCPP[0]?.name || 'Top market'} delivers the best conversion ROI at $${validCPP[0]?.cpp.toFixed(2)} CPP.`} />
+              insight={`${validCPP[0]?.name || 'Top market'} delivers the best conversion ROI, acquiring paying users for just $${validCPP[0]?.cpp.toFixed(2)}.`} />
           </div>
         ) : (
           <div className="animate-in fade-in zoom-in-95 duration-500">
@@ -467,7 +554,7 @@ export default function App() {
                        chartData={activeMarketData} leftKey="installs" rightKey="purchases" 
                        leftColorText="fill-emerald-300" rightColorText="fill-fuchsia-300"
                        leftColorHex="#10b981" rightColorHex="#d946ef" isLeftCurrency={false} isRightCurrency={false} 
-                       insight={`Volume analysis for ${selectedMarketView}: Comparing raw install volume directly against eventual purchase conversions.`}
+                       insight={calculateInsight(activeMarketData, 'Purchases', 'purchases', false)}
                     />
                  </div>
                </div>
@@ -487,7 +574,7 @@ export default function App() {
                        chartData={activeMarketData} leftKey="cpi" rightKey="cpp" 
                        leftColorText="fill-amber-300" rightColorText="fill-red-300"
                        leftColorHex="#f59e0b" rightColorHex="#ef4444" isLeftCurrency={true} isRightCurrency={true} 
-                       insight={`Efficiency tracking for ${selectedMarketView}: Identifying weeks where acquisition costs detached from purchase revenue goals.`}
+                       insight={calculateInsight(activeMarketData, 'Cost Per Purchase', 'cpp', true)}
                     />
                  </div>
                </div>
@@ -524,13 +611,20 @@ export default function App() {
                                 <span className="text-slate-700">${d3.format(",.0f")(item.cost)}</span>
                              </div>
                           </div>
-                          <div className="flex flex-col gap-1" title={`${item.name} - Spend: $${d3.format(",.2f")(item.cost)} | Purchases: ${item.purchases}`}>
+                          <div className="flex flex-col gap-1 relative">
                              <div className="h-1.5 bg-slate-50 rounded-full overflow-hidden w-full">
-                                <div className="h-full bg-blue-600 rounded-full transition-all duration-1000 group-hover:opacity-80" style={{ width: `${(item.cost / maxLeft) * 100}%` }} />
+                                <div className="h-full bg-blue-600 rounded-full transition-all duration-1000 group-hover:opacity-70" style={{ width: `${(item.cost / maxLeft) * 100}%` }} />
                              </div>
                              <div className="h-1.5 bg-slate-50 rounded-full overflow-hidden w-full">
                                 <div className="h-full bg-fuchsia-400 rounded-full transition-all duration-1000 opacity-80 group-hover:opacity-100" style={{ width: `${(item.purchases / maxRight) * 100}%` }} />
                              </div>
+                          </div>
+                          
+                          {/* Channel Custom Tooltip */}
+                          <div className="absolute -top-14 right-0 bg-slate-800 text-white text-[10px] py-2 px-3 rounded-lg shadow-xl opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none z-50 whitespace-nowrap border border-slate-700 flex flex-col gap-0.5">
+                             <span className="font-bold border-b border-slate-600 pb-0.5 mb-0.5">{item.name}</span>
+                             <div className="flex justify-between gap-4"><span className="text-slate-400">Spend:</span> <span>${d3.format(",.0f")(item.cost)}</span></div>
+                             <div className="flex justify-between gap-4"><span className="text-slate-400">Purchases:</span> <span>{d3.format(",.0f")(item.purchases)}</span></div>
                           </div>
                        </div>
                     )
@@ -543,14 +637,18 @@ export default function App() {
                     <Target className="w-5 h-5 text-red-500" />
                     <h4 className="text-sm font-black text-slate-800 uppercase tracking-widest">Efficiency Grid</h4>
                  </div>
-                 <p className="text-xs text-slate-400 mb-8 font-medium">Platform efficiency ranked explicitly by Cost Per Purchase (CPP).</p>
+                 <p className="text-xs text-slate-400 mb-8 font-medium">Which networks waste money? Compare the gap between raw clicks and actual user purchase cost.</p>
               </div>
               <div className="space-y-3">
-                 {[...channelBreakdown].sort((a,b)=>a.cpp-b.cpp).slice(0, 6).map((c, i) => (
-                    <div key={i} className="flex justify-between items-center p-4 bg-slate-50 rounded-2xl hover:bg-slate-100 transition-colors" title={`${c.name}: $${c.cpp.toFixed(2)} per purchase`}>
+                 {[...channelBreakdown].filter(c => c.cost > 0).sort((a,b)=>a.cpp-b.cpp).slice(0, 6).map((c, i) => (
+                    <div key={i} className="flex justify-between items-center p-4 bg-slate-50 rounded-2xl hover:bg-slate-100 transition-colors relative group">
                        <span className="font-bold text-slate-700 text-sm truncate w-1/3">{c.name}</span>
                        <span className="text-amber-600 font-black text-sm w-1/3 text-center">${c.cpi.toFixed(2)} CPI</span>
                        <span className="text-red-600 font-black text-sm w-1/3 text-right">{c.cpp > 0 ? `$${c.cpp.toFixed(2)} CPP` : 'No Purchases'}</span>
+                       
+                       <div className="absolute -top-8 right-0 bg-slate-800 text-white text-[10px] py-1.5 px-3 rounded-lg shadow-xl opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none z-50 whitespace-nowrap border border-slate-700">
+                          {c.purchases > 0 ? `Paid $${d3.format(",.0f")(c.cost)} for ${c.purchases} purchases.` : `Wasted $${d3.format(",.0f")(c.cost)} with 0 conversions.`}
+                       </div>
                     </div>
                  ))}
               </div>
@@ -598,6 +696,7 @@ export default function App() {
           <nav className="flex items-center gap-2 bg-slate-100/60 p-1.5 rounded-2xl border border-slate-200/40 overflow-x-auto hide-scrollbar">
             {[
               { id: 'summary', label: 'Summary', icon: LayoutDashboard },
+              { id: 'weekly', label: 'Weekly', icon: Calendar },
               { id: 'market', label: 'Markets', icon: Globe },
               { id: 'channel', label: 'Channels', icon: Layers },
             ].map(tab => (
@@ -709,7 +808,7 @@ export default function App() {
       <footer className="max-w-7xl mx-auto px-6 pb-12 border-t border-slate-100 mt-12 pt-8 flex flex-col md:flex-row justify-between items-center gap-6 opacity-40">
         <div className="flex items-center gap-4">
           <Info className="w-4 h-4 text-slate-400" />
-          <span className="text-[10px] font-black uppercase tracking-widest text-slate-500">MMP Cross-Engine v4.2 | Absolute Parity Active</span>
+          <span className="text-[10px] font-black uppercase tracking-widest text-slate-500">MMP Cross-Engine v4.3 | Interactive Parity Active</span>
         </div>
         <div className="flex gap-4 items-center">
           <div className="w-2.5 h-2.5 rounded-full bg-emerald-500 animate-pulse" />
