@@ -25,6 +25,37 @@ import {
 const COMBINED_COUNTRY_CSV_URL = "https://docs.google.com/spreadsheets/d/e/2PACX-1vSt_K4Y6h2g2iVm2CDrc33rQGDToGd41a805URte2UEDqMYB_K8V4YKLIJ9rCMoLdmwvbco7uyevE9U/pub?gid=1273221446&single=true&output=csv";
 const RAW_ADJUST_CSV_URL = "https://docs.google.com/spreadsheets/d/e/2PACX-1vSt_K4Y6h2g2iVm2CDrc33rQGDToGd41a805URte2UEDqMYB_K8V4YKLIJ9rCMoLdmwvbco7uyevE9U/pub?gid=588241351&single=true&output=csv";
 
+// Helper: Convert Week Number to Month Name (assuming Week 1 = Jan 1st of given year)
+const getMonthFromWeek = (week, year = 2026) => {
+  const date = new Date(year, 0, 1 + (week - 1) * 7);
+  return date.toLocaleString('en-US', { month: 'short' });
+};
+
+// Helper: Standardize Country Abbreviations
+const normalizeMarket = (marketName) => {
+  if (!marketName || marketName === 'BLANK' || marketName === 'Unknown') return 'Other';
+  const cleanName = marketName.trim();
+  const upperName = cleanName.toUpperCase();
+  
+  const aliases = {
+    'KWT': 'Kuwait',
+    'KSA': 'Saudi Arabia',
+    'SAU': 'Saudi Arabia',
+    'UAE': 'United Arab Emirates',
+    'ARE': 'United Arab Emirates',
+    'QAT': 'Qatar',
+    'BHR': 'Bahrain',
+    'OMN': 'Oman',
+    'EGY': 'Egypt',
+    'UK': 'United Kingdom',
+    'GBR': 'United Kingdom',
+    'US': 'United States',
+    'USA': 'United States'
+  };
+  
+  return aliases[upperName] || cleanName;
+};
+
 export default function App() {
   const [data, setData] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -49,7 +80,7 @@ export default function App() {
           installs: 0, 
           week: parseInt(row['Week'] || row['week'] || row['Wk']) || 0,
           year: parseInt(row['Year'] || row['year'] || row['Yr']) || 0,
-          market: (!row['Channel Country'] || row['Channel Country'] === 'BLANK') ? 'Other' : row['Channel Country'],
+          market: normalizeMarket(row['Channel Country']),
           channel: (!row['Channel'] || row['Channel'] === 'BLANK') ? 'Other' : row['Channel'],
           source: 'AdNetwork'
         }));
@@ -57,11 +88,10 @@ export default function App() {
         // Map Adjust (MMP) Data
         const s2 = mmpData.map(row => ({
           cost: 0, impressions: 0, clicks: 0,
-          // Aggressive fallbacks for standard Adjust export columns
           installs: parseFloat(row['Installs'] || row['Install'] || row['installs'] || row['Network Installs'] || row['Total Installs']) || 0,
           week: parseInt(row['Week'] || row['week'] || row['Wk']) || 0,
           year: parseInt(row['Year'] || row['year'] || row['Yr']) || 0,
-          market: (!row['Country'] || row['Country'] === 'BLANK' || row['Country'] === 'Unknown' || row['Geo'] === 'BLANK') ? 'Other' : (row['Country'] || row['Geo']),
+          market: normalizeMarket(row['Country'] || row['Geo']),
           channel: (!row['Network'] || row['Network'] === 'BLANK' || row['Network'] === 'Organic' || row['Source'] === 'BLANK') ? 'Other' : (row['Network'] || row['Source']),
           source: 'Adjust'
         }));
@@ -132,6 +162,7 @@ export default function App() {
   const marketBreakdown = useMemo(() => {
     return d3.groups(filteredData, d => d.market)
       .map(([name, values]) => ({ name, ...aggregate(values) }))
+      .filter(m => m.cost >= 1) // Enforce minimum $1 ad spend rule
       .sort((a, b) => b.cost - a.cost);
   }, [filteredData]);
 
@@ -152,13 +183,13 @@ export default function App() {
     if (context === 'weekly') {
       if (weeklyTimeline.length > 1) {
         const sortedByCPI = [...weeklyTimeline].filter(w => w.installs > 0).sort((a,b)=>a.cpi-b.cpi);
-        return `Peak acquisition efficiency occurred in Week ${sortedByCPI[0]?.week}, achieving a low CPI of $${sortedByCPI[0]?.cpi.toFixed(2)}. Adjust data shows a total of ${metrics.installs.toLocaleString()} installs recorded over the selected timeframe.`;
+        return `Peak acquisition efficiency occurred in Week ${sortedByCPI[0]?.week} (${getMonthFromWeek(sortedByCPI[0]?.week)}), achieving a low CPI of $${sortedByCPI[0]?.cpi.toFixed(2)}. Adjust data shows a total of ${metrics.installs.toLocaleString()} installs recorded over the selected timeframe.`;
       }
       return "Analyzing single week data. Add more weeks to see CPI progression trends over time.";
     }
     if (context === 'market') {
       const bestCPI = [...marketBreakdown].filter(m => m.installs > 10).sort((a, b) => a.cpi - b.cpi)[0];
-      return `${marketBreakdown[0]?.name} drives highest volume, but ${bestCPI?.name} is your most cost-effective region at $${bestCPI?.cpi.toFixed(2)} CPI. Consider shifting budget to scale high-efficiency geos.`;
+      return `${marketBreakdown[0]?.name} drives highest volume, but ${bestCPI?.name} is your most cost-effective region at $${bestCPI?.cpi.toFixed(2)} CPI. Non-spend markets have been filtered out of this view to ensure data accuracy.`;
     }
     if (context === 'channel') {
       const bestCVR = [...channelBreakdown].filter(c => c.clicks > 100).sort((a, b) => b.cvr - a.cvr)[0];
@@ -197,6 +228,30 @@ export default function App() {
       </div>
     </div>
   );
+
+  const BarChart = ({ chartData, valueKey, labelKey = 'name', color = 'bg-indigo-500', isCurrency = false, isPercent = false }) => {
+    const maxVal = d3.max(chartData, d => d[valueKey]) || 1;
+    return (
+      <div className="space-y-4">
+        {chartData.slice(0, 8).map((item, i) => (
+          <div key={i}>
+            <div className="flex justify-between items-end mb-1.5">
+              <span className="text-xs font-bold text-slate-700 truncate max-w-[150px]">{item[labelKey]}</span>
+              <span className="text-[10px] font-black text-slate-400 tabular-nums">
+                {isPercent ? `${item[valueKey].toFixed(2)}%` : isCurrency ? `$${d3.format(",.0f")(item[valueKey])}` : d3.format(",.0f")(item[valueKey])}
+              </span>
+            </div>
+            <div className="h-2.5 bg-slate-50 rounded-full overflow-hidden">
+              <div 
+                className={`h-full ${color} rounded-full transition-all duration-1000`}
+                style={{ width: `${(item[valueKey] / maxVal) * 100}%` }}
+              />
+            </div>
+          </div>
+        ))}
+      </div>
+    );
+  };
 
   const DualBarChart = ({ chartData, leftKey, rightKey, labelKey = 'name', leftColor = 'bg-blue-500', rightColor = 'bg-emerald-500' }) => {
     const maxLeft = d3.max(chartData, d => d[leftKey]) || 1;
@@ -302,11 +357,10 @@ export default function App() {
           </div>
         </div>
         <div className="bg-white p-8 rounded-[2.5rem] border border-slate-100 shadow-sm">
-          <h4 className="text-sm font-black text-slate-800 mb-2 uppercase tracking-widest flex items-center gap-2">
-            <Globe className="w-4 h-4 text-indigo-500" /> Market Spend vs CPI
+          <h4 className="text-sm font-black text-slate-800 mb-6 uppercase tracking-widest flex items-center gap-2">
+            <Globe className="w-4 h-4 text-indigo-500" /> Top Market Installs
           </h4>
-          <p className="text-xs text-slate-400 mb-6 font-medium">Top markets by volume with efficiency overlay.</p>
-          <DualBarChart chartData={marketBreakdown} leftKey="cost" rightKey="cpi" leftColor="bg-blue-500" rightColor="bg-amber-400" />
+          <BarChart chartData={[...marketBreakdown].sort((a,b)=>b.installs-a.installs)} valueKey="installs" color="bg-emerald-500" />
         </div>
       </div>
     </div>
@@ -339,7 +393,7 @@ export default function App() {
                   <td className="px-8 py-5">
                     <div className="flex items-center gap-3">
                       <div className="w-2 h-2 rounded-full bg-indigo-500" />
-                      <span className="font-black text-slate-800">Week {w.week}, {w.year}</span>
+                      <span className="font-black text-slate-800">W{w.week} - {getMonthFromWeek(w.week, w.year)} {w.year}</span>
                     </div>
                   </td>
                   <td className="px-8 py-5 text-right font-mono font-bold text-slate-600">${w.cost.toLocaleString(undefined, {minimumFractionDigits: 2})}</td>
@@ -363,9 +417,26 @@ export default function App() {
     <div className="animate-in fade-in duration-500">
       <div className="mb-8">
         <h2 className="text-3xl font-black text-slate-900 tracking-tight">Market Deep Dive</h2>
-        <p className="text-slate-500 font-medium italic">Geographical footprint matched with true application acquisition.</p>
+        <p className="text-slate-500 font-medium italic">Geographical footprint matched with true application acquisition. Filtered for active spend > $1.</p>
       </div>
       <InsightBox text={getAIInsight('market')} />
+      
+      {/* New Separated Visualizations for Markets */}
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-8 mb-10">
+        <div className="bg-white p-8 rounded-[2.5rem] border border-slate-100 shadow-sm">
+          <h4 className="text-sm font-black text-slate-800 mb-6 uppercase tracking-widest flex items-center gap-2">
+            <DollarSign className="w-4 h-4 text-indigo-500" /> Market Spends
+          </h4>
+          <BarChart chartData={[...marketBreakdown].sort((a,b)=>b.cost-a.cost)} valueKey="cost" color="bg-blue-600" isCurrency={true} />
+        </div>
+        <div className="bg-white p-8 rounded-[2.5rem] border border-slate-100 shadow-sm">
+          <h4 className="text-sm font-black text-slate-800 mb-6 uppercase tracking-widest flex items-center gap-2">
+            <Download className="w-4 h-4 text-emerald-500" /> Market Installs
+          </h4>
+          <BarChart chartData={[...marketBreakdown].sort((a,b)=>b.installs-a.installs)} valueKey="installs" color="bg-emerald-500" />
+        </div>
+      </div>
+
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
         {marketBreakdown.map((m, i) => (
           <div key={i} className="bg-white p-8 rounded-[2rem] border border-slate-100 shadow-sm relative group overflow-hidden">
@@ -377,7 +448,7 @@ export default function App() {
                <div className="flex justify-between items-end">
                  <div>
                    <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-1">Total Ad Spend</p>
-                   <p className="text-xl font-bold text-slate-800">${m.cost.toLocaleString()}</p>
+                   <p className="text-xl font-bold text-slate-800">${m.cost.toLocaleString(undefined, {maximumFractionDigits: 0})}</p>
                  </div>
                  <div className="text-right">
                    <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-1">Installs</p>
@@ -535,7 +606,7 @@ export default function App() {
                           : 'border-slate-100 hover:bg-slate-50 text-slate-600 font-bold'
                         }`}
                       >
-                        <span className="text-xs">Week {w}</span>
+                        <span className="text-xs">W{w} <span className="text-slate-400 font-normal">({getMonthFromWeek(w)})</span></span>
                         {selectedWeeks.includes(w) && <Check className="w-3 h-3" />}
                       </button>
                     ))}
@@ -557,7 +628,7 @@ export default function App() {
       <footer className="max-w-7xl mx-auto px-6 pb-12 border-t border-slate-100 mt-12 pt-8 flex flex-col md:flex-row justify-between items-center gap-6 opacity-40">
         <div className="flex items-center gap-4">
           <Info className="w-4 h-4 text-slate-400" />
-          <span className="text-[10px] font-black uppercase tracking-widest text-slate-500">MMP Cross-Engine v3.0</span>
+          <span className="text-[10px] font-black uppercase tracking-widest text-slate-500">MMP Cross-Engine v3.1</span>
         </div>
         <div className="flex gap-4 items-center">
           <div className="w-2.5 h-2.5 rounded-full bg-emerald-500 animate-pulse" />
