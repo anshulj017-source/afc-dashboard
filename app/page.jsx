@@ -19,8 +19,9 @@ import {
   BarChart3
 } from 'lucide-react';
 
-// LIVE GOOGLE SHEET CSV LINK
-const SHEET_CSV_URL = "https://docs.google.com/spreadsheets/d/e/2PACX-1vSt_K4Y6h2g2iVm2CDrc33rQGDToGd41a805URte2UEDqMYB_K8V4YKLIJ9rCMoLdmwvbco7uyevE9U/pub?output=csv";
+// === YOUR LIVE DATA LINKS ===
+const COMBINED_COUNTRY_CSV_URL = "https://docs.google.com/spreadsheets/d/e/2PACX-1vSt_K4Y6h2g2iVm2CDrc33rQGDToGd41a805URte2UEDqMYB_K8V4YKLIJ9rCMoLdmwvbco7uyevE9U/pub?gid=1273221446&single=true&output=csv";
+const RAW_ADJUST_CSV_URL = "https://docs.google.com/spreadsheets/d/e/2PACX-1vSt_K4Y6h2g2iVm2CDrc33rQGDToGd41a805URte2UEDqMYB_K8V4YKLIJ9rCMoLdmwvbco7uyevE9U/pub?output=csv";
 
 export default function App() {
   const [data, setData] = useState([]);
@@ -28,35 +29,44 @@ export default function App() {
   const [error, setError] = useState(null);
 
   const [activeTab, setActiveTab] = useState('summary');
-  const [selectedWeeks, setSelectedWeeks] = useState([]); // Empty = All
+  const [selectedWeeks, setSelectedWeeks] = useState([]);
   const [isFilterOpen, setIsFilterOpen] = useState(false);
 
-  // --- FETCH LIVE DATA ---
+  // --- FETCH LIVE DATA FROM MULTIPLE SHEETS ---
   useEffect(() => {
-    d3.csv(SHEET_CSV_URL)
-      .then((csvData) => {
-        setData(csvData);
+    Promise.all([
+      d3.csv(COMBINED_COUNTRY_CSV_URL),
+      d3.csv(RAW_ADJUST_CSV_URL)
+    ])
+      .then(([sheetsData0, sheetsData1]) => {
+        const s1 = sheetsData0.map(d => ({ ...d, _source: 'Combined' }));
+        const s2 = sheetsData1.map(d => ({ ...d, _source: 'Adjust' }));
+        
+        setData([...s1, ...s2]);
         setLoading(false);
       })
       .catch((err) => {
-        console.error("Error fetching sheet data:", err);
-        setError("Failed to load data from Google Sheets. Ensure the sheet is published to the web.");
+        console.error("Error fetching multi-sheet data:", err);
+        setError("Failed to load data. Please ensure both CSV links are correct and published.");
         setLoading(false);
       });
   }, []);
 
-  // --- DATA PROCESSING ---
+  // --- RESILIENT DATA PROCESSING ---
   const { processedData, allWeeks, allYears } = useMemo(() => {
     if (!data || data.length === 0) return { processedData: [], allWeeks: [], allYears: [] };
     
     const rows = data.map(row => {
-      const cost = parseFloat(row['Cost']) || 0;
-      const imps = parseFloat(row['Impression'] || row['Impressions']) || 0;
-      const clicks = parseFloat(row['Clicks']) || 0;
-      const week = parseInt(row['Week']);
-      const year = parseInt(row['Year']);
-      const market = row['Channel Country'];
-      const channel = row['Channel'];
+      // Aggressive fallback mapping to catch slight variations between the two sheets
+      const cost = parseFloat(row['Cost'] || row['Spend'] || row['cost']) || 0;
+      const imps = parseFloat(row['Impression'] || row['Impressions'] || row['impressions']) || 0;
+      const clicks = parseFloat(row['Clicks'] || row['clicks']) || 0;
+      
+      const week = parseInt(row['Week'] || row['week'] || row['Wk']);
+      const year = parseInt(row['Year'] || row['year'] || row['Yr']);
+      
+      const market = row['Channel Country'] || row['Country'] || row['country'];
+      const channel = row['Channel'] || row['Network'] || row['channel'];
       
       return {
         originalRow: row,
@@ -68,7 +78,8 @@ export default function App() {
           channel: (!channel || channel === 'BLANK') ? 'Other' : channel,
           week: isNaN(week) ? 0 : week,
           year: isNaN(year) ? 0 : year,
-          timeKey: (isNaN(year) || isNaN(week)) ? 0 : (year * 100 + week)
+          timeKey: (isNaN(year) || isNaN(week)) ? 0 : (year * 100 + week),
+          source: row._source
         }
       };
     }).filter(r => r.val.timeKey > 0);
@@ -405,13 +416,12 @@ export default function App() {
     </div>
   );
 
-  // Loading & Error States
   if (loading) {
     return (
       <div className="min-h-screen bg-[#fcfdfe] flex items-center justify-center">
         <div className="flex flex-col items-center gap-4">
           <div className="w-8 h-8 border-4 border-indigo-200 border-t-indigo-600 rounded-full animate-spin" />
-          <p className="text-sm font-bold text-slate-500">Syncing live dashboard...</p>
+          <p className="text-sm font-bold text-slate-500">Syncing multi-sheet dashboard...</p>
         </div>
       </div>
     );
@@ -430,7 +440,6 @@ export default function App() {
 
   return (
     <div className="min-h-screen bg-[#fcfdfe] text-slate-900 font-sans selection:bg-indigo-100 selection:text-indigo-900">
-      {/* HEADER */}
       <header className="sticky top-0 z-[100] bg-white/80 backdrop-blur-2xl border-b border-slate-200/50 px-6 py-4">
         <div className="max-w-7xl mx-auto flex flex-col md:flex-row justify-between items-center gap-6">
           <div className="flex items-center gap-4">
@@ -515,7 +524,6 @@ export default function App() {
         </div>
       </header>
 
-      {/* MAIN */}
       <main className="max-w-7xl mx-auto px-6 py-12">
         {activeTab === 'summary' && renderSummary()}
         {activeTab === 'weekly' && renderWeekly()}
@@ -523,7 +531,6 @@ export default function App() {
         {activeTab === 'channel' && renderChannel()}
       </main>
 
-      {/* FOOTER */}
       <footer className="max-w-7xl mx-auto px-6 pb-12 border-t border-slate-100 mt-12 pt-8 flex flex-col md:flex-row justify-between items-center gap-6 opacity-40">
         <div className="flex items-center gap-4">
           <Info className="w-4 h-4 text-slate-400" />
