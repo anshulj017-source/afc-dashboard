@@ -23,7 +23,7 @@ import {
 
 // === YOUR LIVE DATA LINKS ===
 const COMBINED_COUNTRY_CSV_URL = "https://docs.google.com/spreadsheets/d/e/2PACX-1vSt_K4Y6h2g2iVm2CDrc33rQGDToGd41a805URte2UEDqMYB_K8V4YKLIJ9rCMoLdmwvbco7uyevE9U/pub?gid=1273221446&single=true&output=csv";
-const RAW_ADJUST_CSV_URL = "https://docs.google.com/spreadsheets/d/e/2PACX-1vSt_K4Y6h2g2iVm2CDrc33rQGDToGd41a805URte2UEDqMYB_K8V4YKLIJ9rCMoLdmwvbco7uyevE9U/pub?output=csv";
+const RAW_ADJUST_CSV_URL = "https://docs.google.com/spreadsheets/d/e/2PACX-1vSt_K4Y6h2g2iVm2CDrc33rQGDToGd41a805URte2UEDqMYB_K8V4YKLIJ9rCMoLdmwvbco7uyevE9U/pub?gid=588241351&single=true&output=csv";
 
 export default function App() {
   const [data, setData] = useState([]);
@@ -46,7 +46,7 @@ export default function App() {
           cost: parseFloat(row['Cost'] || row['Spend'] || row['cost']) || 0,
           impressions: parseFloat(row['Impression'] || row['Impressions'] || row['impressions']) || 0,
           clicks: parseFloat(row['Clicks'] || row['clicks']) || 0,
-          installs: 0, // Ad network usually doesn't have true source-of-truth installs
+          installs: 0, 
           week: parseInt(row['Week'] || row['week'] || row['Wk']) || 0,
           year: parseInt(row['Year'] || row['year'] || row['Yr']) || 0,
           market: (!row['Channel Country'] || row['Channel Country'] === 'BLANK') ? 'Other' : row['Channel Country'],
@@ -58,11 +58,11 @@ export default function App() {
         const s2 = mmpData.map(row => ({
           cost: 0, impressions: 0, clicks: 0,
           // Aggressive fallbacks for standard Adjust export columns
-          installs: parseFloat(row['Installs'] || row['Install'] || row['installs'] || row['Network Installs']) || 0,
+          installs: parseFloat(row['Installs'] || row['Install'] || row['installs'] || row['Network Installs'] || row['Total Installs']) || 0,
           week: parseInt(row['Week'] || row['week'] || row['Wk']) || 0,
           year: parseInt(row['Year'] || row['year'] || row['Yr']) || 0,
-          market: (!row['Country'] || row['Country'] === 'BLANK' || row['Country'] === 'Unknown') ? 'Other' : row['Country'],
-          channel: (!row['Network'] || row['Network'] === 'BLANK' || row['Network'] === 'Organic') ? 'Other' : row['Network'],
+          market: (!row['Country'] || row['Country'] === 'BLANK' || row['Country'] === 'Unknown' || row['Geo'] === 'BLANK') ? 'Other' : (row['Country'] || row['Geo']),
+          channel: (!row['Network'] || row['Network'] === 'BLANK' || row['Network'] === 'Organic' || row['Source'] === 'BLANK') ? 'Other' : (row['Network'] || row['Source']),
           source: 'Adjust'
         }));
         
