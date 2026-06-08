@@ -18,42 +18,46 @@ import {
   Check,
   BarChart3,
   Download,
-  Target
+  Target,
+  ShoppingCart
 } from 'lucide-react';
 
 // === YOUR LIVE DATA LINKS ===
 const COMBINED_COUNTRY_CSV_URL = "https://docs.google.com/spreadsheets/d/e/2PACX-1vSt_K4Y6h2g2iVm2CDrc33rQGDToGd41a805URte2UEDqMYB_K8V4YKLIJ9rCMoLdmwvbco7uyevE9U/pub?gid=1273221446&single=true&output=csv";
 const RAW_ADJUST_CSV_URL = "https://docs.google.com/spreadsheets/d/e/2PACX-1vSt_K4Y6h2g2iVm2CDrc33rQGDToGd41a805URte2UEDqMYB_K8V4YKLIJ9rCMoLdmwvbco7uyevE9U/pub?gid=588241351&single=true&output=csv";
 
-// Helper: Convert Week Number to Month Name (assuming Week 1 = Jan 1st of given year)
+// Helper: Convert Week Number to Month Name 
 const getMonthFromWeek = (week, year = 2026) => {
   const date = new Date(year, 0, 1 + (week - 1) * 7);
   return date.toLocaleString('en-US', { month: 'short' });
 };
 
-// Helper: Standardize Country Abbreviations
+// Helper: Standardize Country Abbreviations (Merge Engine)
 const normalizeMarket = (marketName) => {
   if (!marketName || marketName === 'BLANK' || marketName === 'Unknown') return 'Other';
   const cleanName = marketName.trim();
   const upperName = cleanName.toUpperCase();
   
   const aliases = {
-    'KWT': 'Kuwait',
-    'KSA': 'Saudi Arabia',
-    'SAU': 'Saudi Arabia',
-    'UAE': 'United Arab Emirates',
-    'ARE': 'United Arab Emirates',
-    'QAT': 'Qatar',
-    'BHR': 'Bahrain',
-    'OMN': 'Oman',
-    'EGY': 'Egypt',
-    'UK': 'United Kingdom',
-    'GBR': 'United Kingdom',
-    'US': 'United States',
-    'USA': 'United States'
+    'KWT': 'Kuwait', 'KW': 'Kuwait', 'KUWAIT': 'Kuwait',
+    'KSA': 'Saudi Arabia', 'SAU': 'Saudi Arabia', 'SA': 'Saudi Arabia', 'SAUDI ARABIA': 'Saudi Arabia',
+    'UAE': 'United Arab Emirates', 'ARE': 'United Arab Emirates', 'AE': 'United Arab Emirates', 'UNITED ARAB EMIRATES': 'United Arab Emirates',
+    'QAT': 'Qatar', 'QA': 'Qatar', 'QATAR': 'Qatar',
+    'BHR': 'Bahrain', 'BH': 'Bahrain', 'BAHRAIN': 'Bahrain',
+    'OMN': 'Oman', 'OM': 'Oman', 'OMAN': 'Oman',
+    'EGY': 'Egypt', 'EG': 'Egypt', 'EGYPT': 'Egypt',
+    'UK': 'United Kingdom', 'GBR': 'United Kingdom', 'GB': 'United Kingdom',
+    'US': 'United States', 'USA': 'United States'
   };
   
   return aliases[upperName] || cleanName;
+};
+
+// Safe numerical parsing
+const parseMetric = (val) => {
+  if (!val) return 0;
+  if (typeof val === 'number') return val;
+  return parseFloat(val.toString().replace(/,/g, '')) || 0;
 };
 
 export default function App() {
@@ -64,6 +68,7 @@ export default function App() {
   const [activeTab, setActiveTab] = useState('summary');
   const [selectedWeeks, setSelectedWeeks] = useState([]);
   const [isFilterOpen, setIsFilterOpen] = useState(false);
+  const [selectedMarketView, setSelectedMarketView] = useState('All'); // Market interactive state
 
   // --- FETCH LIVE DATA FROM MULTIPLE SHEETS ---
   useEffect(() => {
@@ -74,10 +79,11 @@ export default function App() {
       .then(([adData, mmpData]) => {
         // Map Ad Data
         const s1 = adData.map(row => ({
-          cost: parseFloat(row['Cost'] || row['Spend'] || row['cost']) || 0,
-          impressions: parseFloat(row['Impression'] || row['Impressions'] || row['impressions']) || 0,
-          clicks: parseFloat(row['Clicks'] || row['clicks']) || 0,
+          cost: parseMetric(row['Cost'] || row['Spend'] || row['cost']),
+          impressions: parseMetric(row['Impression'] || row['Impressions'] || row['impressions']),
+          clicks: parseMetric(row['Clicks'] || row['clicks']),
           installs: 0, 
+          purchases: 0,
           week: parseInt(row['Week'] || row['week'] || row['Wk']) || 0,
           year: parseInt(row['Year'] || row['year'] || row['Yr']) || 0,
           market: normalizeMarket(row['Channel Country']),
@@ -88,7 +94,8 @@ export default function App() {
         // Map Adjust (MMP) Data
         const s2 = mmpData.map(row => ({
           cost: 0, impressions: 0, clicks: 0,
-          installs: parseFloat(row['Installs'] || row['Install'] || row['installs'] || row['Network Installs'] || row['Total Installs']) || 0,
+          installs: parseMetric(row['Installs'] || row['Install'] || row['installs'] || row['Network Installs'] || row['Total Installs']),
+          purchases: parseMetric(row['Purchases'] || row['Purchase'] || row['Revenue Events'] || row['Events'] || row['Total Purchases']),
           week: parseInt(row['Week'] || row['week'] || row['Wk']) || 0,
           year: parseInt(row['Year'] || row['year'] || row['Yr']) || 0,
           market: normalizeMarket(row['Country'] || row['Geo']),
@@ -126,22 +133,25 @@ export default function App() {
     return processedData.filter(d => selectedWeeks.includes(d.week));
   }, [processedData, selectedWeeks]);
 
-  // Aggregation Engine (Combines Spend & MMP Metrics)
+  // Aggregation Engine (Combines Spend, Installs, Purchases)
   const aggregate = (rows) => {
     const cost = d3.sum(rows, d => d.cost);
     const impressions = d3.sum(rows, d => d.impressions);
     const clicks = d3.sum(rows, d => d.clicks);
     const installs = d3.sum(rows, d => d.installs);
+    const purchases = d3.sum(rows, d => d.purchases);
     
     return {
       cost,
       impressions,
       clicks,
       installs,
+      purchases,
       ctr: impressions > 0 ? (clicks / impressions) * 100 : 0,
       cpc: clicks > 0 ? cost / clicks : 0,
       cpm: impressions > 0 ? (cost / impressions) * 1000 : 0,
       cpi: installs > 0 ? cost / installs : 0,
+      cpp: purchases > 0 ? cost / purchases : 0,
       cvr: clicks > 0 ? (installs / clicks) * 100 : 0
     };
   };
@@ -162,7 +172,7 @@ export default function App() {
   const marketBreakdown = useMemo(() => {
     return d3.groups(filteredData, d => d.market)
       .map(([name, values]) => ({ name, ...aggregate(values) }))
-      .filter(m => m.cost >= 1) // Enforce minimum $1 ad spend rule
+      .filter(m => m.cost > 0 || m.installs > 0 || m.purchases > 0) // Ensures Bahrain and others show up
       .sort((a, b) => b.cost - a.cost);
   }, [filteredData]);
 
@@ -178,37 +188,26 @@ export default function App() {
     
     if (context === 'summary') {
       const topMarket = marketBreakdown[0];
-      return `Your overall blended Cost Per Install (CPI) is $${metrics.cpi.toFixed(2)}. ${topMarket?.name || 'Various markets'} led the spend, driving ${d3.format(",.0f")(topMarket?.installs || 0)} installs at a ${topMarket?.cvr.toFixed(2)}% click-to-install conversion rate.`;
+      return `Your overall Cost Per Purchase (CPP) is $${metrics.cpp.toFixed(2)}. ${topMarket?.name || 'Various markets'} led the spend, driving ${d3.format(",.0f")(topMarket?.purchases || 0)} purchases at a $${topMarket?.cpp.toFixed(2)} CPP.`;
     }
     if (context === 'weekly') {
       if (weeklyTimeline.length > 1) {
-        const sortedByCPI = [...weeklyTimeline].filter(w => w.installs > 0).sort((a,b)=>a.cpi-b.cpi);
-        return `Peak acquisition efficiency occurred in Week ${sortedByCPI[0]?.week} (${getMonthFromWeek(sortedByCPI[0]?.week)}), achieving a low CPI of $${sortedByCPI[0]?.cpi.toFixed(2)}. Adjust data shows a total of ${metrics.installs.toLocaleString()} installs recorded over the selected timeframe.`;
+        const sortedByCPP = [...weeklyTimeline].filter(w => w.purchases > 0).sort((a,b)=>a.cpp-b.cpp);
+        return `Peak conversion efficiency occurred in Week ${sortedByCPP[0]?.week} (${getMonthFromWeek(sortedByCPP[0]?.week)}), achieving a low CPP of $${sortedByCPP[0]?.cpp.toFixed(2)}. Total Adjust purchases stand at ${metrics.purchases.toLocaleString()}.`;
       }
-      return "Analyzing single week data. Add more weeks to see CPI progression trends over time.";
-    }
-    if (context === 'market') {
-      const bestCPI = [...marketBreakdown].filter(m => m.installs > 10).sort((a, b) => a.cpi - b.cpi)[0];
-      return `${marketBreakdown[0]?.name} drives highest volume, but ${bestCPI?.name} is your most cost-effective region at $${bestCPI?.cpi.toFixed(2)} CPI. Non-spend markets have been filtered out of this view to ensure data accuracy.`;
-    }
-    if (context === 'channel') {
-      const bestCVR = [...channelBreakdown].filter(c => c.clicks > 100).sort((a, b) => b.cvr - a.cvr)[0];
-      return `While ${channelBreakdown[0]?.name} dominates spend, ${bestCVR?.name} converts clicks to installs the best at ${bestCVR?.cvr.toFixed(2)}%. This indicates extremely high traffic intent on that network.`;
+      return "Analyzing single week data. Add more weeks to see CPI & CPP progression trends over time.";
     }
     return "";
   };
 
   // --- COMPONENTS ---
-  const MetricCard = ({ label, value, subValue, icon: Icon, color }) => (
-    <div className="bg-white p-6 rounded-[2rem] border border-slate-100 shadow-sm transition-all hover:shadow-lg hover:-translate-y-1">
-      <div className="flex justify-between items-start mb-4">
-        <div className={`p-3 rounded-2xl ${color} bg-opacity-10`}>
-          <Icon className={`w-5 h-5 ${color.replace('bg-', 'text-')}`} />
-        </div>
+  const MetricCard = ({ label, value, icon: Icon, color }) => (
+    <div className="bg-white p-5 rounded-[1.5rem] border border-slate-100 shadow-sm transition-all hover:shadow-lg hover:-translate-y-1">
+      <div className={`w-8 h-8 rounded-xl ${color} bg-opacity-10 flex items-center justify-center mb-3`}>
+        <Icon className={`w-4 h-4 ${color.replace('bg-', 'text-')}`} />
       </div>
-      <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-1">{label}</p>
-      <h3 className="text-2xl font-black text-slate-900">{value}</h3>
-      <p className="text-xs text-slate-500 mt-1 font-medium">{subValue}</p>
+      <p className="text-[9px] font-black text-slate-400 uppercase tracking-widest mb-1">{label}</p>
+      <h3 className="text-lg font-black text-slate-900 truncate">{value}</h3>
     </div>
   );
 
@@ -253,68 +252,60 @@ export default function App() {
     );
   };
 
-  const DualBarChart = ({ chartData, leftKey, rightKey, labelKey = 'name', leftColor = 'bg-blue-500', rightColor = 'bg-emerald-500' }) => {
-    const maxLeft = d3.max(chartData, d => d[leftKey]) || 1;
-    const maxRight = d3.max(chartData, d => d[rightKey]) || 1;
-    
-    return (
-      <div className="space-y-5 mt-4">
-        {chartData.slice(0, 6).map((item, i) => (
-          <div key={i} className="relative">
-            <div className="flex justify-between text-[10px] font-black text-slate-400 uppercase mb-1.5">
-              <span className="text-slate-700 truncate max-w-[120px]">{item[labelKey]}</span>
-              <div className="flex gap-4">
-                <span>{item[rightKey] > 0 ? `$${item[rightKey].toFixed(2)} CPI` : 'N/A'}</span>
-                <span className="text-slate-700">${d3.format(",.0f")(item[leftKey])}</span>
-              </div>
-            </div>
-            <div className="flex flex-col gap-1">
-              <div className="h-1.5 bg-slate-50 rounded-full overflow-hidden w-full">
-                <div className={`h-full ${leftColor} rounded-full transition-all duration-1000`} style={{ width: `${(item[leftKey] / maxLeft) * 100}%` }} />
-              </div>
-              <div className="h-1.5 bg-slate-50 rounded-full overflow-hidden w-full">
-                <div className={`h-full ${rightColor} rounded-full transition-all duration-1000 opacity-80`} style={{ width: `${(item[rightKey] / maxRight) * 100}%` }} />
-              </div>
-            </div>
-          </div>
-        ))}
-      </div>
-    );
-  };
+  // Reusable component for market dashboard cards
+  const MarketBarChartCard = ({ title, icon: Icon, data, dataKey, color, isCurrency, insight }) => (
+    <div className="bg-white p-6 rounded-[2rem] border border-slate-100 shadow-sm flex flex-col h-full">
+        <div className="flex items-center gap-2 mb-6">
+           <Icon className={`w-5 h-5 ${color.replace('bg-', 'text-')}`} />
+           <h4 className="text-sm font-black text-slate-800 uppercase tracking-widest">{title}</h4>
+        </div>
+        <div className="flex-1 mb-6">
+           <BarChart chartData={data} valueKey={dataKey} color={color} isCurrency={isCurrency} />
+        </div>
+        <div className="bg-slate-50 p-4 rounded-2xl mt-auto border border-slate-100">
+           <p className="text-xs font-bold text-slate-600">"{insight}"</p>
+        </div>
+    </div>
+  );
 
-  const MultiLineChart = ({ chartData, width = 800, height = 300 }) => {
+  // Generic Dual Axis Line Chart for dynamic weekly trend plots
+  const DualAxisLineChart = ({ chartData, leftKey, rightKey, leftColorText, rightColorText, leftColorHex, rightColorHex, isLeftCurrency, isRightCurrency, width = 800, height = 300 }) => {
     if (!chartData || chartData.length < 2) return (
-      <div className="h-full w-full flex items-center justify-center bg-slate-50/50 rounded-3xl border border-dashed border-slate-200 text-[10px] font-black text-slate-300 uppercase">Select multiple weeks</div>
+      <div className="h-full w-full min-h-[250px] flex items-center justify-center bg-slate-50/50 rounded-3xl border border-dashed border-slate-200 text-[10px] font-black text-slate-300 uppercase">Select multiple weeks</div>
     );
     const margin = { top: 20, right: 50, bottom: 40, left: 50 };
     const iw = width - margin.left - margin.right;
     const ih = height - margin.top - margin.bottom;
 
     const x = d3.scalePoint().domain(chartData.map(d => `W${d.week}`)).range([0, iw]);
-    const yCost = d3.scaleLinear().domain([0, d3.max(chartData, d => d.cost) * 1.1]).range([ih, 0]);
-    const yInstalls = d3.scaleLinear().domain([0, d3.max(chartData, d => d.installs) * 1.1]).range([ih, 0]);
+    const yLeft = d3.scaleLinear().domain([0, d3.max(chartData, d => d[leftKey]) * 1.1 || 1]).range([ih, 0]);
+    const yRight = d3.scaleLinear().domain([0, d3.max(chartData, d => d[rightKey]) * 1.1 || 1]).range([ih, 0]);
 
-    const lineCost = d3.line().x(d => x(`W${d.week}`)).y(d => yCost(d.cost)).curve(d3.curveMonotoneX);
-    const lineInstalls = d3.line().x(d => x(`W${d.week}`)).y(d => yInstalls(d.installs)).curve(d3.curveMonotoneX);
+    const lineLeft = d3.line().x(d => x(`W${d.week}`)).y(d => yLeft(d[leftKey])).curve(d3.curveMonotoneX);
+    const lineRight = d3.line().x(d => x(`W${d.week}`)).y(d => yRight(d[rightKey])).curve(d3.curveMonotoneX);
 
     const skipCount = Math.ceil(chartData.length / 10);
 
     return (
-      <svg width="100%" height="100%" viewBox={`0 0 ${width} ${height}`} preserveAspectRatio="xMidYMid meet" className="overflow-visible">
+      <svg width="100%" height="100%" viewBox={`0 0 ${width} ${height}`} preserveAspectRatio="xMidYMid meet" className="overflow-visible min-h-[250px]">
         <g transform={`translate(${margin.left},${margin.top})`}>
-          {yCost.ticks(5).map(t => (
-            <g key={`c-${t}`} transform={`translate(0, ${yCost(t)})`}>
+          {yLeft.ticks(5).map(t => (
+            <g key={`l-${t}`} transform={`translate(0, ${yLeft(t)})`}>
               <line x2={iw} stroke="#f1f5f9" strokeWidth="1" />
-              <text x="-10" dy="0.32em" textAnchor="end" className="text-[9px] fill-indigo-300 font-bold">${d3.format(".1s")(t)}</text>
+              <text x="-10" dy="0.32em" textAnchor="end" className={`text-[9px] ${leftColorText} font-bold`}>
+                {isLeftCurrency ? `$${d3.format(".1s")(t)}` : d3.format(".1s")(t)}
+              </text>
             </g>
           ))}
-          {yInstalls.ticks(5).map(t => (
-             <g key={`i-${t}`} transform={`translate(${iw}, ${yInstalls(t)})`}>
-               <text x="10" dy="0.32em" textAnchor="start" className="text-[9px] fill-emerald-300 font-bold">{d3.format(".1s")(t)}</text>
+          {yRight.ticks(5).map(t => (
+             <g key={`r-${t}`} transform={`translate(${iw}, ${yRight(t)})`}>
+               <text x="10" dy="0.32em" textAnchor="start" className={`text-[9px] ${rightColorText} font-bold`}>
+                 {isRightCurrency ? `$${d3.format(".1s")(t)}` : d3.format(".1s")(t)}
+               </text>
              </g>
           ))}
-          <path d={lineCost(chartData)} fill="none" stroke="#6366f1" strokeWidth="4" strokeLinecap="round" />
-          <path d={lineInstalls(chartData)} fill="none" stroke="#10b981" strokeWidth="4" strokeLinecap="round" strokeDasharray="6,6" />
+          <path d={lineLeft(chartData)} fill="none" stroke={leftColorHex} strokeWidth="4" strokeLinecap="round" />
+          <path d={lineRight(chartData)} fill="none" stroke={rightColorHex} strokeWidth="4" strokeLinecap="round" strokeDasharray="6,6" />
           {chartData.map((d, i) => (
             (i % skipCount === 0 || i === chartData.length - 1) && (
               <g key={i} transform={`translate(${x(`W${d.week}`)}, ${ih})`}>
@@ -330,13 +321,15 @@ export default function App() {
   // --- RENDERS ---
   const renderSummary = () => (
     <div className="animate-in fade-in duration-700">
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-6 gap-6 mb-10">
-        <MetricCard label="Ad Spend" value={`$${d3.format(",.0f")(metrics.cost)}`} subValue="Gross Budget" icon={DollarSign} color="bg-blue-600" />
-        <MetricCard label="Impressions" value={(metrics.impressions / 1000000).toFixed(2) + 'M'} subValue="Brand Reach" icon={Eye} color="bg-indigo-600" />
-        <MetricCard label="Clicks" value={d3.format(",.0f")(metrics.clicks)} subValue="Engagement" icon={MousePointer2} color="bg-purple-600" />
-        <MetricCard label="Installs" value={d3.format(",.0f")(metrics.installs)} subValue="MMP Validated" icon={Download} color="bg-emerald-600" />
-        <MetricCard label="Blended CPI" value={`$${metrics.cpi.toFixed(2)}`} subValue="Cost Per Install" icon={Activity} color="bg-amber-500" />
-        <MetricCard label="CVR" value={`${metrics.cvr.toFixed(2)}%`} subValue="Click to Install" icon={Target} color="bg-rose-500" />
+      <div className="grid grid-cols-2 lg:grid-cols-4 xl:grid-cols-8 gap-4 mb-10">
+        <MetricCard label="Ad Spend" value={`$${d3.format(",.0f")(metrics.cost)}`} icon={DollarSign} color="bg-blue-600" />
+        <MetricCard label="Impressions" value={(metrics.impressions / 1000000).toFixed(2) + 'M'} icon={Eye} color="bg-indigo-600" />
+        <MetricCard label="Clicks" value={d3.format(",.0f")(metrics.clicks)} icon={MousePointer2} color="bg-purple-600" />
+        <MetricCard label="Installs" value={d3.format(",.0f")(metrics.installs)} icon={Download} color="bg-emerald-600" />
+        <MetricCard label="Purchases" value={d3.format(",.0f")(metrics.purchases)} icon={ShoppingCart} color="bg-fuchsia-600" />
+        <MetricCard label="CVR" value={`${metrics.cvr.toFixed(2)}%`} icon={TrendingUp} color="bg-rose-500" />
+        <MetricCard label="CPI" value={`$${metrics.cpi.toFixed(2)}`} icon={Activity} color="bg-amber-500" />
+        <MetricCard label="CPP" value={`$${metrics.cpp.toFixed(2)}`} icon={Target} color="bg-red-500" />
       </div>
 
       <InsightBox text={getAIInsight('summary')} />
@@ -353,14 +346,20 @@ export default function App() {
             </div>
           </div>
           <div className="flex-1 min-h-[340px]">
-            <MultiLineChart chartData={weeklyTimeline} />
+             <DualAxisLineChart 
+                chartData={weeklyTimeline} 
+                leftKey="cost" rightKey="installs" 
+                leftColorText="fill-indigo-300" rightColorText="fill-emerald-300"
+                leftColorHex="#6366f1" rightColorHex="#10b981"
+                isLeftCurrency={true} isRightCurrency={false} 
+             />
           </div>
         </div>
         <div className="bg-white p-8 rounded-[2.5rem] border border-slate-100 shadow-sm">
           <h4 className="text-sm font-black text-slate-800 mb-6 uppercase tracking-widest flex items-center gap-2">
-            <Globe className="w-4 h-4 text-indigo-500" /> Top Market Installs
+            <ShoppingCart className="w-4 h-4 text-fuchsia-500" /> Top Market Purchases
           </h4>
-          <BarChart chartData={[...marketBreakdown].sort((a,b)=>b.installs-a.installs)} valueKey="installs" color="bg-emerald-500" />
+          <BarChart chartData={[...marketBreakdown].sort((a,b)=>b.purchases-a.purchases)} valueKey="purchases" color="bg-fuchsia-500" />
         </div>
       </div>
     </div>
@@ -375,16 +374,16 @@ export default function App() {
       <InsightBox text={getAIInsight('weekly')} />
       <div className="bg-white rounded-[2rem] border border-slate-100 shadow-sm overflow-hidden mb-8">
         <div className="overflow-x-auto">
-          <table className="w-full text-left min-w-[800px]">
+          <table className="w-full text-left min-w-[900px]">
             <thead className="bg-slate-50/50 border-b border-slate-100">
               <tr className="text-[10px] font-black uppercase tracking-widest text-slate-400">
                 <th className="px-8 py-5">Fiscal Window</th>
                 <th className="px-8 py-5 text-right text-indigo-500">Cost</th>
                 <th className="px-8 py-5 text-right">Clicks</th>
-                <th className="px-8 py-5 text-right">CTR</th>
-                <th className="px-8 py-5 text-right text-emerald-500">MMP Installs</th>
-                <th className="px-8 py-5 text-right">CVR</th>
+                <th className="px-8 py-5 text-right text-emerald-500">Installs</th>
+                <th className="px-8 py-5 text-right text-fuchsia-500">Purchases</th>
                 <th className="px-8 py-5 text-right text-amber-500">CPI</th>
+                <th className="px-8 py-5 text-right text-red-500">CPP</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-50">
@@ -398,11 +397,13 @@ export default function App() {
                   </td>
                   <td className="px-8 py-5 text-right font-mono font-bold text-slate-600">${w.cost.toLocaleString(undefined, {minimumFractionDigits: 2})}</td>
                   <td className="px-8 py-5 text-right font-mono text-slate-400">{w.clicks.toLocaleString()}</td>
-                  <td className="px-8 py-5 text-right text-slate-400">{w.ctr.toFixed(2)}%</td>
                   <td className="px-8 py-5 text-right font-mono font-bold text-emerald-600">{w.installs.toLocaleString()}</td>
-                  <td className="px-8 py-5 text-right text-slate-400">{w.cvr.toFixed(2)}%</td>
+                  <td className="px-8 py-5 text-right font-mono font-bold text-fuchsia-600">{w.purchases.toLocaleString()}</td>
                   <td className="px-8 py-5 text-right">
                     <span className="bg-amber-50 text-amber-700 px-3 py-1 rounded-full text-[10px] font-black">${w.cpi.toFixed(2)}</span>
+                  </td>
+                  <td className="px-8 py-5 text-right">
+                    <span className="bg-red-50 text-red-700 px-3 py-1 rounded-full text-[10px] font-black">${w.cpp.toFixed(2)}</span>
                   </td>
                 </tr>
               ))}
@@ -413,64 +414,122 @@ export default function App() {
     </div>
   );
 
-  const renderMarket = () => (
-    <div className="animate-in fade-in duration-500">
-      <div className="mb-8">
-        <h2 className="text-3xl font-black text-slate-900 tracking-tight">Market Deep Dive</h2>
-        <p className="text-slate-500 font-medium italic">Geographical footprint matched with true application acquisition. Filtered for active spend &gt; $1.</p>
-      </div>
-      <InsightBox text={getAIInsight('market')} />
-      
-      {/* New Separated Visualizations for Markets */}
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-8 mb-10">
-        <div className="bg-white p-8 rounded-[2.5rem] border border-slate-100 shadow-sm">
-          <h4 className="text-sm font-black text-slate-800 mb-6 uppercase tracking-widest flex items-center gap-2">
-            <DollarSign className="w-4 h-4 text-indigo-500" /> Market Spends
-          </h4>
-          <BarChart chartData={[...marketBreakdown].sort((a,b)=>b.cost-a.cost)} valueKey="cost" color="bg-blue-600" isCurrency={true} />
-        </div>
-        <div className="bg-white p-8 rounded-[2.5rem] border border-slate-100 shadow-sm">
-          <h4 className="text-sm font-black text-slate-800 mb-6 uppercase tracking-widest flex items-center gap-2">
-            <Download className="w-4 h-4 text-emerald-500" /> Market Installs
-          </h4>
-          <BarChart chartData={[...marketBreakdown].sort((a,b)=>b.installs-a.installs)} valueKey="installs" color="bg-emerald-500" />
-        </div>
-      </div>
+  const renderMarket = () => {
+    // Top Performers Logic for Insights
+    const sortedByInstalls = [...marketBreakdown].sort((a, b) => b.installs - a.installs);
+    const sortedByPurchases = [...marketBreakdown].sort((a, b) => b.purchases - a.purchases);
+    
+    // For CPI/CPP, lowest is best. Filter out 0s so they don't break the logic.
+    const validCPI = [...marketBreakdown].filter(m => m.installs > 0).sort((a, b) => a.cpi - b.cpi);
+    const validCPP = [...marketBreakdown].filter(m => m.purchases > 0).sort((a, b) => a.cpp - b.cpp);
 
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
-        {marketBreakdown.map((m, i) => (
-          <div key={i} className="bg-white p-8 rounded-[2rem] border border-slate-100 shadow-sm relative group overflow-hidden">
-             <div className="absolute -right-6 -bottom-6 opacity-[0.03] group-hover:opacity-[0.08] transition-opacity">
-               <Globe className="w-24 h-24" />
-             </div>
-             <h4 className="text-lg font-black text-slate-900 mb-6 truncate">{m.name}</h4>
-             <div className="space-y-5 relative z-10">
-               <div className="flex justify-between items-end">
-                 <div>
-                   <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-1">Total Ad Spend</p>
-                   <p className="text-xl font-bold text-slate-800">${m.cost.toLocaleString(undefined, {maximumFractionDigits: 0})}</p>
-                 </div>
-                 <div className="text-right">
-                   <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-1">Installs</p>
-                   <p className="text-xl font-bold text-emerald-600">{d3.format(",.0f")(m.installs)}</p>
-                 </div>
-               </div>
-               <div className="grid grid-cols-2 gap-4">
-                 <div className="bg-slate-50 p-3 rounded-2xl">
-                   <p className="text-[10px] font-black text-slate-400 uppercase mb-1">CPI</p>
-                   <p className="text-sm font-bold text-amber-600">${m.cpi.toFixed(2)}</p>
-                 </div>
-                 <div className="bg-slate-50 p-3 rounded-2xl">
-                   <p className="text-[10px] font-black text-slate-400 uppercase mb-1">CVR</p>
-                   <p className="text-sm font-bold text-slate-800">{m.cvr.toFixed(2)}%</p>
-                 </div>
-               </div>
-             </div>
+    const installInsight = `${sortedByInstalls[0]?.name || 'Top market'} leads acquisition volume with ${sortedByInstalls[0]?.installs.toLocaleString()} installs.`;
+    const purchaseInsight = `${sortedByPurchases[0]?.name || 'Top market'} drives the highest bottom-funnel intent with ${sortedByPurchases[0]?.purchases.toLocaleString()} purchases.`;
+    const cpiInsight = `${validCPI[0]?.name || 'Top market'} offers the most cost-effective acquisition at $${validCPI[0]?.cpi.toFixed(2)} CPI.`;
+    const cppInsight = `${validCPP[0]?.name || 'Top market'} delivers the best conversion ROI at $${validCPP[0]?.cpp.toFixed(2)} CPP.`;
+
+    // Dynamic filtering for specific market selection
+    const activeMarketData = selectedMarketView === 'All' 
+      ? null 
+      : d3.groups(filteredData.filter(d => d.market === selectedMarketView), d => d.timeKey)
+          .map(([key, values]) => ({ week: values[0].week, year: values[0].year, ...aggregate(values) }))
+          .sort((a,b) => a.week - b.week);
+          
+    const activeMarketSummary = selectedMarketView === 'All' ? null : marketBreakdown.find(m => m.name === selectedMarketView);
+
+    return (
+      <div className="animate-in fade-in duration-500">
+        <div className="mb-6">
+          <h2 className="text-3xl font-black text-slate-900 tracking-tight">Market Intelligence</h2>
+          <p className="text-slate-500 font-medium italic">Geographical footprint matched with true application acquisition.</p>
+        </div>
+
+        {/* Interactive Market Navigator */}
+        <div className="flex gap-3 overflow-x-auto pb-4 mb-8 border-b border-slate-100 hide-scrollbar">
+          <button 
+            onClick={() => setSelectedMarketView('All')} 
+            className={`whitespace-nowrap px-6 py-2.5 rounded-xl text-sm font-black transition-all ${selectedMarketView === 'All' ? 'bg-indigo-600 text-white shadow-md' : 'bg-white text-slate-500 hover:bg-slate-50 border border-slate-200'}`}
+          >
+            Global Overview
+          </button>
+          {marketBreakdown.map(m => (
+            <button 
+              key={m.name} 
+              onClick={() => setSelectedMarketView(m.name)} 
+              className={`whitespace-nowrap px-6 py-2.5 rounded-xl text-sm font-black transition-all ${selectedMarketView === m.name ? 'bg-indigo-600 text-white shadow-md' : 'bg-white text-slate-500 hover:bg-slate-50 border border-slate-200'}`}
+            >
+              {m.name}
+            </button>
+          ))}
+        </div>
+
+        {selectedMarketView === 'All' ? (
+          /* ALL MARKETS VIEW: 4 GRID DASHBOARD */
+          <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
+            <MarketBarChartCard title="Total Installs" icon={Download} data={sortedByInstalls} dataKey="installs" color="bg-emerald-500" insight={installInsight} />
+            <MarketBarChartCard title="Total Purchases" icon={ShoppingCart} data={sortedByPurchases} dataKey="purchases" color="bg-fuchsia-500" insight={purchaseInsight} />
+            <MarketBarChartCard title="Cost Per Install (CPI)" icon={Activity} data={validCPI.slice(0, 8)} dataKey="cpi" color="bg-amber-500" isCurrency={true} insight={cpiInsight} />
+            <MarketBarChartCard title="Cost Per Purchase (CPP)" icon={Target} data={validCPP.slice(0, 8)} dataKey="cpp" color="bg-red-500" isCurrency={true} insight={cppInsight} />
           </div>
-        ))}
+        ) : (
+          /* SPECIFIC MARKET VIEW: TARGETED TRENDS */
+          <div className="animate-in fade-in zoom-in-95 duration-500">
+            <div className="grid grid-cols-2 lg:grid-cols-5 gap-4 mb-8">
+               <MetricCard label="Ad Spend" value={`$${d3.format(",.0f")(activeMarketSummary?.cost || 0)}`} icon={DollarSign} color="bg-blue-600" />
+               <MetricCard label="Installs" value={d3.format(",.0f")(activeMarketSummary?.installs || 0)} icon={Download} color="bg-emerald-600" />
+               <MetricCard label="Purchases" value={d3.format(",.0f")(activeMarketSummary?.purchases || 0)} icon={ShoppingCart} color="bg-fuchsia-600" />
+               <MetricCard label="CPI" value={`$${(activeMarketSummary?.cpi || 0).toFixed(2)}`} icon={Activity} color="bg-amber-500" />
+               <MetricCard label="CPP" value={`$${(activeMarketSummary?.cpp || 0).toFixed(2)}`} icon={Target} color="bg-red-500" />
+            </div>
+
+            <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
+               <div className="bg-white p-8 rounded-[2.5rem] border border-slate-100 shadow-sm flex flex-col">
+                 <div className="flex justify-between items-center mb-8">
+                   <h4 className="text-sm font-black text-slate-800 uppercase tracking-widest flex items-center gap-2">
+                     <Layers className="w-4 h-4 text-emerald-500" /> Volume: Installs & Purchases
+                   </h4>
+                   <div className="flex gap-4 text-[10px] font-black uppercase text-slate-400">
+                     <span className="flex items-center gap-1"><div className="w-2 h-2 rounded-full bg-emerald-500"/> Installs</span>
+                     <span className="flex items-center gap-1"><div className="w-2 h-2 rounded-full bg-fuchsia-500"/> Purchases</span>
+                   </div>
+                 </div>
+                 <div className="flex-1 min-h-[300px]">
+                    <DualAxisLineChart 
+                       chartData={activeMarketData} 
+                       leftKey="installs" rightKey="purchases" 
+                       leftColorText="fill-emerald-300" rightColorText="fill-fuchsia-300"
+                       leftColorHex="#10b981" rightColorHex="#d946ef"
+                       isLeftCurrency={false} isRightCurrency={false} 
+                    />
+                 </div>
+               </div>
+
+               <div className="bg-white p-8 rounded-[2.5rem] border border-slate-100 shadow-sm flex flex-col">
+                 <div className="flex justify-between items-center mb-8">
+                   <h4 className="text-sm font-black text-slate-800 uppercase tracking-widest flex items-center gap-2">
+                     <Activity className="w-4 h-4 text-red-500" /> Efficiency: CPI & CPP
+                   </h4>
+                   <div className="flex gap-4 text-[10px] font-black uppercase text-slate-400">
+                     <span className="flex items-center gap-1"><div className="w-2 h-2 rounded-full bg-amber-500"/> CPI</span>
+                     <span className="flex items-center gap-1"><div className="w-2 h-2 rounded-full bg-red-500"/> CPP</span>
+                   </div>
+                 </div>
+                 <div className="flex-1 min-h-[300px]">
+                    <DualAxisLineChart 
+                       chartData={activeMarketData} 
+                       leftKey="cpi" rightKey="cpp" 
+                       leftColorText="fill-amber-300" rightColorText="fill-red-300"
+                       leftColorHex="#f59e0b" rightColorHex="#ef4444"
+                       isLeftCurrency={true} isRightCurrency={true} 
+                    />
+                 </div>
+               </div>
+            </div>
+          </div>
+        )}
       </div>
-    </div>
-  );
+    );
+  };
 
   const renderChannel = () => (
     <div className="animate-in fade-in duration-500">
@@ -478,7 +537,6 @@ export default function App() {
         <h2 className="text-3xl font-black text-slate-900 tracking-tight">Channel Attribution</h2>
         <p className="text-slate-500 font-medium italic">Marketing platform breakdown and bottom-funnel conversion audits.</p>
       </div>
-      <InsightBox text={getAIInsight('channel')} />
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
         <div className="bg-white p-10 rounded-[2.5rem] border border-slate-100 shadow-sm">
           <div className="flex items-center gap-2 mb-2">
@@ -486,7 +544,31 @@ export default function App() {
             <h4 className="text-sm font-black text-slate-800 uppercase tracking-widest">Spend vs Installs</h4>
           </div>
           <p className="text-xs text-slate-400 mb-8 font-medium">Dark bar is spend, light bar is resulting MMP installs.</p>
-          <DualBarChart chartData={channelBreakdown} leftKey="cost" rightKey="installs" leftColor="bg-blue-600" rightColor="bg-emerald-400" />
+          <div className="space-y-5 mt-4">
+             {channelBreakdown.slice(0, 6).map((item, i) => {
+                const maxLeft = d3.max(channelBreakdown, d => d.cost) || 1;
+                const maxRight = d3.max(channelBreakdown, d => d.installs) || 1;
+                return (
+                  <div key={i} className="relative">
+                    <div className="flex justify-between text-[10px] font-black text-slate-400 uppercase mb-1.5">
+                      <span className="text-slate-700 truncate max-w-[120px]">{item.name}</span>
+                      <div className="flex gap-4">
+                        <span>{item.installs > 0 ? `$${item.cpi.toFixed(2)} CPI` : 'N/A'}</span>
+                        <span className="text-slate-700">${d3.format(",.0f")(item.cost)}</span>
+                      </div>
+                    </div>
+                    <div className="flex flex-col gap-1">
+                      <div className="h-1.5 bg-slate-50 rounded-full overflow-hidden w-full">
+                        <div className="h-full bg-blue-600 rounded-full transition-all duration-1000" style={{ width: `${(item.cost / maxLeft) * 100}%` }} />
+                      </div>
+                      <div className="h-1.5 bg-slate-50 rounded-full overflow-hidden w-full">
+                        <div className="h-full bg-emerald-400 rounded-full transition-all duration-1000 opacity-80" style={{ width: `${(item.installs / maxRight) * 100}%` }} />
+                      </div>
+                    </div>
+                  </div>
+                )
+             })}
+          </div>
         </div>
         <div className="bg-white p-10 rounded-[2.5rem] border border-slate-100 shadow-sm flex flex-col justify-between">
           <div>
@@ -494,14 +576,14 @@ export default function App() {
               <Target className="w-5 h-5 text-amber-500" />
               <h4 className="text-sm font-black text-slate-800 uppercase tracking-widest">Efficiency Grid</h4>
             </div>
-            <p className="text-xs text-slate-400 mb-8 font-medium">Platform efficiency ranked by CPI and CVR.</p>
+            <p className="text-xs text-slate-400 mb-8 font-medium">Platform efficiency ranked by Cost Per Purchase (CPP).</p>
           </div>
           <div className="space-y-3">
-            {channelBreakdown.slice(0, 6).map((c, i) => (
+            {[...channelBreakdown].sort((a,b)=>a.cpp-b.cpp).slice(0, 6).map((c, i) => (
               <div key={i} className="flex justify-between items-center p-4 bg-slate-50 rounded-2xl">
                 <span className="font-bold text-slate-700 text-sm truncate w-1/3">{c.name}</span>
                 <span className="text-amber-600 font-black text-sm w-1/3 text-center">${c.cpi.toFixed(2)} CPI</span>
-                <span className="text-indigo-600 font-black text-sm w-1/3 text-right">{c.cvr.toFixed(2)}% CVR</span>
+                <span className="text-red-600 font-black text-sm w-1/3 text-right">{c.cpp > 0 ? `$${c.cpp.toFixed(2)} CPP` : 'No Purchases'}</span>
               </div>
             ))}
           </div>
@@ -628,7 +710,7 @@ export default function App() {
       <footer className="max-w-7xl mx-auto px-6 pb-12 border-t border-slate-100 mt-12 pt-8 flex flex-col md:flex-row justify-between items-center gap-6 opacity-40">
         <div className="flex items-center gap-4">
           <Info className="w-4 h-4 text-slate-400" />
-          <span className="text-[10px] font-black uppercase tracking-widest text-slate-500">MMP Cross-Engine v3.1</span>
+          <span className="text-[10px] font-black uppercase tracking-widest text-slate-500">MMP Cross-Engine v4.0</span>
         </div>
         <div className="flex gap-4 items-center">
           <div className="w-2.5 h-2.5 rounded-full bg-emerald-500 animate-pulse" />
