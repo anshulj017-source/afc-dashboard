@@ -4,7 +4,7 @@ import * as d3 from 'd3';
 import { 
   TrendingUp, Globe, Layers, Filter, Activity, DollarSign, MousePointer2, 
   Eye, Zap, LayoutDashboard, Calendar, ChevronDown, Info, Check, 
-  BarChart3, Download, Target, ShoppingCart, CalendarDays, Users
+  BarChart3, Download, Target, ShoppingCart, CalendarDays, Users, TableProperties
 } from 'lucide-react';
 
 // === YOUR LIVE DATA LINKS ===
@@ -198,23 +198,24 @@ export default function App() {
 
 
   // --- DYNAMIC AI INSIGHTS ---
-  const getAIInsight = (context) => {
+  const getAIInsight = (context, activeData = null) => {
     if (filteredData.length === 0) return "No data available for the current selection.";
     
     if (context === 'summary') {
       const cvrToPurchase = metrics.installs > 0 ? ((metrics.purchases / metrics.installs) * 100).toFixed(1) : 0;
       return `Funnel Efficiency: ${cvrToPurchase}% of all installs convert into a purchase, yielding a global Cost Per Purchase (CPP) of $${metrics.cpp.toFixed(2)}. ${marketBreakdown[0]?.name || 'Top market'} remains your heaviest investment vehicle.`;
     }
-    if (context === 'weekly') {
-      if (weeklyTimeline.length > 1) {
-        const sortedByCPP = [...weeklyTimeline].filter(w => w.purchases > 0).sort((a,b)=>a.cpp-b.cpp);
-        const worstCPP = [...weeklyTimeline].filter(w => w.purchases > 0).sort((a,b)=>b.cpp-a.cpp)[0];
+    if (context === 'detailed') {
+      const dataToAnalyze = activeData || weeklyTimeline;
+      if (dataToAnalyze.length > 1) {
+        const sortedByCPP = [...dataToAnalyze].filter(w => w.purchases > 0).sort((a,b)=>a.cpp-b.cpp);
+        const worstCPP = [...dataToAnalyze].filter(w => w.purchases > 0).sort((a,b)=>b.cpp-a.cpp)[0];
         
         let string = `Week ${sortedByCPP[0]?.week} yielded the highest conversion efficiency ($${sortedByCPP[0]?.cpp.toFixed(2)} CPP). `;
         if (worstCPP && worstCPP.cpp > sortedByCPP[0].cpp * 1.5) {
            string += `Conversely, Week ${worstCPP.week} saw CPP spike to $${worstCPP.cpp.toFixed(2)}, indicating heavy ad waste or tracking drop-off.`;
         } else {
-           string += `Overall stability is strong across the selected timeframe.`;
+           string += `Overall stability is strong across the selected timeframe for this view.`;
         }
         return string;
       }
@@ -248,6 +249,26 @@ export default function App() {
         </div>
         <p className="text-xl font-medium leading-relaxed italic max-w-4xl">"{text}"</p>
       </div>
+    </div>
+  );
+
+  const MarketNavigator = () => (
+    <div className="flex gap-3 overflow-x-auto pb-4 mb-8 border-b border-slate-100 hide-scrollbar">
+      <button 
+        onClick={() => setSelectedMarketView('All')} 
+        className={`whitespace-nowrap px-6 py-2.5 rounded-xl text-sm font-black transition-all ${selectedMarketView === 'All' ? 'bg-indigo-600 text-white shadow-md' : 'bg-white text-slate-500 hover:bg-slate-50 border border-slate-200'}`}
+      >
+        Global Overview
+      </button>
+      {marketBreakdown.map(m => (
+        <button 
+          key={m.name} 
+          onClick={() => setSelectedMarketView(m.name)} 
+          className={`whitespace-nowrap px-6 py-2.5 rounded-xl text-sm font-black transition-all ${selectedMarketView === m.name ? 'bg-indigo-600 text-white shadow-md' : 'bg-white text-slate-500 hover:bg-slate-50 border border-slate-200'}`}
+        >
+          {m.name}
+        </button>
+      ))}
     </div>
   );
 
@@ -413,55 +434,6 @@ export default function App() {
     </div>
   );
 
-  const renderWeekly = () => (
-    <div className="animate-in fade-in duration-500">
-      <div className="mb-8">
-        <h2 className="text-3xl font-black text-slate-900 tracking-tight">Weekly Funnel Matrix</h2>
-        <p className="text-slate-500 font-medium italic">Combining upper-funnel ad data with bottom-funnel adjust conversions.</p>
-      </div>
-      <InsightBox text={getAIInsight('weekly')} />
-      <div className="bg-white rounded-[2rem] border border-slate-100 shadow-sm overflow-hidden mb-8">
-        <div className="overflow-x-auto">
-          <table className="w-full text-left min-w-[900px]">
-            <thead className="bg-slate-50/50 border-b border-slate-100">
-              <tr className="text-[10px] font-black uppercase tracking-widest text-slate-400">
-                <th className="px-8 py-5">Fiscal Window</th>
-                <th className="px-8 py-5 text-right text-indigo-500">Cost</th>
-                <th className="px-8 py-5 text-right">Clicks</th>
-                <th className="px-8 py-5 text-right text-emerald-500">Installs</th>
-                <th className="px-8 py-5 text-right text-fuchsia-500">Purchases</th>
-                <th className="px-8 py-5 text-right text-amber-500">CPI</th>
-                <th className="px-8 py-5 text-right text-red-500">CPP</th>
-              </tr>
-            </thead>
-            <tbody className="divide-y divide-slate-50">
-              {weeklyTimeline.map((w, i) => (
-                <tr key={i} className="hover:bg-slate-50/30 transition-colors group">
-                  <td className="px-8 py-5">
-                    <div className="flex items-center gap-3">
-                      <div className="w-2 h-2 rounded-full bg-indigo-500" />
-                      <span className="font-black text-slate-800">W{w.week} - {getMonthFromWeek(w.week, w.year)} {w.year}</span>
-                    </div>
-                  </td>
-                  <td className="px-8 py-5 text-right font-mono font-bold text-slate-600">${w.cost.toLocaleString(undefined, {minimumFractionDigits: 2})}</td>
-                  <td className="px-8 py-5 text-right font-mono text-slate-400">{w.clicks.toLocaleString()}</td>
-                  <td className="px-8 py-5 text-right font-mono font-bold text-emerald-600">{w.installs.toLocaleString()}</td>
-                  <td className="px-8 py-5 text-right font-mono font-bold text-fuchsia-600">{w.purchases.toLocaleString()}</td>
-                  <td className="px-8 py-5 text-right">
-                    <span className="bg-amber-50 text-amber-700 px-3 py-1 rounded-full text-[10px] font-black">${w.cpi.toFixed(2)}</span>
-                  </td>
-                  <td className="px-8 py-5 text-right">
-                    <span className="bg-red-50 text-red-700 px-3 py-1 rounded-full text-[10px] font-black">${w.cpp.toFixed(2)}</span>
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
-      </div>
-    </div>
-  );
-
   const renderMarket = () => {
     const sortedByInstalls = [...marketBreakdown].sort((a, b) => b.installs - a.installs);
     const sortedByPurchases = [...marketBreakdown].sort((a, b) => b.purchases - a.purchases);
@@ -476,7 +448,6 @@ export default function App() {
           
     const activeMarketSummary = selectedMarketView === 'All' ? null : marketBreakdown.find(m => m.name === selectedMarketView);
 
-    // Dynamic Market Insight Computations
     const calculateInsight = (dataArray, metricName, metricKey, isCurrency) => {
       if (!dataArray || dataArray.length < 2) return `Monitoring ${metricName} stabilization trends over time.`;
       const avg = d3.sum(dataArray, d => d[metricKey]) / dataArray.length;
@@ -498,24 +469,7 @@ export default function App() {
           <p className="text-slate-500 font-medium italic">Geographical footprint filtered for active ad spend &gt; $1.</p>
         </div>
 
-        {/* Interactive Market Navigator */}
-        <div className="flex gap-3 overflow-x-auto pb-4 mb-8 border-b border-slate-100 hide-scrollbar">
-          <button 
-            onClick={() => setSelectedMarketView('All')} 
-            className={`whitespace-nowrap px-6 py-2.5 rounded-xl text-sm font-black transition-all ${selectedMarketView === 'All' ? 'bg-indigo-600 text-white shadow-md' : 'bg-white text-slate-500 hover:bg-slate-50 border border-slate-200'}`}
-          >
-            Global Overview
-          </button>
-          {marketBreakdown.map(m => (
-            <button 
-              key={m.name} 
-              onClick={() => setSelectedMarketView(m.name)} 
-              className={`whitespace-nowrap px-6 py-2.5 rounded-xl text-sm font-black transition-all ${selectedMarketView === m.name ? 'bg-indigo-600 text-white shadow-md' : 'bg-white text-slate-500 hover:bg-slate-50 border border-slate-200'}`}
-            >
-              {m.name}
-            </button>
-          ))}
-        </div>
+        <MarketNavigator />
 
         {selectedMarketView === 'All' ? (
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
@@ -637,7 +591,7 @@ export default function App() {
                     <Target className="w-5 h-5 text-red-500" />
                     <h4 className="text-sm font-black text-slate-800 uppercase tracking-widest">Efficiency Grid</h4>
                  </div>
-                 <p className="text-xs text-slate-400 mb-8 font-medium">Which networks waste money? Compare the gap between raw clicks and actual user purchase cost.</p>
+                 <p className="text-xs text-slate-400 mb-8 font-medium">Which networks waste money? Compare raw clicks vs actual user purchase cost.</p>
               </div>
               <div className="space-y-3">
                  {[...channelBreakdown].filter(c => c.cost > 0).sort((a,b)=>a.cpp-b.cpp).slice(0, 6).map((c, i) => (
@@ -656,6 +610,68 @@ export default function App() {
         </div>
      </div>
   );
+
+  const renderDetailed = () => {
+    // Determine the subset of data to show based on market selection
+    const activeTableData = selectedMarketView === 'All' 
+      ? weeklyTimeline 
+      : d3.groups(filteredData.filter(d => d.market === selectedMarketView), d => d.timeKey)
+          .map(([key, values]) => ({ week: values[0].week, year: values[0].year, ...aggregate(values) }))
+          .sort((a,b) => a.week - b.week);
+
+    return (
+      <div className="animate-in fade-in duration-500">
+        <div className="mb-6">
+          <h2 className="text-3xl font-black text-slate-900 tracking-tight">Detailed Data Hub</h2>
+          <p className="text-slate-500 font-medium italic">Granular timeline combining upper-funnel ad data with bottom-funnel adjust conversions.</p>
+        </div>
+
+        <MarketNavigator />
+
+        <InsightBox text={getAIInsight('detailed', activeTableData)} />
+        
+        <div className="bg-white rounded-[2rem] border border-slate-100 shadow-sm overflow-hidden mb-8">
+          <div className="overflow-x-auto">
+            <table className="w-full text-left min-w-[900px]">
+              <thead className="bg-slate-50/50 border-b border-slate-100">
+                <tr className="text-[10px] font-black uppercase tracking-widest text-slate-400">
+                  <th className="px-8 py-5">Fiscal Window</th>
+                  <th className="px-8 py-5 text-right text-indigo-500">Cost</th>
+                  <th className="px-8 py-5 text-right">Clicks</th>
+                  <th className="px-8 py-5 text-right text-emerald-500">Installs</th>
+                  <th className="px-8 py-5 text-right text-fuchsia-500">Purchases</th>
+                  <th className="px-8 py-5 text-right text-amber-500">CPI</th>
+                  <th className="px-8 py-5 text-right text-red-500">CPP</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-slate-50">
+                {activeTableData.map((w, i) => (
+                  <tr key={i} className="hover:bg-slate-50/30 transition-colors group">
+                    <td className="px-8 py-5">
+                      <div className="flex items-center gap-3">
+                        <div className="w-2 h-2 rounded-full bg-indigo-500" />
+                        <span className="font-black text-slate-800">W{w.week} - {getMonthFromWeek(w.week, w.year)} {w.year}</span>
+                      </div>
+                    </td>
+                    <td className="px-8 py-5 text-right font-mono font-bold text-slate-600">${w.cost.toLocaleString(undefined, {minimumFractionDigits: 2})}</td>
+                    <td className="px-8 py-5 text-right font-mono text-slate-400">{w.clicks.toLocaleString()}</td>
+                    <td className="px-8 py-5 text-right font-mono font-bold text-emerald-600">{w.installs.toLocaleString()}</td>
+                    <td className="px-8 py-5 text-right font-mono font-bold text-fuchsia-600">{w.purchases.toLocaleString()}</td>
+                    <td className="px-8 py-5 text-right">
+                      <span className="bg-amber-50 text-amber-700 px-3 py-1 rounded-full text-[10px] font-black">${w.cpi.toFixed(2)}</span>
+                    </td>
+                    <td className="px-8 py-5 text-right">
+                      <span className="bg-red-50 text-red-700 px-3 py-1 rounded-full text-[10px] font-black">${w.cpp.toFixed(2)}</span>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        </div>
+      </div>
+    );
+  };
 
   if (loading) {
     return (
@@ -696,9 +712,9 @@ export default function App() {
           <nav className="flex items-center gap-2 bg-slate-100/60 p-1.5 rounded-2xl border border-slate-200/40 overflow-x-auto hide-scrollbar">
             {[
               { id: 'summary', label: 'Summary', icon: LayoutDashboard },
-              { id: 'weekly', label: 'Weekly', icon: Calendar },
               { id: 'market', label: 'Markets', icon: Globe },
               { id: 'channel', label: 'Channels', icon: Layers },
+              { id: 'detailed', label: 'Detailed Data', icon: TableProperties },
             ].map(tab => (
               <button
                 key={tab.id}
@@ -800,15 +816,15 @@ export default function App() {
 
       <main className="max-w-7xl mx-auto px-6 py-12">
         {activeTab === 'summary' && renderSummary()}
-        {activeTab === 'weekly' && renderWeekly()}
         {activeTab === 'market' && renderMarket()}
         {activeTab === 'channel' && renderChannel()}
+        {activeTab === 'detailed' && renderDetailed()}
       </main>
 
       <footer className="max-w-7xl mx-auto px-6 pb-12 border-t border-slate-100 mt-12 pt-8 flex flex-col md:flex-row justify-between items-center gap-6 opacity-40">
         <div className="flex items-center gap-4">
           <Info className="w-4 h-4 text-slate-400" />
-          <span className="text-[10px] font-black uppercase tracking-widest text-slate-500">MMP Cross-Engine v4.3 | Interactive Parity Active</span>
+          <span className="text-[10px] font-black uppercase tracking-widest text-slate-500">MMP Cross-Engine v4.4 | Tooltips Active</span>
         </div>
         <div className="flex gap-4 items-center">
           <div className="w-2.5 h-2.5 rounded-full bg-emerald-500 animate-pulse" />
