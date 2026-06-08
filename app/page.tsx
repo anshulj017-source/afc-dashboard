@@ -1,9 +1,6 @@
 "use client";
 import React, { useState, useMemo, useEffect } from 'react';
 import * as d3 from 'd3';
-// ... the rest of the code ...
-import React, { useState, useMemo, useEffect } from 'react';
-import * as d3 from 'd3';
 import { 
   TrendingUp, 
   Globe, 
@@ -52,7 +49,6 @@ export default function App() {
   const { processedData, allWeeks, allYears } = useMemo(() => {
     if (!data || data.length === 0) return { processedData: [], allWeeks: [], allYears: [] };
     
-    // d3.csv automatically maps headers to keys
     const rows = data.map(row => {
       const cost = parseFloat(row['Cost']) || 0;
       const imps = parseFloat(row['Impression'] || row['Impressions']) || 0;
