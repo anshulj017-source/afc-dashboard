@@ -57,7 +57,7 @@ const normalizeMarket = (marketName) => {
 const parseMetric = (val) => {
   if (!val) return 0;
   if (typeof val === 'number') return val;
-  return parseFloat(val.toString().replace(/,/g, '')) || 0;
+  return parseFloat(val.toString().replace(/,/g, '').trim()) || 0;
 };
 
 export default function App() {
@@ -86,7 +86,8 @@ export default function App() {
           purchases: 0,
           week: parseInt(row['Week'] || row['week'] || row['Wk']) || 0,
           year: parseInt(row['Year'] || row['year'] || row['Yr']) || 0,
-          market: normalizeMarket(row['Channel Country']),
+          // Explicitly target Column C / 'Country' for Ad Data
+          market: normalizeMarket(row['Country']),
           channel: (!row['Channel'] || row['Channel'] === 'BLANK') ? 'Other' : row['Channel'],
           source: 'AdNetwork'
         }));
@@ -95,10 +96,12 @@ export default function App() {
         const s2 = mmpData.map(row => ({
           cost: 0, impressions: 0, clicks: 0,
           installs: parseMetric(row['Installs'] || row['Install'] || row['installs'] || row['Network Installs'] || row['Total Installs']),
-          purchases: parseMetric(row['Purchases'] || row['Purchase'] || row['Revenue Events'] || row['Events'] || row['Total Purchases']),
+          // Aggressive catch-all for Purchases
+          purchases: parseMetric(row['Purchases'] || row['Purchase'] || row['purchases'] || row['Total Purchases'] || row['Revenue Events'] || row['Events']),
           week: parseInt(row['Week'] || row['week'] || row['Wk']) || 0,
           year: parseInt(row['Year'] || row['year'] || row['Yr']) || 0,
-          market: normalizeMarket(row['Country'] || row['Geo']),
+          // Explicitly target Column B / 'Country' for MMP Data
+          market: normalizeMarket(row['Country']),
           channel: (!row['Network'] || row['Network'] === 'BLANK' || row['Network'] === 'Organic' || row['Source'] === 'BLANK') ? 'Other' : (row['Network'] || row['Source']),
           source: 'Adjust'
         }));
@@ -172,7 +175,8 @@ export default function App() {
   const marketBreakdown = useMemo(() => {
     return d3.groups(filteredData, d => d.market)
       .map(([name, values]) => ({ name, ...aggregate(values) }))
-      .filter(m => m.cost > 0 || m.installs > 0 || m.purchases > 0) // Ensures Bahrain and others show up
+      // STRICT FILTER: Only show markets where Ad Spend > $1
+      .filter(m => m.cost >= 1) 
       .sort((a, b) => b.cost - a.cost);
   }, [filteredData]);
 
@@ -252,7 +256,6 @@ export default function App() {
     );
   };
 
-  // Reusable component for market dashboard cards
   const MarketBarChartCard = ({ title, icon: Icon, data, dataKey, color, isCurrency, insight }) => (
     <div className="bg-white p-6 rounded-[2rem] border border-slate-100 shadow-sm flex flex-col h-full">
         <div className="flex items-center gap-2 mb-6">
@@ -268,7 +271,6 @@ export default function App() {
     </div>
   );
 
-  // Generic Dual Axis Line Chart for dynamic weekly trend plots
   const DualAxisLineChart = ({ chartData, leftKey, rightKey, leftColorText, rightColorText, leftColorHex, rightColorHex, isLeftCurrency, isRightCurrency, width = 800, height = 300 }) => {
     if (!chartData || chartData.length < 2) return (
       <div className="h-full w-full min-h-[250px] flex items-center justify-center bg-slate-50/50 rounded-3xl border border-dashed border-slate-200 text-[10px] font-black text-slate-300 uppercase">Select multiple weeks</div>
@@ -441,7 +443,7 @@ export default function App() {
       <div className="animate-in fade-in duration-500">
         <div className="mb-6">
           <h2 className="text-3xl font-black text-slate-900 tracking-tight">Market Intelligence</h2>
-          <p className="text-slate-500 font-medium italic">Geographical footprint matched with true application acquisition.</p>
+          <p className="text-slate-500 font-medium italic">Geographical footprint matched with true application acquisition. Filtered for active spend &gt; $1.</p>
         </div>
 
         {/* Interactive Market Navigator */}
@@ -710,7 +712,7 @@ export default function App() {
       <footer className="max-w-7xl mx-auto px-6 pb-12 border-t border-slate-100 mt-12 pt-8 flex flex-col md:flex-row justify-between items-center gap-6 opacity-40">
         <div className="flex items-center gap-4">
           <Info className="w-4 h-4 text-slate-400" />
-          <span className="text-[10px] font-black uppercase tracking-widest text-slate-500">MMP Cross-Engine v4.0</span>
+          <span className="text-[10px] font-black uppercase tracking-widest text-slate-500">MMP Cross-Engine v4.1</span>
         </div>
         <div className="flex gap-4 items-center">
           <div className="w-2.5 h-2.5 rounded-full bg-emerald-500 animate-pulse" />
