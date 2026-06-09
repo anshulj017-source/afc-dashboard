@@ -72,6 +72,7 @@ export default function App() {
 
   const [activeTab, setActiveTab] = useState('summary');
   const [selectedMarketView, setSelectedMarketView] = useState('All');
+  const [selectedChannelView, setSelectedChannelView] = useState('All');
   
   // Advanced Filter States
   const [isFilterOpen, setIsFilterOpen] = useState(false);
@@ -90,7 +91,7 @@ export default function App() {
           const week = parseInt(row['Week'] || row['week']) || 0;
           const year = parseInt(row['Year'] || row['year']) || 0;
           
-          // Pull Channel strictly from Column H (index 7) or fallback
+          // Pull Channel explicitly from Column H (index 7)
           const rawS1Channel = Object.values(row)[7] || row['Channel'];
 
           return {
@@ -98,6 +99,7 @@ export default function App() {
             impressions: parseMetric(row['Impression'] || row['Impressions']),
             clicks: parseMetric(row['Clicks'] || row['clicks']),
             installs: 0, 
+            logins: 0,
             purchases: 0,
             week, year,
             date: getDateFromWeek(week, year),
@@ -116,13 +118,15 @@ export default function App() {
           const trafficType = rawClass.toString().toLowerCase().includes('organic') ? 'Organic' : 'Paid';
 
           const purchases = parseMetric(Object.values(row)[7] || row['Purchases'] || row['Total Purchases']);
+          const logins = parseMetric(Object.values(row)[8] || row['login_success'] || row['Logins']);
           
-          // Pull Channel strictly from Column D (index 3) or fallback
+          // Pull Channel explicitly from Column D (index 3)
           const rawS2Channel = Object.values(row)[3] || row['Network'] || row['Source'];
 
           return {
             cost: 0, impressions: 0, clicks: 0,
             installs: parseMetric(row['Installs'] || row['Install'] || row['Total Installs'] || row['Network Installs']),
+            logins,
             purchases,
             week, year,
             date: getDateFromWeek(week, year),
@@ -180,16 +184,19 @@ export default function App() {
     const impressions = d3.sum(rows, d => d.impressions);
     const clicks = d3.sum(rows, d => d.clicks);
     const installs = d3.sum(rows, d => d.installs);
+    const logins = d3.sum(rows, d => d.logins);
     const purchases = d3.sum(rows, d => d.purchases);
     
     return {
-      cost, impressions, clicks, installs, purchases,
+      cost, impressions, clicks, installs, logins, purchases,
       ctr: impressions > 0 ? (clicks / impressions) * 100 : 0,
       cpc: clicks > 0 ? cost / clicks : 0,
       cpm: impressions > 0 ? (cost / impressions) * 1000 : 0,
       cpi: installs > 0 ? cost / installs : 0,
       cpp: purchases > 0 ? cost / purchases : 0,
-      cvr: clicks > 0 ? (installs / clicks) * 100 : 0
+      cvr: clicks > 0 ? (installs / clicks) * 100 : 0,
+      ltr: installs > 0 ? (logins / installs) * 100 : 0,
+      ltp: logins > 0 ? (purchases / logins) * 100 : 0
     };
   };
 
@@ -216,6 +223,7 @@ export default function App() {
   const channelBreakdown = useMemo(() => {
     return d3.groups(filteredData, d => d.channel)
       .map(([name, values]) => ({ name, ...aggregate(values) }))
+      .filter(m => m.cost >= 1 || m.purchases >= 1)
       .sort((a, b) => b.cost - a.cost);
   }, [filteredData]);
 
@@ -248,11 +256,8 @@ export default function App() {
   };
 
   // --- COMPONENTS ---
-  const MetricCard = ({ label, value, icon: Icon, color }) => (
+  const MetricCard = ({ label, value }) => (
     <div className="bg-white p-5 rounded-[1.5rem] border border-slate-100 shadow-sm transition-all hover:shadow-lg hover:-translate-y-1 group">
-      <div className={`w-8 h-8 rounded-xl ${color} bg-opacity-10 flex items-center justify-center mb-3 group-hover:scale-110 transition-transform`}>
-        <Icon className={`w-4 h-4 ${color.replace('bg-', 'text-')}`} />
-      </div>
       <p className="text-[9px] font-black text-slate-400 uppercase tracking-widest mb-1">{label}</p>
       <h3 className="text-lg font-black text-slate-900 truncate" title={value}>{value}</h3>
     </div>
@@ -290,6 +295,26 @@ export default function App() {
           className={`whitespace-nowrap px-6 py-2.5 rounded-xl text-sm font-black transition-all ${selectedMarketView === m.name ? 'bg-indigo-600 text-white shadow-md' : 'bg-white text-slate-500 hover:bg-slate-50 border border-slate-200'}`}
         >
           {m.name}
+        </button>
+      ))}
+    </div>
+  );
+
+  const ChannelNavigator = () => (
+    <div className="flex gap-3 overflow-x-auto pb-4 mb-8 border-b border-slate-100 hide-scrollbar">
+      <button 
+        onClick={() => setSelectedChannelView('All')} 
+        className={`whitespace-nowrap px-6 py-2.5 rounded-xl text-sm font-black transition-all ${selectedChannelView === 'All' ? 'bg-indigo-600 text-white shadow-md' : 'bg-white text-slate-500 hover:bg-slate-50 border border-slate-200'}`}
+      >
+        Global Overview
+      </button>
+      {channelBreakdown.map(c => (
+        <button 
+          key={c.name} 
+          onClick={() => setSelectedChannelView(c.name)} 
+          className={`whitespace-nowrap px-6 py-2.5 rounded-xl text-sm font-black transition-all ${selectedChannelView === c.name ? 'bg-indigo-600 text-white shadow-md' : 'bg-white text-slate-500 hover:bg-slate-50 border border-slate-200'}`}
+        >
+          {c.name}
         </button>
       ))}
     </div>
@@ -414,14 +439,14 @@ export default function App() {
   const renderSummary = () => (
     <div className="animate-in fade-in duration-700">
       <div className="grid grid-cols-2 lg:grid-cols-4 xl:grid-cols-8 gap-4 mb-10">
-        <MetricCard label="Ad Spend" value={`$${d3.format(",.0f")(metrics.cost)}`} icon={DollarSign} color="bg-blue-600" />
-        <MetricCard label="Impressions" value={(metrics.impressions / 1000000).toFixed(2) + 'M'} icon={Eye} color="bg-indigo-600" />
-        <MetricCard label="Clicks" value={d3.format(",.0f")(metrics.clicks)} icon={MousePointer2} color="bg-purple-600" />
-        <MetricCard label="Installs" value={d3.format(",.0f")(metrics.installs)} icon={Download} color="bg-emerald-600" />
-        <MetricCard label="Purchases" value={d3.format(",.0f")(metrics.purchases)} icon={ShoppingCart} color="bg-fuchsia-600" />
-        <MetricCard label="CVR" value={`${metrics.cvr.toFixed(2)}%`} icon={TrendingUp} color="bg-rose-500" />
-        <MetricCard label="CPI" value={`$${metrics.cpi.toFixed(2)}`} icon={Activity} color="bg-amber-500" />
-        <MetricCard label="CPP" value={`$${metrics.cpp.toFixed(2)}`} icon={Target} color="bg-red-500" />
+        <MetricCard label="Ad Spend" value={`$${d3.format(",.0f")(metrics.cost)}`} />
+        <MetricCard label="Impressions" value={(metrics.impressions / 1000000).toFixed(2) + 'M'} />
+        <MetricCard label="Clicks" value={d3.format(",.0f")(metrics.clicks)} />
+        <MetricCard label="Installs" value={d3.format(",.0f")(metrics.installs)} />
+        <MetricCard label="Logins" value={d3.format(",.0f")(metrics.logins)} />
+        <MetricCard label="Purchases" value={d3.format(",.0f")(metrics.purchases)} />
+        <MetricCard label="CPI" value={`$${metrics.cpi.toFixed(2)}`} />
+        <MetricCard label="CPP" value={`$${metrics.cpp.toFixed(2)}`} />
       </div>
 
       <InsightBox text={getAIInsight('summary')} />
@@ -508,11 +533,11 @@ export default function App() {
         ) : (
           <div className="animate-in fade-in zoom-in-95 duration-500">
             <div className="grid grid-cols-2 lg:grid-cols-5 gap-4 mb-8">
-               <MetricCard label="Ad Spend" value={`$${d3.format(",.0f")(activeMarketSummary?.cost || 0)}`} icon={DollarSign} color="bg-blue-600" />
-               <MetricCard label="Installs" value={d3.format(",.0f")(activeMarketSummary?.installs || 0)} icon={Download} color="bg-emerald-600" />
-               <MetricCard label="Purchases" value={d3.format(",.0f")(activeMarketSummary?.purchases || 0)} icon={ShoppingCart} color="bg-fuchsia-600" />
-               <MetricCard label="CPI" value={`$${(activeMarketSummary?.cpi || 0).toFixed(2)}`} icon={Activity} color="bg-amber-500" />
-               <MetricCard label="CPP" value={`$${(activeMarketSummary?.cpp || 0).toFixed(2)}`} icon={Target} color="bg-red-500" />
+               <MetricCard label="Ad Spend" value={`$${d3.format(",.0f")(activeMarketSummary?.cost || 0)}`} />
+               <MetricCard label="Installs" value={d3.format(",.0f")(activeMarketSummary?.installs || 0)} />
+               <MetricCard label="Purchases" value={d3.format(",.0f")(activeMarketSummary?.purchases || 0)} />
+               <MetricCard label="CPI" value={`$${(activeMarketSummary?.cpi || 0).toFixed(2)}`} />
+               <MetricCard label="CPP" value={`$${(activeMarketSummary?.cpp || 0).toFixed(2)}`} />
             </div>
 
             <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
@@ -562,80 +587,112 @@ export default function App() {
     );
   };
 
-  const renderChannel = () => (
-     <div className="animate-in fade-in duration-500">
-        <div className="mb-8">
-           <h2 className="text-3xl font-black text-slate-900 tracking-tight">Channel Attribution</h2>
-           <p className="text-slate-500 font-medium italic">Marketing platform breakdown mapped directly to purchase intent.</p>
+  const renderChannel = () => {
+    const sortedByInstalls = [...channelBreakdown].sort((a, b) => b.installs - a.installs);
+    const sortedByPurchases = [...channelBreakdown].sort((a, b) => b.purchases - a.purchases);
+    const validCPI = [...channelBreakdown].filter(c => c.installs > 0).sort((a, b) => a.cpi - b.cpi);
+    const validCPP = [...channelBreakdown].filter(c => c.purchases > 0).sort((a, b) => a.cpp - b.cpp);
+
+    const activeChannelData = selectedChannelView === 'All' 
+      ? null 
+      : d3.groups(filteredData.filter(d => d.channel === selectedChannelView), d => d.timeKey)
+          .map(([key, values]) => ({ week: values[0].week, year: values[0].year, ...aggregate(values) }))
+          .sort((a,b) => a.week - b.week);
+          
+    const activeChannelSummary = selectedChannelView === 'All' ? null : channelBreakdown.find(c => c.name === selectedChannelView);
+
+    const calculateInsight = (dataArray, metricName, metricKey, isCurrency) => {
+      if (!dataArray || dataArray.length < 2) return `Monitoring ${metricName} stabilization trends over time.`;
+      const avg = d3.sum(dataArray, d => d[metricKey]) / dataArray.length;
+      const recent = dataArray[dataArray.length - 1];
+      const previous = dataArray[dataArray.length - 2];
+      const diff = ((recent[metricKey] - previous[metricKey]) / (previous[metricKey] || 1)) * 100;
+      
+      const format = (val) => isCurrency ? `$${val.toFixed(2)}` : d3.format(",.0f")(val);
+      
+      if (Math.abs(diff) < 5) return `Recent ${metricName} (${format(recent[metricKey])}) aligns with historical averages. Consistency achieved.`;
+      const direction = diff > 0 ? 'grew' : 'dropped';
+      return `Noticeable shift: ${metricName} ${direction} by ${Math.abs(diff).toFixed(1)}% in the most recent tracked period compared to the prior week.`;
+    };
+
+    return (
+      <div className="animate-in fade-in duration-500">
+        <div className="mb-6">
+          <h2 className="text-3xl font-black text-slate-900 tracking-tight">Channel Attribution</h2>
+          <p className="text-slate-500 font-medium italic">Marketing platform breakdown mapped directly to purchase intent.</p>
         </div>
-        <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
-           <div className="bg-white p-10 rounded-[2.5rem] border border-slate-100 shadow-sm flex flex-col">
-              <div className="flex items-center gap-2 mb-2">
-                 <BarChart3 className="w-5 h-5 text-indigo-500" />
-                 <h4 className="text-sm font-black text-slate-800 uppercase tracking-widest">Spend vs Purchases</h4>
-              </div>
-              <p className="text-xs text-slate-400 mb-8 font-medium">Dark bar is spend, light bar is resulting MMP purchases.</p>
-              <div className="space-y-5 mt-4">
-                 {channelBreakdown.slice(0, 6).map((item, i) => {
-                    const maxLeft = d3.max(channelBreakdown, d => d.cost) || 1;
-                    const maxRight = d3.max(channelBreakdown, d => d.purchases) || 1;
-                    return (
-                       <div key={i} className="relative group">
-                          <div className="flex justify-between text-[10px] font-black text-slate-400 uppercase mb-1.5">
-                             <span className="text-slate-700 truncate max-w-[120px]">{item.name}</span>
-                             <div className="flex gap-4">
-                                <span>{item.purchases > 0 ? `$${item.cpp.toFixed(2)} CPP` : 'N/A'}</span>
-                                <span className="text-slate-700">${d3.format(",.0f")(item.cost)}</span>
-                             </div>
-                          </div>
-                          <div className="flex flex-col gap-1 relative">
-                             <div className="h-1.5 bg-slate-50 rounded-full overflow-hidden w-full">
-                                <div className="h-full bg-blue-600 rounded-full transition-all duration-1000 group-hover:opacity-70" style={{ width: `${(item.cost / maxLeft) * 100}%` }} />
-                             </div>
-                             <div className="h-1.5 bg-slate-50 rounded-full overflow-hidden w-full">
-                                <div className="h-full bg-fuchsia-400 rounded-full transition-all duration-1000 opacity-80 group-hover:opacity-100" style={{ width: `${(item.purchases / maxRight) * 100}%` }} />
-                             </div>
-                          </div>
-                          
-                          {/* Channel Custom Tooltip */}
-                          <div className="absolute -top-14 right-0 bg-slate-800 text-white text-[10px] py-2 px-3 rounded-lg shadow-xl opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none z-50 whitespace-nowrap border border-slate-700 flex flex-col gap-0.5">
-                             <span className="font-bold border-b border-slate-600 pb-0.5 mb-0.5">{item.name}</span>
-                             <div className="flex justify-between gap-4"><span className="text-slate-400">Spend:</span> <span>${d3.format(",.0f")(item.cost)}</span></div>
-                             <div className="flex justify-between gap-4"><span className="text-slate-400">Purchases:</span> <span>{d3.format(",.0f")(item.purchases)}</span></div>
-                          </div>
-                       </div>
-                    )
-                 })}
-              </div>
-           </div>
-           <div className="bg-white p-10 rounded-[2.5rem] border border-slate-100 shadow-sm flex flex-col justify-between">
-              <div>
-                 <div className="flex items-center gap-2 mb-2">
-                    <Target className="w-5 h-5 text-red-500" />
-                    <h4 className="text-sm font-black text-slate-800 uppercase tracking-widest">Efficiency Grid</h4>
+
+        <ChannelNavigator />
+
+        {selectedChannelView === 'All' ? (
+          <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
+            <MarketBarChartCard title="Total Installs" icon={Download} data={sortedByInstalls} dataKey="installs" color="bg-emerald-500" 
+              insight={`${sortedByInstalls[0]?.name || 'Top channel'} leads acquisition volume, accounting for ${(sortedByInstalls[0]?.installs / (metrics.installs || 1) * 100).toFixed(1)}% of total installs.`} />
+            <MarketBarChartCard title="Total Purchases" icon={ShoppingCart} data={sortedByPurchases} dataKey="purchases" color="bg-fuchsia-500" 
+              insight={`${sortedByPurchases[0]?.name || 'Top channel'} drives the highest bottom-funnel intent, producing ${sortedByPurchases[0]?.purchases.toLocaleString()} conversions.`} />
+            <MarketBarChartCard title="Cost Per Install (CPI)" icon={Activity} data={validCPI.slice(0, 8)} dataKey="cpi" color="bg-amber-500" isCurrency={true} 
+              insight={`${validCPI[0]?.name || 'Top channel'} offers the most cost-effective top-funnel acquisition at $${validCPI[0]?.cpi.toFixed(2)} CPI.`} />
+            <MarketBarChartCard title="Cost Per Purchase (CPP)" icon={Target} data={validCPP.slice(0, 8)} dataKey="cpp" color="bg-red-500" isCurrency={true} 
+              insight={`${validCPP[0]?.name || 'Top channel'} delivers the best conversion ROI, acquiring paying users for just $${validCPP[0]?.cpp.toFixed(2)}.`} />
+          </div>
+        ) : (
+          <div className="animate-in fade-in zoom-in-95 duration-500">
+            <div className="grid grid-cols-2 lg:grid-cols-5 gap-4 mb-8">
+               <MetricCard label="Ad Spend" value={`$${d3.format(",.0f")(activeChannelSummary?.cost || 0)}`} />
+               <MetricCard label="Installs" value={d3.format(",.0f")(activeChannelSummary?.installs || 0)} />
+               <MetricCard label="Purchases" value={d3.format(",.0f")(activeChannelSummary?.purchases || 0)} />
+               <MetricCard label="CPI" value={`$${(activeChannelSummary?.cpi || 0).toFixed(2)}`} />
+               <MetricCard label="CPP" value={`$${(activeChannelSummary?.cpp || 0).toFixed(2)}`} />
+            </div>
+
+            <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
+               <div className="bg-white p-8 rounded-[2.5rem] border border-slate-100 shadow-sm flex flex-col">
+                 <div className="flex justify-between items-center mb-8">
+                   <h4 className="text-sm font-black text-slate-800 uppercase tracking-widest flex items-center gap-2">
+                     <Layers className="w-4 h-4 text-emerald-500" /> Volume: Installs & Purchases
+                   </h4>
+                   <div className="flex gap-4 text-[10px] font-black uppercase text-slate-400">
+                     <span className="flex items-center gap-1"><div className="w-2 h-2 rounded-full bg-emerald-500"/> Installs</span>
+                     <span className="flex items-center gap-1"><div className="w-2 h-2 rounded-full bg-fuchsia-500"/> Purchases</span>
+                   </div>
                  </div>
-                 <p className="text-xs text-slate-400 mb-8 font-medium">Which networks waste money? Compare raw clicks vs actual user purchase cost.</p>
-              </div>
-              <div className="space-y-3">
-                 {[...channelBreakdown].filter(c => c.cost > 0).sort((a,b)=>a.cpp-b.cpp).slice(0, 6).map((c, i) => (
-                    <div key={i} className="flex justify-between items-center p-4 bg-slate-50 rounded-2xl hover:bg-slate-100 transition-colors relative group">
-                       <span className="font-bold text-slate-700 text-sm truncate w-1/3">{c.name}</span>
-                       <span className="text-amber-600 font-black text-sm w-1/3 text-center">${c.cpi.toFixed(2)} CPI</span>
-                       <span className="text-red-600 font-black text-sm w-1/3 text-right">{c.cpp > 0 ? `$${c.cpp.toFixed(2)} CPP` : 'No Purchases'}</span>
-                       
-                       <div className="absolute -top-8 right-0 bg-slate-800 text-white text-[10px] py-1.5 px-3 rounded-lg shadow-xl opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none z-50 whitespace-nowrap border border-slate-700">
-                          {c.purchases > 0 ? `Paid $${d3.format(",.0f")(c.cost)} for ${c.purchases} purchases.` : `Wasted $${d3.format(",.0f")(c.cost)} with 0 conversions.`}
-                       </div>
-                    </div>
-                 ))}
-              </div>
-           </div>
-        </div>
-     </div>
-  );
+                 <div className="flex-1 min-h-[300px]">
+                    <DualAxisLineChart 
+                       chartData={activeChannelData} leftKey="installs" rightKey="purchases" 
+                       leftColorText="fill-emerald-300" rightColorText="fill-fuchsia-300"
+                       leftColorHex="#10b981" rightColorHex="#d946ef" isLeftCurrency={false} isRightCurrency={false} 
+                       insight={calculateInsight(activeChannelData, 'Purchases', 'purchases', false)}
+                    />
+                 </div>
+               </div>
+
+               <div className="bg-white p-8 rounded-[2.5rem] border border-slate-100 shadow-sm flex flex-col">
+                 <div className="flex justify-between items-center mb-8">
+                   <h4 className="text-sm font-black text-slate-800 uppercase tracking-widest flex items-center gap-2">
+                     <Activity className="w-4 h-4 text-red-500" /> Efficiency: CPI & CPP
+                   </h4>
+                   <div className="flex gap-4 text-[10px] font-black uppercase text-slate-400">
+                     <span className="flex items-center gap-1"><div className="w-2 h-2 rounded-full bg-amber-500"/> CPI</span>
+                     <span className="flex items-center gap-1"><div className="w-2 h-2 rounded-full bg-red-500"/> CPP</span>
+                   </div>
+                 </div>
+                 <div className="flex-1 min-h-[300px]">
+                    <DualAxisLineChart 
+                       chartData={activeChannelData} leftKey="cpi" rightKey="cpp" 
+                       leftColorText="fill-amber-300" rightColorText="fill-red-300"
+                       leftColorHex="#f59e0b" rightColorHex="#ef4444" isLeftCurrency={true} isRightCurrency={true} 
+                       insight={calculateInsight(activeChannelData, 'Cost Per Purchase', 'cpp', true)}
+                    />
+                 </div>
+               </div>
+            </div>
+          </div>
+        )}
+      </div>
+    );
+  };
 
   const renderDetailed = () => {
-    // Determine the subset of data to show based on market selection
     const activeTableData = selectedMarketView === 'All' 
       ? weeklyTimeline 
       : d3.groups(filteredData.filter(d => d.market === selectedMarketView), d => d.timeKey)
@@ -658,32 +715,38 @@ export default function App() {
             <table className="w-full text-left min-w-[900px]">
               <thead className="bg-slate-50/50 border-b border-slate-100">
                 <tr className="text-[10px] font-black uppercase tracking-widest text-slate-400">
-                  <th className="px-8 py-5">Fiscal Window</th>
-                  <th className="px-8 py-5 text-right text-indigo-500">Cost</th>
-                  <th className="px-8 py-5 text-right">Clicks</th>
-                  <th className="px-8 py-5 text-right text-emerald-500">Installs</th>
-                  <th className="px-8 py-5 text-right text-fuchsia-500">Purchases</th>
-                  <th className="px-8 py-5 text-right text-amber-500">CPI</th>
-                  <th className="px-8 py-5 text-right text-red-500">CPP</th>
+                  <th className="px-6 py-5">Fiscal Window</th>
+                  <th className="px-6 py-5 text-right text-indigo-500">Cost</th>
+                  <th className="px-6 py-5 text-right">Clicks</th>
+                  <th className="px-6 py-5 text-right text-emerald-500">Installs</th>
+                  <th className="px-6 py-5 text-right text-cyan-500">Logins</th>
+                  <th className="px-6 py-5 text-right text-slate-500">Ins-Log %</th>
+                  <th className="px-6 py-5 text-right text-fuchsia-500">Purchases</th>
+                  <th className="px-6 py-5 text-right text-slate-500">Log-Pur %</th>
+                  <th className="px-6 py-5 text-right text-amber-500">CPI</th>
+                  <th className="px-6 py-5 text-right text-red-500">CPP</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-slate-50">
                 {activeTableData.map((w, i) => (
                   <tr key={i} className="hover:bg-slate-50/30 transition-colors group">
-                    <td className="px-8 py-5">
+                    <td className="px-6 py-5">
                       <div className="flex items-center gap-3">
                         <div className="w-2 h-2 rounded-full bg-indigo-500" />
                         <span className="font-black text-slate-800">W{w.week} - {getMonthFromWeek(w.week, w.year)} {w.year}</span>
                       </div>
                     </td>
-                    <td className="px-8 py-5 text-right font-mono font-bold text-slate-600">${w.cost.toLocaleString(undefined, {minimumFractionDigits: 2})}</td>
-                    <td className="px-8 py-5 text-right font-mono text-slate-400">{w.clicks.toLocaleString()}</td>
-                    <td className="px-8 py-5 text-right font-mono font-bold text-emerald-600">{w.installs.toLocaleString()}</td>
-                    <td className="px-8 py-5 text-right font-mono font-bold text-fuchsia-600">{w.purchases.toLocaleString()}</td>
-                    <td className="px-8 py-5 text-right">
+                    <td className="px-6 py-5 text-right font-mono font-bold text-slate-600">${w.cost.toLocaleString(undefined, {minimumFractionDigits: 2})}</td>
+                    <td className="px-6 py-5 text-right font-mono text-slate-400">{w.clicks.toLocaleString()}</td>
+                    <td className="px-6 py-5 text-right font-mono font-bold text-emerald-600">{w.installs.toLocaleString()}</td>
+                    <td className="px-6 py-5 text-right font-mono font-bold text-cyan-600">{w.logins.toLocaleString()}</td>
+                    <td className="px-6 py-5 text-right font-mono font-bold text-slate-500">{w.ltr.toFixed(1)}%</td>
+                    <td className="px-6 py-5 text-right font-mono font-bold text-fuchsia-600">{w.purchases.toLocaleString()}</td>
+                    <td className="px-6 py-5 text-right font-mono font-bold text-slate-500">{w.ltp.toFixed(1)}%</td>
+                    <td className="px-6 py-5 text-right">
                       <span className="bg-amber-50 text-amber-700 px-3 py-1 rounded-full text-[10px] font-black">${w.cpi.toFixed(2)}</span>
                     </td>
-                    <td className="px-8 py-5 text-right">
+                    <td className="px-6 py-5 text-right">
                       <span className="bg-red-50 text-red-700 px-3 py-1 rounded-full text-[10px] font-black">${w.cpp.toFixed(2)}</span>
                     </td>
                   </tr>
