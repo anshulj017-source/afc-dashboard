@@ -42,22 +42,6 @@ const normalizeMarket = (marketName) => {
   return aliases[upperName] || cleanName;
 };
 
-// Helper: Standardize Channel Names (Deduplication Engine)
-const normalizeChannel = (channelName) => {
-  if (!channelName || channelName === 'BLANK' || channelName === 'Unknown') return 'Other';
-  const cleanName = channelName.toString().trim();
-  const lowerName = cleanName.toLowerCase();
-  
-  if (lowerName.includes('apple')) return 'Apple Search';
-  if (lowerName.includes('facebook') || lowerName.includes('meta')) return 'Facebook';
-  if (lowerName.includes('google') || lowerName.includes('gmp')) return 'Google';
-  if (lowerName.includes('tiktok')) return 'TikTok';
-  if (lowerName.includes('snapchat')) return 'Snapchat';
-  if (lowerName.includes('twitter') || lowerName === 'x') return 'X';
-  
-  return cleanName;
-};
-
 // Safe numerical parsing
 const parseMetric = (val) => {
   if (!val) return 0;
@@ -104,7 +88,7 @@ export default function App() {
             week, year,
             date: getDateFromWeek(week, year),
             market: normalizeMarket(row['Country'] || row['Channel Country']),
-            channel: (!rawS1Channel || rawS1Channel === 'BLANK') ? 'Other' : normalizeChannel(rawS1Channel),
+            channel: (!rawS1Channel || rawS1Channel === 'BLANK') ? 'Other' : rawS1Channel,
             source: 'AdNetwork',
             trafficType: 'Paid' 
           };
@@ -131,7 +115,7 @@ export default function App() {
             week, year,
             date: getDateFromWeek(week, year),
             market: normalizeMarket(row['Country'] || row['Geo']),
-            channel: (!rawS2Channel || rawS2Channel === 'BLANK' || rawS2Channel === 'Organic') ? 'Other' : normalizeChannel(rawS2Channel),
+            channel: (!rawS2Channel || rawS2Channel === 'BLANK' || rawS2Channel === 'Organic') ? 'Other' : rawS2Channel,
             source: 'Adjust',
             trafficType
           };
@@ -438,7 +422,7 @@ export default function App() {
   // --- RENDERS ---
   const renderSummary = () => (
     <div className="animate-in fade-in duration-700">
-      <div className="grid grid-cols-2 lg:grid-cols-4 xl:grid-cols-8 gap-4 mb-10">
+      <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-5 gap-4 mb-10">
         <MetricCard label="Ad Spend" value={`$${d3.format(",.0f")(metrics.cost)}`} color="text-blue-600" />
         <MetricCard label="Impressions" value={(metrics.impressions / 1000000).toFixed(2) + 'M'} color="text-indigo-600" />
         <MetricCard label="Clicks" value={d3.format(",.0f")(metrics.clicks)} color="text-purple-600" />
