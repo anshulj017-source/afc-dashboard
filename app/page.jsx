@@ -259,7 +259,7 @@ export default function App() {
   const MetricCard = ({ label, value, color }) => (
     <div className="bg-white p-5 rounded-[1.5rem] border border-slate-100 shadow-sm transition-all hover:shadow-lg hover:-translate-y-1 group">
       <p className={`text-[10px] font-black ${color} uppercase tracking-widest mb-1`}>{label}</p>
-      <h3 className="text-xl font-black text-slate-900 truncate" title={value}>{value}</h3>
+      <h3 className="text-lg font-black text-slate-900 truncate" title={value}>{value}</h3>
     </div>
   );
 
@@ -306,7 +306,7 @@ export default function App() {
         onClick={() => setSelectedChannelView('All')} 
         className={`whitespace-nowrap px-6 py-2.5 rounded-xl text-sm font-black transition-all ${selectedChannelView === 'All' ? 'bg-indigo-600 text-white shadow-md' : 'bg-white text-slate-500 hover:bg-slate-50 border border-slate-200'}`}
       >
-        Global Overview
+        All Channels
       </button>
       {channels.map(c => (
         <button 
@@ -438,7 +438,7 @@ export default function App() {
   // --- RENDERS ---
   const renderSummary = () => (
     <div className="animate-in fade-in duration-700">
-      <div className="grid grid-cols-2 lg:grid-cols-5 gap-6 mb-10">
+      <div className="grid grid-cols-2 lg:grid-cols-4 xl:grid-cols-8 gap-4 mb-10">
         <MetricCard label="Ad Spend" value={`$${d3.format(",.0f")(metrics.cost)}`} color="text-blue-600" />
         <MetricCard label="Impressions" value={(metrics.impressions / 1000000).toFixed(2) + 'M'} color="text-indigo-600" />
         <MetricCard label="Clicks" value={d3.format(",.0f")(metrics.clicks)} color="text-purple-600" />
@@ -637,7 +637,6 @@ export default function App() {
             <p className="text-slate-500 font-medium italic">Marketing platform performance across the funnel.</p>
           </div>
           
-          {/* THE REQUESTED MARKET SELECTOR DROPDOWN */}
           <div className="flex flex-col items-end">
              <span className="text-[10px] font-black uppercase text-slate-400 mb-1 tracking-widest">Filter by Market</span>
              <select 
@@ -668,15 +667,17 @@ export default function App() {
           </div>
         ) : (
           <div className="animate-in fade-in zoom-in-95 duration-500">
-            <div className="grid grid-cols-2 lg:grid-cols-5 gap-4 mb-8">
+            <div className="grid grid-cols-2 md:grid-cols-4 xl:grid-cols-7 gap-4 mb-8">
                <MetricCard label="Ad Spend" value={`$${d3.format(",.0f")(activeChannelSummary?.cost || 0)}`} color="text-blue-600" />
+               <MetricCard label="Impressions" value={d3.format(",.0f")(activeChannelSummary?.impressions || 0)} color="text-indigo-600" />
+               <MetricCard label="Clicks" value={d3.format(",.0f")(activeChannelSummary?.clicks || 0)} color="text-teal-600" />
                <MetricCard label="Installs" value={d3.format(",.0f")(activeChannelSummary?.installs || 0)} color="text-emerald-600" />
                <MetricCard label="Purchases" value={d3.format(",.0f")(activeChannelSummary?.purchases || 0)} color="text-fuchsia-600" />
                <MetricCard label="CPI" value={`$${(activeChannelSummary?.cpi || 0).toFixed(2)}`} color="text-amber-500" />
                <MetricCard label="CPP" value={`$${(activeChannelSummary?.cpp || 0).toFixed(2)}`} color="text-red-500" />
             </div>
 
-            <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
+            <div className="grid grid-cols-1 lg:grid-cols-2 gap-8 mb-8">
                <div className="bg-white p-8 rounded-[2.5rem] border border-slate-100 shadow-sm flex flex-col">
                  <div className="flex justify-between items-center mb-8">
                    <h4 className="text-sm font-black text-slate-800 uppercase tracking-widest flex items-center gap-2">
@@ -717,6 +718,49 @@ export default function App() {
                  </div>
                </div>
             </div>
+
+            <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
+               <div className="bg-white p-8 rounded-[2.5rem] border border-slate-100 shadow-sm flex flex-col">
+                 <div className="flex justify-between items-center mb-8">
+                   <h4 className="text-sm font-black text-slate-800 uppercase tracking-widest flex items-center gap-2">
+                     <Eye className="w-4 h-4 text-blue-500" /> Awareness: Impressions & CPM
+                   </h4>
+                   <div className="flex gap-4 text-[10px] font-black uppercase text-slate-400">
+                     <span className="flex items-center gap-1"><div className="w-2 h-2 rounded-full bg-blue-500"/> Impressions</span>
+                     <span className="flex items-center gap-1"><div className="w-2 h-2 rounded-full bg-purple-500"/> CPM</span>
+                   </div>
+                 </div>
+                 <div className="flex-1 min-h-[300px]">
+                    <DualAxisLineChart 
+                       chartData={activeChannelData} leftKey="impressions" rightKey="cpm" 
+                       leftColorText="fill-blue-300" rightColorText="fill-purple-300"
+                       leftColorHex="#3b82f6" rightColorHex="#a855f7" isLeftCurrency={false} isRightCurrency={true} 
+                       insight={calculateInsight(activeChannelData, 'Impressions', 'impressions', false)}
+                    />
+                 </div>
+               </div>
+
+               <div className="bg-white p-8 rounded-[2.5rem] border border-slate-100 shadow-sm flex flex-col">
+                 <div className="flex justify-between items-center mb-8">
+                   <h4 className="text-sm font-black text-slate-800 uppercase tracking-widest flex items-center gap-2">
+                     <MousePointer2 className="w-4 h-4 text-teal-500" /> Engagement: Clicks & CPC
+                   </h4>
+                   <div className="flex gap-4 text-[10px] font-black uppercase text-slate-400">
+                     <span className="flex items-center gap-1"><div className="w-2 h-2 rounded-full bg-teal-500"/> Clicks</span>
+                     <span className="flex items-center gap-1"><div className="w-2 h-2 rounded-full bg-orange-500"/> CPC</span>
+                   </div>
+                 </div>
+                 <div className="flex-1 min-h-[300px]">
+                    <DualAxisLineChart 
+                       chartData={activeChannelData} leftKey="clicks" rightKey="cpc" 
+                       leftColorText="fill-teal-300" rightColorText="fill-orange-300"
+                       leftColorHex="#14b8a6" rightColorHex="#f97316" isLeftCurrency={false} isRightCurrency={true} 
+                       insight={calculateInsight(activeChannelData, 'Cost Per Click', 'cpc', true)}
+                    />
+                 </div>
+               </div>
+            </div>
+
           </div>
         )}
       </div>
