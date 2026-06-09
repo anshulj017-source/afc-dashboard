@@ -10,6 +10,7 @@ import {
 // === YOUR LIVE DATA LINKS ===
 const COMBINED_COUNTRY_CSV_URL = "https://docs.google.com/spreadsheets/d/e/2PACX-1vSt_K4Y6h2g2iVm2CDrc33rQGDToGd41a805URte2UEDqMYB_K8V4YKLIJ9rCMoLdmwvbco7uyevE9U/pub?gid=1273221446&single=true&output=csv";
 const RAW_ADJUST_CSV_URL = "https://docs.google.com/spreadsheets/d/e/2PACX-1vSt_K4Y6h2g2iVm2CDrc33rQGDToGd41a805URte2UEDqMYB_K8V4YKLIJ9rCMoLdmwvbco7uyevE9U/pub?gid=588241351&single=true&output=csv";
+const STC_LOGO = "https://www.stc.com.sa/content/stc/sa/en/about-stc/brand-center/_jcr_content/root/responsivegrid/responsivegrid_1120/responsivegrid_1694/image.coreimg.svg/1676451639800/stc-logo.svg";
 
 // Helper: Convert Week Number to Approximate Date 
 const getDateFromWeek = (week, year = 2026) => {
@@ -91,7 +92,6 @@ export default function App() {
           const week = parseInt(row['Week'] || row['week']) || 0;
           const year = parseInt(row['Year'] || row['year']) || 0;
           
-          // Pull Channel explicitly from Column H (index 7)
           const rawS1Channel = Object.values(row)[7] || row['Channel'];
 
           return {
@@ -120,7 +120,6 @@ export default function App() {
           const purchases = parseMetric(Object.values(row)[7] || row['Purchases'] || row['Total Purchases']);
           const logins = parseMetric(Object.values(row)[8] || row['login_success'] || row['Logins']);
           
-          // Pull Channel explicitly from Column D (index 3)
           const rawS2Channel = Object.values(row)[3] || row['Network'] || row['Source'];
 
           return {
@@ -160,7 +159,6 @@ export default function App() {
     return { processedData: rows, allTimeKeys: timeKeys };
   }, [data]);
 
-  // Master Filter Engine
   const filteredData = useMemo(() => {
     return processedData.filter(d => {
       let passTraffic = true;
@@ -178,7 +176,6 @@ export default function App() {
     });
   }, [processedData, dateRange, compareWeeks, trafficFilter]);
 
-  // Aggregation Engine
   const aggregate = (rows) => {
     const cost = d3.sum(rows, d => d.cost);
     const impressions = d3.sum(rows, d => d.impressions);
@@ -227,11 +224,14 @@ export default function App() {
       .sort((a, b) => b.cost - a.cost);
   }, [filteredData]);
 
-
   // --- DYNAMIC AI INSIGHTS ---
   const getAIInsight = (context, activeData = null) => {
     if (filteredData.length === 0) return "No data available for the current selection.";
     
+    if (context === 'summary') {
+      const cvrToPurchase = metrics.installs > 0 ? ((metrics.purchases / metrics.installs) * 100).toFixed(1) : 0;
+      return `Funnel Efficiency: ${cvrToPurchase}% of all installs convert into a purchase, yielding a global Cost Per Purchase (CPP) of $${metrics.cpp.toFixed(2)}. ${marketBreakdown[0]?.name || 'Top market'} remains your heaviest investment vehicle.`;
+    }
     if (context === 'detailed') {
       const dataToAnalyze = activeData || weeklyTimeline;
       if (dataToAnalyze.length > 1) {
@@ -251,36 +251,37 @@ export default function App() {
     return "";
   };
 
-  // --- COMPONENTS ---
+  // --- UI COMPONENTS ---
   const MetricCard = ({ label, value, color }) => (
-    <div className="bg-white p-5 rounded-[1.5rem] border border-slate-100 shadow-sm transition-all hover:shadow-lg hover:-translate-y-1 group">
-      <p className={`text-[10px] font-black ${color} uppercase tracking-widest mb-1`}>{label}</p>
-      <h3 className="text-lg font-black text-slate-900 truncate" title={value}>{value}</h3>
+    <div className="bg-[#131A2A]/80 backdrop-blur-xl p-6 rounded-[1.5rem] border border-white/5 shadow-xl transition-all hover:shadow-[0_0_20px_rgba(168,85,247,0.15)] hover:-translate-y-1 relative overflow-hidden group">
+      <div className="absolute top-0 right-0 w-32 h-32 bg-gradient-to-br from-white/5 to-transparent rounded-full blur-2xl -mr-10 -mt-10 group-hover:bg-purple-500/10 transition-colors duration-500"></div>
+      <p className={`text-[10px] font-black ${color} uppercase tracking-widest mb-2 relative z-10`}>{label}</p>
+      <h3 className="text-2xl font-black text-white truncate relative z-10" title={value}>{value}</h3>
     </div>
   );
 
   const InsightBox = ({ text }) => (
-    <div className="bg-indigo-600 rounded-[2.5rem] p-8 text-white shadow-xl shadow-indigo-100 mb-10 relative overflow-hidden group">
-      <div className="absolute top-0 right-0 p-8 opacity-10 group-hover:scale-110 transition-transform">
-        <Zap className="w-32 h-32" />
+    <div className="bg-gradient-to-br from-[#2D1B69] to-[#1A0B2E] rounded-[2.5rem] p-8 text-white shadow-2xl shadow-purple-900/20 mb-10 relative overflow-hidden border border-purple-500/30">
+      <div className="absolute top-0 right-0 p-8 opacity-10">
+        <Zap className="w-32 h-32 text-purple-300" />
       </div>
       <div className="relative z-10">
         <div className="flex items-center gap-3 mb-4">
-          <div className="bg-white/20 p-2 rounded-xl backdrop-blur-md">
-            <Zap className="w-4 h-4 text-amber-300" />
+          <div className="bg-white/10 p-2 rounded-xl backdrop-blur-md">
+            <Zap className="w-4 h-4 text-purple-300" />
           </div>
-          <span className="text-[10px] font-black uppercase tracking-[0.25em] text-indigo-100">AI Funnel Insight</span>
+          <span className="text-[10px] font-black uppercase tracking-[0.25em] text-purple-200">AI Funnel Insight</span>
         </div>
-        <p className="text-xl font-medium leading-relaxed italic max-w-4xl">"{text}"</p>
+        <p className="text-xl font-medium leading-relaxed italic max-w-4xl text-purple-50">"{text}"</p>
       </div>
     </div>
   );
 
   const MarketNavigator = () => (
-    <div className="flex gap-3 overflow-x-auto pb-4 mb-8 border-b border-slate-100 hide-scrollbar">
+    <div className="flex gap-3 overflow-x-auto pb-4 mb-8 border-b border-white/5 hide-scrollbar">
       <button 
         onClick={() => setSelectedMarketView('All')} 
-        className={`whitespace-nowrap px-6 py-2.5 rounded-xl text-sm font-black transition-all ${selectedMarketView === 'All' ? 'bg-indigo-600 text-white shadow-md' : 'bg-white text-slate-500 hover:bg-slate-50 border border-slate-200'}`}
+        className={`whitespace-nowrap px-6 py-2.5 rounded-xl text-sm font-black transition-all ${selectedMarketView === 'All' ? 'bg-gradient-to-r from-purple-600 to-rose-500 text-white shadow-lg shadow-purple-500/25 border-none' : 'bg-[#131A2A] text-slate-400 border border-white/5 hover:bg-white/5 hover:text-white'}`}
       >
         Global Overview
       </button>
@@ -288,7 +289,7 @@ export default function App() {
         <button 
           key={m.name} 
           onClick={() => setSelectedMarketView(m.name)} 
-          className={`whitespace-nowrap px-6 py-2.5 rounded-xl text-sm font-black transition-all ${selectedMarketView === m.name ? 'bg-indigo-600 text-white shadow-md' : 'bg-white text-slate-500 hover:bg-slate-50 border border-slate-200'}`}
+          className={`whitespace-nowrap px-6 py-2.5 rounded-xl text-sm font-black transition-all ${selectedMarketView === m.name ? 'bg-gradient-to-r from-purple-600 to-rose-500 text-white shadow-lg shadow-purple-500/25 border-none' : 'bg-[#131A2A] text-slate-400 border border-white/5 hover:bg-white/5 hover:text-white'}`}
         >
           {m.name}
         </button>
@@ -297,10 +298,10 @@ export default function App() {
   );
 
   const ChannelNavigator = ({ channels }) => (
-    <div className="flex gap-3 overflow-x-auto pb-4 mb-8 border-b border-slate-100 hide-scrollbar">
+    <div className="flex gap-3 overflow-x-auto pb-4 mb-8 border-b border-white/5 hide-scrollbar">
       <button 
         onClick={() => setSelectedChannelView('All')} 
-        className={`whitespace-nowrap px-6 py-2.5 rounded-xl text-sm font-black transition-all ${selectedChannelView === 'All' ? 'bg-indigo-600 text-white shadow-md' : 'bg-white text-slate-500 hover:bg-slate-50 border border-slate-200'}`}
+        className={`whitespace-nowrap px-6 py-2.5 rounded-xl text-sm font-black transition-all ${selectedChannelView === 'All' ? 'bg-gradient-to-r from-purple-600 to-rose-500 text-white shadow-lg shadow-purple-500/25 border-none' : 'bg-[#131A2A] text-slate-400 border border-white/5 hover:bg-white/5 hover:text-white'}`}
       >
         All Channels
       </button>
@@ -308,7 +309,7 @@ export default function App() {
         <button 
           key={c.name} 
           onClick={() => setSelectedChannelView(c.name)} 
-          className={`whitespace-nowrap px-6 py-2.5 rounded-xl text-sm font-black transition-all ${selectedChannelView === c.name ? 'bg-indigo-600 text-white shadow-md' : 'bg-white text-slate-500 hover:bg-slate-50 border border-slate-200'}`}
+          className={`whitespace-nowrap px-6 py-2.5 rounded-xl text-sm font-black transition-all ${selectedChannelView === c.name ? 'bg-gradient-to-r from-purple-600 to-rose-500 text-white shadow-lg shadow-purple-500/25 border-none' : 'bg-[#131A2A] text-slate-400 border border-white/5 hover:bg-white/5 hover:text-white'}`}
         >
           {c.name}
         </button>
@@ -316,7 +317,7 @@ export default function App() {
     </div>
   );
 
-  const BarChart = ({ chartData, valueKey, labelKey = 'name', color = 'bg-indigo-500', isCurrency = false, isPercent = false }) => {
+  const BarChart = ({ chartData, valueKey, labelKey = 'name', color = 'bg-purple-500', isCurrency = false, isPercent = false }) => {
     const maxVal = d3.max(chartData, d => d[valueKey]) || 1;
     return (
       <div className="space-y-4">
@@ -325,18 +326,18 @@ export default function App() {
           return (
             <div key={i} className="group relative">
               <div className="flex justify-between items-end mb-1.5">
-                <span className="text-xs font-bold text-slate-700 truncate max-w-[150px]">{item[labelKey]}</span>
+                <span className="text-xs font-bold text-white truncate max-w-[150px]">{item[labelKey]}</span>
                 <span className="text-[10px] font-black text-slate-400 tabular-nums">{formattedVal}</span>
               </div>
-              <div className="h-2.5 bg-slate-50 rounded-full overflow-hidden relative">
+              <div className="h-2.5 bg-[#1e293b] rounded-full overflow-hidden relative">
                 <div 
-                  className={`h-full ${color} rounded-full transition-all duration-1000 group-hover:opacity-70`}
+                  className={`h-full ${color} rounded-full transition-all duration-1000 group-hover:brightness-125`}
                   style={{ width: `${(item[valueKey] / maxVal) * 100}%` }}
                 />
               </div>
               {/* Custom Tooltip */}
-              <div className="absolute -top-10 right-0 bg-slate-800 text-white text-[10px] py-1.5 px-3 rounded-lg shadow-xl opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none z-50 whitespace-nowrap border border-slate-700">
-                <span className="font-bold">{item[labelKey]}</span> <span className="text-slate-400 mx-1">|</span> {formattedVal}
+              <div className="absolute -top-10 right-0 bg-[#0f172a] text-white text-[10px] py-1.5 px-3 rounded-lg shadow-2xl opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none z-50 whitespace-nowrap border border-white/10">
+                <span className="font-bold text-purple-300">{item[labelKey]}</span> <span className="text-slate-600 mx-1">|</span> {formattedVal}
               </div>
             </div>
           );
@@ -346,24 +347,26 @@ export default function App() {
   };
 
   const EntityBarChartCard = ({ title, icon: Icon, data, dataKey, color, isCurrency, insight }) => (
-    <div className="bg-white p-6 rounded-[2rem] border border-slate-100 shadow-sm flex flex-col h-full hover:shadow-md transition-shadow">
-        <div className="flex items-center gap-2 mb-6">
-           <Icon className={`w-5 h-5 ${color.replace('bg-', 'text-')}`} />
-           <h4 className="text-sm font-black text-slate-800 uppercase tracking-widest">{title}</h4>
+    <div className="bg-[#131A2A] p-6 rounded-[2rem] border border-white/5 shadow-xl flex flex-col h-full hover:border-purple-500/30 transition-colors group">
+        <div className="flex items-center gap-3 mb-6">
+           <div className={`p-2 rounded-xl bg-white/5`}>
+             <Icon className={`w-4 h-4 ${color.replace('bg-', 'text-')}`} />
+           </div>
+           <h4 className="text-sm font-black text-white uppercase tracking-widest">{title}</h4>
         </div>
         <div className="flex-1 mb-6">
            <BarChart chartData={data} valueKey={dataKey} color={color} isCurrency={isCurrency} />
         </div>
-        <div className="bg-slate-50 p-4 rounded-2xl mt-auto border border-slate-100 relative overflow-hidden group">
-           <Zap className="w-16 h-16 absolute -right-4 -top-4 opacity-5 text-indigo-500 group-hover:scale-125 transition-transform" />
-           <p className="text-xs font-bold text-slate-600 relative z-10">"{insight}"</p>
+        <div className="bg-white/5 p-4 rounded-2xl mt-auto border border-white/5 relative overflow-hidden">
+           <Zap className={`w-16 h-16 absolute -right-4 -top-4 opacity-5 ${color.replace('bg-', 'text-')} group-hover:scale-110 transition-transform`} />
+           <p className="text-xs font-bold text-slate-400 relative z-10">"{insight}"</p>
         </div>
     </div>
   );
 
   const DualAxisLineChart = ({ chartData, leftKey, rightKey, leftColorText, rightColorText, leftColorHex, rightColorHex, isLeftCurrency, isRightCurrency, width = 800, height = 300, insight = null }) => {
     if (!chartData || chartData.length < 2) return (
-      <div className="h-full w-full min-h-[250px] flex items-center justify-center bg-slate-50/50 rounded-3xl border border-dashed border-slate-200 text-[10px] font-black text-slate-300 uppercase">Select multiple periods</div>
+      <div className="h-full w-full min-h-[250px] flex items-center justify-center bg-white/5 rounded-3xl border border-dashed border-white/10 text-[10px] font-black text-slate-500 uppercase tracking-widest">Select multiple periods</div>
     );
     const margin = { top: 20, right: 50, bottom: 40, left: 50 };
     const iw = width - margin.left - margin.right;
@@ -384,7 +387,7 @@ export default function App() {
           <g transform={`translate(${margin.left},${margin.top})`}>
             {yLeft.ticks(5).map(t => (
               <g key={`l-${t}`} transform={`translate(0, ${yLeft(t)})`}>
-                <line x2={iw} stroke="#f1f5f9" strokeWidth="1" />
+                <line x2={iw} stroke="#1e293b" strokeWidth="1" />
                 <text x="-10" dy="0.32em" textAnchor="end" className={`text-[9px] ${leftColorText} font-bold`}>{isLeftCurrency ? `$${d3.format(".1s")(t)}` : d3.format(".1s")(t)}</text>
               </g>
             ))}
@@ -394,19 +397,19 @@ export default function App() {
                </g>
             ))}
             
-            <path d={lineLeft(chartData)} fill="none" stroke={leftColorHex} strokeWidth="4" strokeLinecap="round" />
-            <path d={lineRight(chartData)} fill="none" stroke={rightColorHex} strokeWidth="4" strokeLinecap="round" strokeDasharray="6,6" />
+            <path d={lineLeft(chartData)} fill="none" stroke={leftColorHex} strokeWidth="4" strokeLinecap="round" style={{ filter: `drop-shadow(0 0 8px ${leftColorHex}60)` }} />
+            <path d={lineRight(chartData)} fill="none" stroke={rightColorHex} strokeWidth="4" strokeLinecap="round" strokeDasharray="6,6" style={{ filter: `drop-shadow(0 0 8px ${rightColorHex}60)` }} />
             
             {/* Custom Interactive Tooltip Crosshairs */}
             {chartData.map((d, i) => (
                <g key={`hover-${i}`} className="group cursor-pointer">
                  <rect x={x(`W${d.week}`) - 15} y={0} width={30} height={ih} fill="transparent" />
-                 <line x1={x(`W${d.week}`)} x2={x(`W${d.week}`)} y1={0} y2={ih} stroke="#94a3b8" strokeWidth="1" strokeDasharray="4,4" className="opacity-0 group-hover:opacity-100" />
+                 <line x1={x(`W${d.week}`)} x2={x(`W${d.week}`)} y1={0} y2={ih} stroke="#475569" strokeWidth="1" strokeDasharray="4,4" className="opacity-0 group-hover:opacity-100" />
                  <foreignObject x={x(`W${d.week}`) > iw / 2 ? x(`W${d.week}`) - 140 : x(`W${d.week}`) + 10} y={10} width="130" height="90" className="opacity-0 group-hover:opacity-100 pointer-events-none transition-opacity z-50">
-                   <div className="bg-slate-800 text-white text-[10px] p-2.5 rounded-xl shadow-2xl flex flex-col gap-1.5 border border-slate-700">
-                     <span className="font-black text-slate-300 border-b border-slate-600 pb-1">Week {d.week}, {d.year}</span>
-                     <div className="flex justify-between"><span className={leftColorText.replace('fill-', 'text-').replace('300', '400')}>{leftKey.toUpperCase()}:</span> <span>{isLeftCurrency ? '$' : ''}{d3.format(",.2f")(d[leftKey])}</span></div>
-                     <div className="flex justify-between"><span className={rightColorText.replace('fill-', 'text-').replace('300', '400')}>{rightKey.toUpperCase()}:</span> <span>{isRightCurrency ? '$' : ''}{d3.format(",.2f")(d[rightKey])}</span></div>
+                   <div className="bg-[#0f172a]/90 backdrop-blur-md text-white text-[10px] p-3 rounded-xl shadow-2xl flex flex-col gap-1.5 border border-white/10">
+                     <span className="font-black text-slate-300 border-b border-white/10 pb-1.5 mb-0.5">Week {d.week}, {d.year}</span>
+                     <div className="flex justify-between"><span className={leftColorText.replace('fill-', 'text-')}>{leftKey.toUpperCase()}:</span> <span>{isLeftCurrency ? '$' : ''}{d3.format(",.2f")(d[leftKey])}</span></div>
+                     <div className="flex justify-between"><span className={rightColorText.replace('fill-', 'text-')}>{rightKey.toUpperCase()}:</span> <span>{isRightCurrency ? '$' : ''}{d3.format(",.2f")(d[rightKey])}</span></div>
                    </div>
                  </foreignObject>
                </g>
@@ -415,16 +418,16 @@ export default function App() {
             {chartData.map((d, i) => (
               (i % skipCount === 0 || i === chartData.length - 1) && (
                 <g key={`x-${i}`} transform={`translate(${x(`W${d.week}`)}, ${ih})`}>
-                  <text y="24" textAnchor="middle" className="text-[10px] fill-slate-400 font-black">W{d.week}</text>
+                  <text y="24" textAnchor="middle" className="text-[10px] fill-slate-500 font-black">W{d.week}</text>
                 </g>
               )
             ))}
           </g>
         </svg>
         {insight && (
-          <div className="bg-slate-50 p-4 rounded-2xl mt-6 border border-slate-100 relative overflow-hidden group">
-             <Zap className="w-12 h-12 absolute -right-2 -top-2 opacity-5 text-indigo-500 group-hover:scale-125 transition-transform" />
-             <p className="text-xs font-bold text-slate-600 relative z-10">"{insight}"</p>
+          <div className="bg-white/5 p-4 rounded-2xl mt-6 border border-white/5 relative overflow-hidden">
+             <Zap className={`w-12 h-12 absolute -right-2 -top-2 opacity-5 ${leftColorText.replace('fill-', 'text-')}`} />
+             <p className="text-xs font-bold text-slate-400 relative z-10">"{insight}"</p>
           </div>
         )}
       </div>
@@ -449,58 +452,61 @@ export default function App() {
     return (
       <div className="animate-in fade-in duration-700">
         <div className="grid grid-cols-2 md:grid-cols-5 gap-4 mb-10">
-          <MetricCard label="Ad Spend" value={`$${d3.format(",.0f")(metrics.cost)}`} color="text-blue-600" />
-          <MetricCard label="Impressions" value={(metrics.impressions / 1000000).toFixed(2) + 'M'} color="text-indigo-600" />
-          <MetricCard label="Clicks" value={d3.format(",.0f")(metrics.clicks)} color="text-purple-600" />
-          <MetricCard label="Installs" value={d3.format(",.0f")(metrics.installs)} color="text-emerald-600" />
-          <MetricCard label="Logins" value={d3.format(",.0f")(metrics.logins)} color="text-cyan-600" />
+          <MetricCard label="Ad Spend" value={`$${d3.format(",.0f")(metrics.cost)}`} color="text-purple-400" />
+          <MetricCard label="Impressions" value={(metrics.impressions / 1000000).toFixed(2) + 'M'} color="text-cyan-400" />
+          <MetricCard label="Clicks" value={d3.format(",.0f")(metrics.clicks)} color="text-blue-400" />
+          <MetricCard label="Installs" value={d3.format(",.0f")(metrics.installs)} color="text-emerald-400" />
+          <MetricCard label="Logins" value={d3.format(",.0f")(metrics.logins)} color="text-amber-400" />
           
-          <MetricCard label="Purchases" value={d3.format(",.0f")(metrics.purchases)} color="text-fuchsia-600" />
-          <MetricCard label="Install-to-Login %" value={`${metrics.ltr.toFixed(2)}%`} color="text-teal-500" />
-          <MetricCard label="Login-to-Purch %" value={`${metrics.ltp.toFixed(2)}%`} color="text-rose-500" />
-          <MetricCard label="CPI" value={`$${metrics.cpi.toFixed(2)}`} color="text-amber-500" />
-          <MetricCard label="CPP" value={`$${metrics.cpp.toFixed(2)}`} color="text-red-500" />
+          <MetricCard label="Purchases" value={d3.format(",.0f")(metrics.purchases)} color="text-rose-400" />
+          <MetricCard label="Install-to-Login %" value={`${metrics.ltr.toFixed(2)}%`} color="text-teal-400" />
+          <MetricCard label="Login-to-Purch %" value={`${metrics.ltp.toFixed(2)}%`} color="text-pink-400" />
+          <MetricCard label="CPI" value={`$${metrics.cpi.toFixed(2)}`} color="text-orange-400" />
+          <MetricCard label="CPP" value={`$${metrics.cpp.toFixed(2)}`} color="text-red-400" />
         </div>
 
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
-          <div className="lg:col-span-2 bg-white p-8 rounded-[2.5rem] border border-slate-100 shadow-sm flex flex-col">
-            <div className="flex justify-between items-center mb-8">
-              <h4 className="text-sm font-black text-slate-800 uppercase tracking-widest flex items-center gap-2">
-                <TrendingUp className="w-4 h-4 text-indigo-500" /> Spend vs MMP Installs
+          <div className="lg:col-span-2 bg-[#131A2A] p-8 rounded-[2.5rem] border border-white/5 shadow-xl flex flex-col relative overflow-hidden">
+            <div className="flex justify-between items-center mb-8 relative z-10">
+              <h4 className="text-sm font-black text-white uppercase tracking-widest flex items-center gap-2">
+                <TrendingUp className="w-4 h-4 text-purple-400" /> Spend vs MMP Installs
               </h4>
               <div className="flex gap-4 text-[10px] font-black uppercase text-slate-400">
-                <span className="flex items-center gap-1"><div className="w-2 h-2 rounded-full bg-indigo-500"/> Cost</span>
-                <span className="flex items-center gap-1"><div className="w-2 h-2 rounded-full bg-emerald-500"/> Installs</span>
+                <span className="flex items-center gap-1"><div className="w-2 h-2 rounded-full bg-purple-500"/> Cost</span>
+                <span className="flex items-center gap-1"><div className="w-2 h-2 rounded-full bg-emerald-400"/> Installs</span>
               </div>
             </div>
-            <div className="flex-1 min-h-[340px]">
+            <div className="flex-1 min-h-[340px] relative z-10">
                <DualAxisLineChart 
                   chartData={weeklyTimeline} 
                   leftKey="cost" rightKey="installs" 
-                  leftColorText="fill-indigo-300" rightColorText="fill-emerald-300"
-                  leftColorHex="#6366f1" rightColorHex="#10b981"
+                  leftColorText="fill-purple-400" rightColorText="fill-emerald-400"
+                  leftColorHex="#a855f7" rightColorHex="#34d399"
                   isLeftCurrency={true} isRightCurrency={false} 
                />
             </div>
           </div>
-          <div className="bg-white p-8 rounded-[2.5rem] border border-slate-100 shadow-sm">
-            <h4 className="text-sm font-black text-slate-800 mb-6 uppercase tracking-widest flex items-center gap-2">
-              <ShoppingCart className="w-4 h-4 text-fuchsia-500" /> Top Market Purchases
+          <div className="bg-[#131A2A] p-8 rounded-[2.5rem] border border-white/5 shadow-xl">
+            <h4 className="text-sm font-black text-white mb-6 uppercase tracking-widest flex items-center gap-2">
+              <ShoppingCart className="w-4 h-4 text-rose-400" /> Top Market Purchases
             </h4>
-            <BarChart chartData={[...marketBreakdown].sort((a,b)=>b.purchases-a.purchases)} valueKey="purchases" color="bg-fuchsia-500" />
+            <BarChart chartData={[...marketBreakdown].sort((a,b)=>b.purchases-a.purchases)} valueKey="purchases" color="bg-rose-500" />
           </div>
         </div>
 
-        <div className="mt-8 bg-indigo-50/60 border border-indigo-100 p-8 rounded-[2.5rem]">
-           <div className="flex items-center gap-3 mb-6">
-              <Zap className="w-5 h-5 text-indigo-500" />
-              <h4 className="text-lg font-black text-slate-800 tracking-tight">Executive AI Analysis</h4>
+        <div className="mt-8 bg-gradient-to-br from-purple-900/40 to-slate-900/40 border border-purple-500/20 p-8 rounded-[2.5rem] shadow-2xl relative overflow-hidden">
+           <div className="absolute top-0 right-0 w-64 h-64 bg-purple-500/10 rounded-full blur-3xl"></div>
+           <div className="flex items-center gap-3 mb-6 relative z-10">
+              <div className="bg-purple-500/20 p-2 rounded-xl">
+                 <Zap className="w-5 h-5 text-purple-400" />
+              </div>
+              <h4 className="text-lg font-black text-white tracking-tight">Executive AI Analysis</h4>
            </div>
-           <ul className="space-y-4">
+           <ul className="space-y-4 relative z-10">
               {summaryInsights.map((bullet, idx) => (
-                 <li key={idx} className="flex items-start gap-3">
-                    <div className="w-1.5 h-1.5 rounded-full bg-indigo-500 mt-2 flex-shrink-0" />
-                    <p className="text-sm font-medium text-slate-700 leading-relaxed">{bullet}</p>
+                 <li key={idx} className="flex items-start gap-4 p-4 rounded-2xl bg-white/5 border border-white/5 hover:bg-white/10 transition-colors">
+                    <div className="w-2 h-2 rounded-full bg-purple-400 mt-1.5 flex-shrink-0 shadow-[0_0_8px_rgba(168,85,247,0.8)]" />
+                    <p className="text-sm font-medium text-slate-300 leading-relaxed">{bullet}</p>
                  </li>
               ))}
            </ul>
@@ -540,8 +546,8 @@ export default function App() {
     return (
       <div className="animate-in fade-in duration-500">
         <div className="mb-6">
-          <h2 className="text-3xl font-black text-slate-900 tracking-tight">Market Intelligence</h2>
-          <p className="text-slate-500 font-medium italic">Geographical footprint filtered for active ad spend &gt; $1.</p>
+          <h2 className="text-3xl font-black text-white tracking-tight">Market Intelligence</h2>
+          <p className="text-slate-400 font-medium italic">Geographical footprint filtered for active ad spend &gt; $1.</p>
         </div>
 
         <MarketNavigator />
@@ -550,7 +556,7 @@ export default function App() {
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
             <EntityBarChartCard title="Total Installs" icon={Download} data={sortedByInstalls} dataKey="installs" color="bg-emerald-500" 
               insight={`${sortedByInstalls[0]?.name || 'Top market'} leads acquisition volume, accounting for ${(sortedByInstalls[0]?.installs / (metrics.installs || 1) * 100).toFixed(1)}% of total installs.`} />
-            <EntityBarChartCard title="Total Purchases" icon={ShoppingCart} data={sortedByPurchases} dataKey="purchases" color="bg-fuchsia-500" 
+            <EntityBarChartCard title="Total Purchases" icon={ShoppingCart} data={sortedByPurchases} dataKey="purchases" color="bg-rose-500" 
               insight={`${sortedByPurchases[0]?.name || 'Top market'} drives the highest bottom-funnel intent, producing ${sortedByPurchases[0]?.purchases.toLocaleString()} conversions.`} />
             <EntityBarChartCard title="Cost Per Install (CPI)" icon={Activity} data={validCPI.slice(0, 8)} dataKey="cpi" color="bg-amber-500" isCurrency={true} 
               insight={`${validCPI[0]?.name || 'Top market'} offers the most cost-effective top-funnel acquisition at $${validCPI[0]?.cpi.toFixed(2)} CPI.`} />
@@ -560,49 +566,49 @@ export default function App() {
         ) : (
           <div className="animate-in fade-in zoom-in-95 duration-500">
             <div className="grid grid-cols-2 lg:grid-cols-5 gap-4 mb-8">
-               <MetricCard label="Ad Spend" value={`$${d3.format(",.0f")(activeMarketSummary?.cost || 0)}`} color="text-blue-600" />
-               <MetricCard label="Installs" value={d3.format(",.0f")(activeMarketSummary?.installs || 0)} color="text-emerald-600" />
-               <MetricCard label="Purchases" value={d3.format(",.0f")(activeMarketSummary?.purchases || 0)} color="text-fuchsia-600" />
-               <MetricCard label="CPI" value={`$${(activeMarketSummary?.cpi || 0).toFixed(2)}`} color="text-amber-500" />
-               <MetricCard label="CPP" value={`$${(activeMarketSummary?.cpp || 0).toFixed(2)}`} color="text-red-500" />
+               <MetricCard label="Ad Spend" value={`$${d3.format(",.0f")(activeMarketSummary?.cost || 0)}`} color="text-purple-400" />
+               <MetricCard label="Installs" value={d3.format(",.0f")(activeMarketSummary?.installs || 0)} color="text-emerald-400" />
+               <MetricCard label="Purchases" value={d3.format(",.0f")(activeMarketSummary?.purchases || 0)} color="text-rose-400" />
+               <MetricCard label="CPI" value={`$${(activeMarketSummary?.cpi || 0).toFixed(2)}`} color="text-amber-400" />
+               <MetricCard label="CPP" value={`$${(activeMarketSummary?.cpp || 0).toFixed(2)}`} color="text-red-400" />
             </div>
 
             <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
-               <div className="bg-white p-8 rounded-[2.5rem] border border-slate-100 shadow-sm flex flex-col">
+               <div className="bg-[#131A2A] p-8 rounded-[2.5rem] border border-white/5 shadow-xl flex flex-col">
                  <div className="flex justify-between items-center mb-8">
-                   <h4 className="text-sm font-black text-slate-800 uppercase tracking-widest flex items-center gap-2">
-                     <Layers className="w-4 h-4 text-emerald-500" /> Volume: Installs & Purchases
+                   <h4 className="text-sm font-black text-white uppercase tracking-widest flex items-center gap-2">
+                     <Layers className="w-4 h-4 text-emerald-400" /> Volume: Installs & Purchases
                    </h4>
                    <div className="flex gap-4 text-[10px] font-black uppercase text-slate-400">
-                     <span className="flex items-center gap-1"><div className="w-2 h-2 rounded-full bg-emerald-500"/> Installs</span>
-                     <span className="flex items-center gap-1"><div className="w-2 h-2 rounded-full bg-fuchsia-500"/> Purchases</span>
+                     <span className="flex items-center gap-1"><div className="w-2 h-2 rounded-full bg-emerald-400"/> Installs</span>
+                     <span className="flex items-center gap-1"><div className="w-2 h-2 rounded-full bg-rose-400"/> Purchases</span>
                    </div>
                  </div>
                  <div className="flex-1 min-h-[300px]">
                     <DualAxisLineChart 
                        chartData={activeMarketData} leftKey="installs" rightKey="purchases" 
-                       leftColorText="fill-emerald-300" rightColorText="fill-fuchsia-300"
-                       leftColorHex="#10b981" rightColorHex="#d946ef" isLeftCurrency={false} isRightCurrency={false} 
+                       leftColorText="fill-emerald-400" rightColorText="fill-rose-400"
+                       leftColorHex="#34d399" rightColorHex="#fb7185" isLeftCurrency={false} isRightCurrency={false} 
                        insight={calculateInsight(activeMarketData, 'Purchases', 'purchases', false)}
                     />
                  </div>
                </div>
 
-               <div className="bg-white p-8 rounded-[2.5rem] border border-slate-100 shadow-sm flex flex-col">
+               <div className="bg-[#131A2A] p-8 rounded-[2.5rem] border border-white/5 shadow-xl flex flex-col">
                  <div className="flex justify-between items-center mb-8">
-                   <h4 className="text-sm font-black text-slate-800 uppercase tracking-widest flex items-center gap-2">
-                     <Activity className="w-4 h-4 text-red-500" /> Efficiency: CPI & CPP
+                   <h4 className="text-sm font-black text-white uppercase tracking-widest flex items-center gap-2">
+                     <Activity className="w-4 h-4 text-amber-400" /> Efficiency: CPI & CPP
                    </h4>
                    <div className="flex gap-4 text-[10px] font-black uppercase text-slate-400">
-                     <span className="flex items-center gap-1"><div className="w-2 h-2 rounded-full bg-amber-500"/> CPI</span>
-                     <span className="flex items-center gap-1"><div className="w-2 h-2 rounded-full bg-red-500"/> CPP</span>
+                     <span className="flex items-center gap-1"><div className="w-2 h-2 rounded-full bg-amber-400"/> CPI</span>
+                     <span className="flex items-center gap-1"><div className="w-2 h-2 rounded-full bg-red-400"/> CPP</span>
                    </div>
                  </div>
                  <div className="flex-1 min-h-[300px]">
                     <DualAxisLineChart 
                        chartData={activeMarketData} leftKey="cpi" rightKey="cpp" 
-                       leftColorText="fill-amber-300" rightColorText="fill-red-300"
-                       leftColorHex="#f59e0b" rightColorHex="#ef4444" isLeftCurrency={true} isRightCurrency={true} 
+                       leftColorText="fill-amber-400" rightColorText="fill-red-400"
+                       leftColorHex="#fbbf24" rightColorHex="#f87171" isLeftCurrency={true} isRightCurrency={true} 
                        insight={calculateInsight(activeMarketData, 'Cost Per Purchase', 'cpp', true)}
                     />
                  </div>
@@ -615,12 +621,10 @@ export default function App() {
   };
 
   const renderChannel = () => {
-    // 1. Determine which data to use based on the global Market Selector
     const localFilteredData = selectedMarketView === 'All' 
       ? filteredData 
       : filteredData.filter(d => d.market === selectedMarketView);
 
-    // 2. Build the breakdown based strictly on the selected market
     const localChannelBreakdown = d3.groups(localFilteredData, d => d.channel)
       .map(([name, values]) => ({ name, ...aggregate(values) }))
       .filter(c => c.cost > 0 || c.purchases > 0)
@@ -657,8 +661,8 @@ export default function App() {
       <div className="animate-in fade-in duration-500">
         <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 mb-6">
           <div>
-            <h2 className="text-3xl font-black text-slate-900 tracking-tight">Channel Attribution</h2>
-            <p className="text-slate-500 font-medium italic">Marketing platform performance across the funnel.</p>
+            <h2 className="text-3xl font-black text-white tracking-tight">Channel Attribution</h2>
+            <p className="text-slate-400 font-medium italic">Marketing platform performance across the funnel.</p>
           </div>
           
           <div className="flex flex-col items-end">
@@ -666,7 +670,7 @@ export default function App() {
              <select 
                value={selectedMarketView}
                onChange={(e) => setSelectedMarketView(e.target.value)}
-               className="px-4 py-2.5 bg-white border border-slate-200 rounded-xl text-sm font-black text-indigo-700 shadow-sm outline-none focus:border-indigo-500 cursor-pointer"
+               className="px-4 py-2.5 bg-[#131A2A] border border-white/10 rounded-xl text-sm font-black text-purple-400 shadow-sm outline-none focus:border-purple-500 cursor-pointer"
              >
                <option value="All">Global (All Markets)</option>
                {marketBreakdown.map(m => (
@@ -682,7 +686,7 @@ export default function App() {
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
             <EntityBarChartCard title="Total Installs" icon={Download} data={sortedByInstalls} dataKey="installs" color="bg-emerald-500" 
               insight={`${sortedByInstalls[0]?.name || 'Top channel'} drives the highest top-funnel acquisition.`} />
-            <EntityBarChartCard title="Total Purchases" icon={ShoppingCart} data={sortedByPurchases} dataKey="purchases" color="bg-fuchsia-500" 
+            <EntityBarChartCard title="Total Purchases" icon={ShoppingCart} data={sortedByPurchases} dataKey="purchases" color="bg-rose-500" 
               insight={`${sortedByPurchases[0]?.name || 'Top channel'} brings in the highest volume of paying users.`} />
             <EntityBarChartCard title="Cost Per Install (CPI)" icon={Activity} data={validCPI.slice(0, 8)} dataKey="cpi" color="bg-amber-500" isCurrency={true} 
               insight={`${validCPI[0]?.name || 'Top channel'} provides the cheapest initial user acquisition at $${validCPI[0]?.cpi.toFixed(2)} CPI.`} />
@@ -692,51 +696,51 @@ export default function App() {
         ) : (
           <div className="animate-in fade-in zoom-in-95 duration-500">
             <div className="grid grid-cols-2 md:grid-cols-4 xl:grid-cols-7 gap-4 mb-8">
-               <MetricCard label="Ad Spend" value={`$${d3.format(",.0f")(activeChannelSummary?.cost || 0)}`} color="text-blue-600" />
-               <MetricCard label="Impressions" value={d3.format(",.0f")(activeChannelSummary?.impressions || 0)} color="text-indigo-600" />
-               <MetricCard label="Clicks" value={d3.format(",.0f")(activeChannelSummary?.clicks || 0)} color="text-teal-600" />
-               <MetricCard label="Installs" value={d3.format(",.0f")(activeChannelSummary?.installs || 0)} color="text-emerald-600" />
-               <MetricCard label="Purchases" value={d3.format(",.0f")(activeChannelSummary?.purchases || 0)} color="text-fuchsia-600" />
-               <MetricCard label="CPI" value={`$${(activeChannelSummary?.cpi || 0).toFixed(2)}`} color="text-amber-500" />
-               <MetricCard label="CPP" value={`$${(activeChannelSummary?.cpp || 0).toFixed(2)}`} color="text-red-500" />
+               <MetricCard label="Ad Spend" value={`$${d3.format(",.0f")(activeChannelSummary?.cost || 0)}`} color="text-purple-400" />
+               <MetricCard label="Impressions" value={d3.format(",.0f")(activeChannelSummary?.impressions || 0)} color="text-cyan-400" />
+               <MetricCard label="Clicks" value={d3.format(",.0f")(activeChannelSummary?.clicks || 0)} color="text-blue-400" />
+               <MetricCard label="Installs" value={d3.format(",.0f")(activeChannelSummary?.installs || 0)} color="text-emerald-400" />
+               <MetricCard label="Purchases" value={d3.format(",.0f")(activeChannelSummary?.purchases || 0)} color="text-rose-400" />
+               <MetricCard label="CPI" value={`$${(activeChannelSummary?.cpi || 0).toFixed(2)}`} color="text-amber-400" />
+               <MetricCard label="CPP" value={`$${(activeChannelSummary?.cpp || 0).toFixed(2)}`} color="text-red-400" />
             </div>
 
             <div className="grid grid-cols-1 lg:grid-cols-2 gap-8 mb-8">
-               <div className="bg-white p-8 rounded-[2.5rem] border border-slate-100 shadow-sm flex flex-col">
+               <div className="bg-[#131A2A] p-8 rounded-[2.5rem] border border-white/5 shadow-xl flex flex-col">
                  <div className="flex justify-between items-center mb-8">
-                   <h4 className="text-sm font-black text-slate-800 uppercase tracking-widest flex items-center gap-2">
-                     <Layers className="w-4 h-4 text-emerald-500" /> Volume: Installs & Purchases
+                   <h4 className="text-sm font-black text-white uppercase tracking-widest flex items-center gap-2">
+                     <Layers className="w-4 h-4 text-emerald-400" /> Volume: Installs & Purchases
                    </h4>
                    <div className="flex gap-4 text-[10px] font-black uppercase text-slate-400">
-                     <span className="flex items-center gap-1"><div className="w-2 h-2 rounded-full bg-emerald-500"/> Installs</span>
-                     <span className="flex items-center gap-1"><div className="w-2 h-2 rounded-full bg-fuchsia-500"/> Purchases</span>
+                     <span className="flex items-center gap-1"><div className="w-2 h-2 rounded-full bg-emerald-400"/> Installs</span>
+                     <span className="flex items-center gap-1"><div className="w-2 h-2 rounded-full bg-rose-400"/> Purchases</span>
                    </div>
                  </div>
                  <div className="flex-1 min-h-[300px]">
                     <DualAxisLineChart 
                        chartData={activeChannelData} leftKey="installs" rightKey="purchases" 
-                       leftColorText="fill-emerald-300" rightColorText="fill-fuchsia-300"
-                       leftColorHex="#10b981" rightColorHex="#d946ef" isLeftCurrency={false} isRightCurrency={false} 
+                       leftColorText="fill-emerald-400" rightColorText="fill-rose-400"
+                       leftColorHex="#34d399" rightColorHex="#fb7185" isLeftCurrency={false} isRightCurrency={false} 
                        insight={calculateInsight(activeChannelData, 'Purchases', 'purchases', false)}
                     />
                  </div>
                </div>
 
-               <div className="bg-white p-8 rounded-[2.5rem] border border-slate-100 shadow-sm flex flex-col">
+               <div className="bg-[#131A2A] p-8 rounded-[2.5rem] border border-white/5 shadow-xl flex flex-col">
                  <div className="flex justify-between items-center mb-8">
-                   <h4 className="text-sm font-black text-slate-800 uppercase tracking-widest flex items-center gap-2">
-                     <Activity className="w-4 h-4 text-red-500" /> Efficiency: CPI & CPP
+                   <h4 className="text-sm font-black text-white uppercase tracking-widest flex items-center gap-2">
+                     <Activity className="w-4 h-4 text-red-400" /> Efficiency: CPI & CPP
                    </h4>
                    <div className="flex gap-4 text-[10px] font-black uppercase text-slate-400">
-                     <span className="flex items-center gap-1"><div className="w-2 h-2 rounded-full bg-amber-500"/> CPI</span>
-                     <span className="flex items-center gap-1"><div className="w-2 h-2 rounded-full bg-red-500"/> CPP</span>
+                     <span className="flex items-center gap-1"><div className="w-2 h-2 rounded-full bg-amber-400"/> CPI</span>
+                     <span className="flex items-center gap-1"><div className="w-2 h-2 rounded-full bg-red-400"/> CPP</span>
                    </div>
                  </div>
                  <div className="flex-1 min-h-[300px]">
                     <DualAxisLineChart 
                        chartData={activeChannelData} leftKey="cpi" rightKey="cpp" 
-                       leftColorText="fill-amber-300" rightColorText="fill-red-300"
-                       leftColorHex="#f59e0b" rightColorHex="#ef4444" isLeftCurrency={true} isRightCurrency={true} 
+                       leftColorText="fill-amber-400" rightColorText="fill-red-400"
+                       leftColorHex="#fbbf24" rightColorHex="#f87171" isLeftCurrency={true} isRightCurrency={true} 
                        insight={calculateInsight(activeChannelData, 'Cost Per Purchase', 'cpp', true)}
                     />
                  </div>
@@ -744,41 +748,41 @@ export default function App() {
             </div>
 
             <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
-               <div className="bg-white p-8 rounded-[2.5rem] border border-slate-100 shadow-sm flex flex-col">
+               <div className="bg-[#131A2A] p-8 rounded-[2.5rem] border border-white/5 shadow-xl flex flex-col">
                  <div className="flex justify-between items-center mb-8">
-                   <h4 className="text-sm font-black text-slate-800 uppercase tracking-widest flex items-center gap-2">
-                     <Eye className="w-4 h-4 text-blue-500" /> Awareness: Impressions & CPM
+                   <h4 className="text-sm font-black text-white uppercase tracking-widest flex items-center gap-2">
+                     <Eye className="w-4 h-4 text-cyan-400" /> Awareness: Impressions & CPM
                    </h4>
                    <div className="flex gap-4 text-[10px] font-black uppercase text-slate-400">
-                     <span className="flex items-center gap-1"><div className="w-2 h-2 rounded-full bg-blue-500"/> Impressions</span>
-                     <span className="flex items-center gap-1"><div className="w-2 h-2 rounded-full bg-purple-500"/> CPM</span>
+                     <span className="flex items-center gap-1"><div className="w-2 h-2 rounded-full bg-cyan-400"/> Impressions</span>
+                     <span className="flex items-center gap-1"><div className="w-2 h-2 rounded-full bg-purple-400"/> CPM</span>
                    </div>
                  </div>
                  <div className="flex-1 min-h-[300px]">
                     <DualAxisLineChart 
                        chartData={activeChannelData} leftKey="impressions" rightKey="cpm" 
-                       leftColorText="fill-blue-300" rightColorText="fill-purple-300"
-                       leftColorHex="#3b82f6" rightColorHex="#a855f7" isLeftCurrency={false} isRightCurrency={true} 
+                       leftColorText="fill-cyan-400" rightColorText="fill-purple-400"
+                       leftColorHex="#22d3ee" rightColorHex="#c084fc" isLeftCurrency={false} isRightCurrency={true} 
                        insight={calculateInsight(activeChannelData, 'Impressions', 'impressions', false)}
                     />
                  </div>
                </div>
 
-               <div className="bg-white p-8 rounded-[2.5rem] border border-slate-100 shadow-sm flex flex-col">
+               <div className="bg-[#131A2A] p-8 rounded-[2.5rem] border border-white/5 shadow-xl flex flex-col">
                  <div className="flex justify-between items-center mb-8">
-                   <h4 className="text-sm font-black text-slate-800 uppercase tracking-widest flex items-center gap-2">
-                     <MousePointer2 className="w-4 h-4 text-teal-500" /> Engagement: Clicks & CPC
+                   <h4 className="text-sm font-black text-white uppercase tracking-widest flex items-center gap-2">
+                     <MousePointer2 className="w-4 h-4 text-blue-400" /> Engagement: Clicks & CPC
                    </h4>
                    <div className="flex gap-4 text-[10px] font-black uppercase text-slate-400">
-                     <span className="flex items-center gap-1"><div className="w-2 h-2 rounded-full bg-teal-500"/> Clicks</span>
-                     <span className="flex items-center gap-1"><div className="w-2 h-2 rounded-full bg-orange-500"/> CPC</span>
+                     <span className="flex items-center gap-1"><div className="w-2 h-2 rounded-full bg-blue-400"/> Clicks</span>
+                     <span className="flex items-center gap-1"><div className="w-2 h-2 rounded-full bg-orange-400"/> CPC</span>
                    </div>
                  </div>
                  <div className="flex-1 min-h-[300px]">
                     <DualAxisLineChart 
                        chartData={activeChannelData} leftKey="clicks" rightKey="cpc" 
-                       leftColorText="fill-teal-300" rightColorText="fill-orange-300"
-                       leftColorHex="#14b8a6" rightColorHex="#f97316" isLeftCurrency={false} isRightCurrency={true} 
+                       leftColorText="fill-blue-400" rightColorText="fill-orange-400"
+                       leftColorHex="#60a5fa" rightColorHex="#fb923c" isLeftCurrency={false} isRightCurrency={true} 
                        insight={calculateInsight(activeChannelData, 'Cost Per Click', 'cpc', true)}
                     />
                  </div>
@@ -801,50 +805,50 @@ export default function App() {
     return (
       <div className="animate-in fade-in duration-500">
         <div className="mb-6">
-          <h2 className="text-3xl font-black text-slate-900 tracking-tight">Detailed Data Hub</h2>
-          <p className="text-slate-500 font-medium italic">Granular timeline combining upper-funnel ad data with bottom-funnel adjust conversions.</p>
+          <h2 className="text-3xl font-black text-white tracking-tight">Detailed Data Hub</h2>
+          <p className="text-slate-400 font-medium italic">Granular timeline combining upper-funnel ad data with bottom-funnel adjust conversions.</p>
         </div>
 
         <MarketNavigator />
         
-        <div className="bg-white rounded-[2rem] border border-slate-100 shadow-sm overflow-hidden mb-8">
+        <div className="bg-[#131A2A] rounded-[2rem] border border-white/5 shadow-xl overflow-hidden mb-8">
           <div className="overflow-x-auto">
             <table className="w-full text-left min-w-[900px]">
-              <thead className="bg-slate-50/50 border-b border-slate-100">
+              <thead className="bg-[#1A2235] border-b border-white/5">
                 <tr className="text-[10px] font-black uppercase tracking-widest text-slate-400">
                   <th className="px-6 py-5">Fiscal Window</th>
-                  <th className="px-6 py-5 text-right text-indigo-500">Cost</th>
+                  <th className="px-6 py-5 text-right text-purple-400">Cost</th>
                   <th className="px-6 py-5 text-right">Clicks</th>
-                  <th className="px-6 py-5 text-right text-emerald-500">Installs</th>
-                  <th className="px-6 py-5 text-right text-cyan-500">Logins</th>
+                  <th className="px-6 py-5 text-right text-emerald-400">Installs</th>
+                  <th className="px-6 py-5 text-right text-cyan-400">Logins</th>
                   <th className="px-6 py-5 text-right text-slate-500">Ins-Log %</th>
-                  <th className="px-6 py-5 text-right text-fuchsia-500">Purchases</th>
+                  <th className="px-6 py-5 text-right text-rose-400">Purchases</th>
                   <th className="px-6 py-5 text-right text-slate-500">Log-Pur %</th>
-                  <th className="px-6 py-5 text-right text-amber-500">CPI</th>
-                  <th className="px-6 py-5 text-right text-red-500">CPP</th>
+                  <th className="px-6 py-5 text-right text-amber-400">CPI</th>
+                  <th className="px-6 py-5 text-right text-red-400">CPP</th>
                 </tr>
               </thead>
-              <tbody className="divide-y divide-slate-50">
+              <tbody className="divide-y divide-white/5">
                 {activeTableData.map((w, i) => (
-                  <tr key={i} className="hover:bg-slate-50/30 transition-colors group">
+                  <tr key={i} className="hover:bg-white/5 transition-colors group">
                     <td className="px-6 py-5">
                       <div className="flex items-center gap-3">
-                        <div className="w-2 h-2 rounded-full bg-indigo-500" />
-                        <span className="font-black text-slate-800">W{w.week} - {getMonthFromWeek(w.week, w.year)} {w.year}</span>
+                        <div className="w-2 h-2 rounded-full bg-purple-500 shadow-[0_0_8px_rgba(168,85,247,0.8)]" />
+                        <span className="font-black text-white">W{w.week} - {getMonthFromWeek(w.week, w.year)} {w.year}</span>
                       </div>
                     </td>
-                    <td className="px-6 py-5 text-right font-mono font-bold text-slate-600">${w.cost.toLocaleString(undefined, {minimumFractionDigits: 2})}</td>
+                    <td className="px-6 py-5 text-right font-mono font-bold text-slate-300">${w.cost.toLocaleString(undefined, {minimumFractionDigits: 2})}</td>
                     <td className="px-6 py-5 text-right font-mono text-slate-400">{w.clicks.toLocaleString()}</td>
-                    <td className="px-6 py-5 text-right font-mono font-bold text-emerald-600">{w.installs.toLocaleString()}</td>
-                    <td className="px-6 py-5 text-right font-mono font-bold text-cyan-600">{w.logins.toLocaleString()}</td>
+                    <td className="px-6 py-5 text-right font-mono font-bold text-emerald-400">{w.installs.toLocaleString()}</td>
+                    <td className="px-6 py-5 text-right font-mono font-bold text-cyan-400">{w.logins.toLocaleString()}</td>
                     <td className="px-6 py-5 text-right font-mono font-bold text-slate-500">{w.ltr.toFixed(1)}%</td>
-                    <td className="px-6 py-5 text-right font-mono font-bold text-fuchsia-600">{w.purchases.toLocaleString()}</td>
+                    <td className="px-6 py-5 text-right font-mono font-bold text-rose-400">{w.purchases.toLocaleString()}</td>
                     <td className="px-6 py-5 text-right font-mono font-bold text-slate-500">{w.ltp.toFixed(1)}%</td>
                     <td className="px-6 py-5 text-right">
-                      <span className="bg-amber-50 text-amber-700 px-3 py-1 rounded-full text-[10px] font-black">${w.cpi.toFixed(2)}</span>
+                      <span className="bg-amber-500/10 text-amber-400 px-3 py-1 rounded-full text-[10px] font-black border border-amber-500/20">${w.cpi.toFixed(2)}</span>
                     </td>
                     <td className="px-6 py-5 text-right">
-                      <span className="bg-red-50 text-red-700 px-3 py-1 rounded-full text-[10px] font-black">${w.cpp.toFixed(2)}</span>
+                      <span className="bg-red-500/10 text-red-400 px-3 py-1 rounded-full text-[10px] font-black border border-red-500/20">${w.cpp.toFixed(2)}</span>
                     </td>
                   </tr>
                 ))}
@@ -855,31 +859,31 @@ export default function App() {
 
         {compareWeeks.length > 0 && activeTableData.length > 0 && (
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-8 mt-8 animate-in fade-in zoom-in-95 duration-500">
-             <div className="bg-white p-8 rounded-[2.5rem] border border-slate-100 shadow-sm flex flex-col">
+             <div className="bg-[#131A2A] p-8 rounded-[2.5rem] border border-white/5 shadow-xl flex flex-col">
                <div className="flex justify-between items-center mb-8">
-                 <h4 className="text-sm font-black text-slate-800 uppercase tracking-widest flex items-center gap-2">
-                   <Layers className="w-4 h-4 text-emerald-500" /> Comparison: Installs vs Purchases
+                 <h4 className="text-sm font-black text-white uppercase tracking-widest flex items-center gap-2">
+                   <Layers className="w-4 h-4 text-emerald-400" /> Comparison: Installs vs Purchases
                  </h4>
                </div>
                <div className="flex-1 min-h-[300px]">
                   <DualAxisLineChart 
                      chartData={activeTableData} leftKey="installs" rightKey="purchases" 
-                     leftColorText="fill-emerald-300" rightColorText="fill-fuchsia-300"
-                     leftColorHex="#10b981" rightColorHex="#d946ef" isLeftCurrency={false} isRightCurrency={false} 
+                     leftColorText="fill-emerald-400" rightColorText="fill-rose-400"
+                     leftColorHex="#34d399" rightColorHex="#fb7185" isLeftCurrency={false} isRightCurrency={false} 
                   />
                </div>
              </div>
-             <div className="bg-white p-8 rounded-[2.5rem] border border-slate-100 shadow-sm flex flex-col">
+             <div className="bg-[#131A2A] p-8 rounded-[2.5rem] border border-white/5 shadow-xl flex flex-col">
                <div className="flex justify-between items-center mb-8">
-                 <h4 className="text-sm font-black text-slate-800 uppercase tracking-widest flex items-center gap-2">
-                   <Activity className="w-4 h-4 text-red-500" /> Comparison: CPI vs CPP
+                 <h4 className="text-sm font-black text-white uppercase tracking-widest flex items-center gap-2">
+                   <Activity className="w-4 h-4 text-red-400" /> Comparison: CPI vs CPP
                  </h4>
                </div>
                <div className="flex-1 min-h-[300px]">
                   <DualAxisLineChart 
                      chartData={activeTableData} leftKey="cpi" rightKey="cpp" 
-                     leftColorText="fill-amber-300" rightColorText="fill-red-300"
-                     leftColorHex="#f59e0b" rightColorHex="#ef4444" isLeftCurrency={true} isRightCurrency={true} 
+                     leftColorText="fill-amber-400" rightColorText="fill-red-400"
+                     leftColorHex="#fbbf24" rightColorHex="#f87171" isLeftCurrency={true} isRightCurrency={true} 
                   />
                </div>
              </div>
@@ -892,10 +896,10 @@ export default function App() {
 
   if (loading) {
     return (
-      <div className="min-h-screen bg-[#fcfdfe] flex items-center justify-center">
+      <div className="min-h-screen bg-[#0B0F19] flex items-center justify-center">
         <div className="flex flex-col items-center gap-4">
-          <div className="w-8 h-8 border-4 border-indigo-200 border-t-indigo-600 rounded-full animate-spin" />
-          <p className="text-sm font-bold text-slate-500">Syncing multi-source pipeline...</p>
+          <div className="w-8 h-8 border-4 border-purple-500/30 border-t-purple-500 rounded-full animate-spin" />
+          <p className="text-sm font-bold text-purple-400 tracking-widest uppercase">Syncing Rova Pipeline...</p>
         </div>
       </div>
     );
@@ -903,30 +907,30 @@ export default function App() {
 
   if (error) {
     return (
-      <div className="min-h-screen bg-[#fcfdfe] flex items-center justify-center">
-        <div className="bg-red-50 p-6 rounded-2xl border border-red-100 text-center">
-          <p className="text-red-600 font-bold mb-2">Connection Error</p>
-          <p className="text-sm text-red-500">{error}</p>
+      <div className="min-h-screen bg-[#0B0F19] flex items-center justify-center">
+        <div className="bg-red-500/10 p-6 rounded-2xl border border-red-500/20 text-center">
+          <p className="text-red-400 font-bold mb-2">Connection Error</p>
+          <p className="text-sm text-red-300">{error}</p>
         </div>
       </div>
     );
   }
 
   return (
-    <div className="min-h-screen bg-[#fcfdfe] text-slate-900 font-sans selection:bg-indigo-100 selection:text-indigo-900">
-      <header className="sticky top-0 z-[100] bg-white/80 backdrop-blur-2xl border-b border-slate-200/50 px-6 py-4 shadow-sm">
+    <div className="min-h-screen bg-[#0B0F19] text-slate-200 font-sans selection:bg-purple-500/30 selection:text-purple-100">
+      <header className="sticky top-0 z-[100] bg-[#0B0F19]/80 backdrop-blur-2xl border-b border-white/5 px-6 py-4 shadow-xl">
         <div className="max-w-7xl mx-auto flex flex-col lg:flex-row justify-between items-center gap-6">
           <div className="flex items-center gap-4">
-            <div className="w-12 h-12 bg-indigo-600 rounded-2xl flex items-center justify-center shadow-2xl shadow-indigo-200">
-              <TrendingUp className="text-white w-6 h-6" />
+            <div className="bg-white px-3 py-2 rounded-xl flex items-center justify-center shadow-[0_0_20px_rgba(168,85,247,0.3)]">
+              <img src={STC_LOGO} alt="STC Logo" className="h-8 w-auto object-contain" />
             </div>
             <div>
-              <h1 className="text-xl font-black tracking-tighter leading-none">ROVA PERFORMANCE</h1>
-              <p className="text-[10px] font-black text-indigo-500 uppercase tracking-[0.25em] mt-1.5">Intelligence Dashboard</p>
+              <h1 className="text-xl font-black tracking-tighter text-white leading-none">ROVA PERFORMANCE</h1>
+              <p className="text-[10px] font-black text-purple-400 uppercase tracking-[0.25em] mt-1.5">Intelligence Dashboard</p>
             </div>
           </div>
 
-          <nav className="flex items-center gap-2 bg-slate-100/60 p-1.5 rounded-2xl border border-slate-200/40 overflow-x-auto hide-scrollbar">
+          <nav className="flex items-center gap-2 bg-[#131A2A] p-1.5 rounded-2xl border border-white/5 overflow-x-auto hide-scrollbar">
             {[
               { id: 'summary', label: 'Summary', icon: LayoutDashboard },
               { id: 'market', label: 'Markets', icon: Globe },
@@ -938,8 +942,8 @@ export default function App() {
                 onClick={() => setActiveTab(tab.id)}
                 className={`flex items-center gap-2 px-5 py-2.5 rounded-xl text-sm font-black transition-all ${
                   activeTab === tab.id 
-                  ? 'bg-white text-indigo-600 shadow-md ring-1 ring-slate-200/50' 
-                  : 'text-slate-400 hover:text-slate-700'
+                  ? 'bg-gradient-to-r from-purple-600 to-rose-500 text-white shadow-lg shadow-purple-500/25 border-none' 
+                  : 'text-slate-400 hover:text-white hover:bg-white/5'
                 }`}
               >
                 <tab.icon className="w-4 h-4" />
@@ -953,8 +957,8 @@ export default function App() {
               onClick={() => setIsFilterOpen(!isFilterOpen)}
               className={`flex items-center gap-3 px-5 py-2.5 rounded-2xl border transition-all font-bold text-sm ${
                 (dateRange.start || compareWeeks.length > 0 || trafficFilter !== 'All')
-                ? 'bg-indigo-50 border-indigo-200 text-indigo-700' 
-                : 'bg-white border-slate-200 text-slate-600 hover:border-slate-300'
+                ? 'bg-purple-500/10 border-purple-500/50 text-purple-300' 
+                : 'bg-[#131A2A] border-white/5 text-slate-300 hover:border-purple-500/50'
               }`}
             >
               <Filter className="w-4 h-4" />
@@ -965,12 +969,12 @@ export default function App() {
             {isFilterOpen && (
               <>
                 <div className="fixed inset-0 z-40" onClick={() => setIsFilterOpen(false)} />
-                <div className="absolute right-0 mt-3 w-96 bg-white rounded-[2.5rem] border border-slate-200 shadow-2xl z-50 p-6 animate-in zoom-in-95 duration-200">
-                  <div className="flex justify-between items-center mb-6 px-1 border-b border-slate-100 pb-4">
+                <div className="absolute right-0 mt-3 w-96 bg-[#131A2A] rounded-[2.5rem] border border-white/10 shadow-[0_20px_50px_rgba(0,0,0,0.5)] z-50 p-6 animate-in zoom-in-95 duration-200">
+                  <div className="flex justify-between items-center mb-6 px-1 border-b border-white/5 pb-4">
                     <span className="text-[10px] font-black uppercase tracking-widest text-slate-400">Master Filters</span>
                     <button 
                       onClick={() => { setDateRange({start:'', end:''}); setCompareWeeks([]); setTrafficFilter('All'); }} 
-                      className="text-[10px] font-black uppercase tracking-widest text-indigo-600 hover:text-indigo-800"
+                      className="text-[10px] font-black uppercase tracking-widest text-purple-400 hover:text-purple-300"
                     >
                       Reset All
                     </button>
@@ -980,12 +984,12 @@ export default function App() {
                     {/* Traffic Filter */}
                     <div>
                       <h4 className="text-[10px] font-black uppercase tracking-widest text-slate-400 mb-3 flex items-center gap-2"><Users className="w-3 h-3" /> Traffic Segment</h4>
-                      <div className="flex bg-slate-100 p-1 rounded-xl">
+                      <div className="flex bg-[#0B0F19] p-1 rounded-xl border border-white/5">
                         {['All', 'Paid', 'Organic'].map(type => (
                            <button 
                              key={type}
                              onClick={() => setTrafficFilter(type)}
-                             className={`flex-1 text-xs font-bold py-2 rounded-lg transition-all ${trafficFilter === type ? 'bg-white text-indigo-600 shadow-sm' : 'text-slate-500'}`}
+                             className={`flex-1 text-xs font-bold py-2 rounded-lg transition-all ${trafficFilter === type ? 'bg-gradient-to-r from-purple-600 to-rose-500 text-white shadow-md' : 'text-slate-400 hover:text-white'}`}
                            >
                              {type}
                            </button>
@@ -997,8 +1001,8 @@ export default function App() {
                     <div className={compareWeeks.length > 0 ? 'opacity-30 pointer-events-none' : ''}>
                       <h4 className="text-[10px] font-black uppercase tracking-widest text-slate-400 mb-3 flex items-center gap-2"><CalendarDays className="w-3 h-3" /> Custom Date Range</h4>
                       <div className="flex gap-2">
-                         <input type="date" value={dateRange.start} onChange={e => setDateRange(prev => ({...prev, start: e.target.value}))} className="w-full text-xs font-bold text-slate-600 bg-slate-50 border border-slate-200 rounded-xl px-3 py-2 outline-none focus:border-indigo-500" />
-                         <input type="date" value={dateRange.end} onChange={e => setDateRange(prev => ({...prev, end: e.target.value}))} className="w-full text-xs font-bold text-slate-600 bg-slate-50 border border-slate-200 rounded-xl px-3 py-2 outline-none focus:border-indigo-500" />
+                         <input type="date" value={dateRange.start} onChange={e => setDateRange(prev => ({...prev, start: e.target.value}))} className="w-full text-xs font-bold text-slate-200 bg-[#0B0F19] border border-white/10 rounded-xl px-3 py-2 outline-none focus:border-purple-500" />
+                         <input type="date" value={dateRange.end} onChange={e => setDateRange(prev => ({...prev, end: e.target.value}))} className="w-full text-xs font-bold text-slate-200 bg-[#0B0F19] border border-white/10 rounded-xl px-3 py-2 outline-none focus:border-purple-500" />
                       </div>
                     </div>
 
@@ -1014,10 +1018,10 @@ export default function App() {
                                <button 
                                  key={key}
                                  onClick={() => setCompareWeeks(prev => isSelected ? prev.filter(k => k !== key) : [...prev, key])}
-                                 className={`flex items-center justify-between px-3 py-2 rounded-xl border text-xs font-bold transition-all ${isSelected ? 'bg-indigo-50 border-indigo-200 text-indigo-700' : 'border-slate-100 hover:bg-slate-50 text-slate-600'}`}
+                                 className={`flex items-center justify-between px-3 py-2 rounded-xl border text-xs font-bold transition-all ${isSelected ? 'bg-purple-500/20 border-purple-500/50 text-purple-300' : 'border-white/5 hover:bg-white/5 text-slate-400 hover:text-white'}`}
                                >
                                  W{week} '{year.toString().slice(2)}
-                                 {isSelected && <Check className="w-3 h-3" />}
+                                 {isSelected && <Check className="w-3 h-3 text-purple-400" />}
                                </button>
                             );
                          })}
@@ -1031,21 +1035,24 @@ export default function App() {
         </div>
       </header>
 
-      <main className="max-w-7xl mx-auto px-6 py-12">
-        {activeTab === 'summary' && renderSummary()}
-        {activeTab === 'market' && renderMarket()}
-        {activeTab === 'channel' && renderChannel()}
-        {activeTab === 'detailed' && renderDetailed()}
+      <main className="max-w-7xl mx-auto px-6 py-12 relative">
+        <div className="absolute top-0 left-1/2 -translate-x-1/2 w-full h-[600px] bg-gradient-to-b from-purple-900/10 via-transparent to-transparent pointer-events-none rounded-full blur-[100px]"></div>
+        <div className="relative z-10">
+          {activeTab === 'summary' && renderSummary()}
+          {activeTab === 'market' && renderMarket()}
+          {activeTab === 'channel' && renderChannel()}
+          {activeTab === 'detailed' && renderDetailed()}
+        </div>
       </main>
 
-      <footer className="max-w-7xl mx-auto px-6 pb-12 border-t border-slate-100 mt-12 pt-8 flex flex-col md:flex-row justify-between items-center gap-6 opacity-40">
+      <footer className="max-w-7xl mx-auto px-6 pb-12 border-t border-white/5 mt-12 pt-8 flex flex-col md:flex-row justify-between items-center gap-6 opacity-60 hover:opacity-100 transition-opacity">
         <div className="flex items-center gap-4">
           <Info className="w-4 h-4 text-slate-400" />
-          <span className="text-[10px] font-black uppercase tracking-widest text-slate-500">MMP Cross-Engine v4.4 | Tooltips Active</span>
+          <span className="text-[10px] font-black uppercase tracking-widest text-slate-500">MMP Cross-Engine v4.5 | Dark Mode Protocol Active</span>
         </div>
-        <div className="flex gap-4 items-center">
-          <div className="w-2.5 h-2.5 rounded-full bg-emerald-500 animate-pulse" />
-          <span className="text-[10px] font-black uppercase tracking-widest text-slate-500">Live Connect</span>
+        <div className="flex gap-4 items-center bg-[#131A2A] px-4 py-2 rounded-full border border-white/5">
+          <div className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse shadow-[0_0_8px_rgba(52,211,153,0.8)]" />
+          <span className="text-[10px] font-black uppercase tracking-widest text-emerald-400">Live Secure Connect</span>
         </div>
       </footer>
     </div>
