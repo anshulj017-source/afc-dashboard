@@ -42,6 +42,22 @@ const normalizeMarket = (marketName) => {
   return aliases[upperName] || cleanName;
 };
 
+// Helper: Standardize Channel Names (Deduplication Engine)
+const normalizeChannel = (channelName) => {
+  if (!channelName || channelName === 'BLANK' || channelName === 'Unknown') return 'Other';
+  const cleanName = channelName.toString().trim();
+  const lowerName = cleanName.toLowerCase();
+  
+  if (lowerName.includes('apple')) return 'Apple Search';
+  if (lowerName.includes('facebook') || lowerName.includes('meta')) return 'Facebook';
+  if (lowerName.includes('google') || lowerName.includes('gmp')) return 'Google';
+  if (lowerName.includes('tiktok')) return 'TikTok';
+  if (lowerName.includes('snapchat')) return 'Snapchat';
+  if (lowerName.includes('twitter') || lowerName === 'x') return 'X';
+  
+  return cleanName;
+};
+
 // Safe numerical parsing
 const parseMetric = (val) => {
   if (!val) return 0;
@@ -88,7 +104,7 @@ export default function App() {
             week, year,
             date: getDateFromWeek(week, year),
             market: normalizeMarket(row['Country'] || row['Channel Country']),
-            channel: (!rawS1Channel || rawS1Channel === 'BLANK') ? 'Other' : rawS1Channel,
+            channel: (!rawS1Channel || rawS1Channel === 'BLANK') ? 'Other' : normalizeChannel(rawS1Channel),
             source: 'AdNetwork',
             trafficType: 'Paid' 
           };
@@ -115,7 +131,7 @@ export default function App() {
             week, year,
             date: getDateFromWeek(week, year),
             market: normalizeMarket(row['Country'] || row['Geo']),
-            channel: (!rawS2Channel || rawS2Channel === 'BLANK' || rawS2Channel === 'Organic') ? 'Other' : rawS2Channel,
+            channel: (!rawS2Channel || rawS2Channel === 'BLANK' || rawS2Channel === 'Organic') ? 'Other' : normalizeChannel(rawS2Channel),
             source: 'Adjust',
             trafficType
           };
@@ -207,7 +223,7 @@ export default function App() {
   const channelBreakdown = useMemo(() => {
     return d3.groups(filteredData, d => d.channel)
       .map(([name, values]) => ({ name, ...aggregate(values) }))
-      .filter(m => m.cost >= 1 || m.purchases >= 1)
+      .filter(m => m.cost >= 1 || m.purchases >= 1) 
       .sort((a, b) => b.cost - a.cost);
   }, [filteredData]);
 
@@ -422,7 +438,7 @@ export default function App() {
   // --- RENDERS ---
   const renderSummary = () => (
     <div className="animate-in fade-in duration-700">
-      <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-5 gap-4 mb-10">
+      <div className="grid grid-cols-2 md:grid-cols-5 gap-4 mb-10">
         <MetricCard label="Ad Spend" value={`$${d3.format(",.0f")(metrics.cost)}`} color="text-blue-600" />
         <MetricCard label="Impressions" value={(metrics.impressions / 1000000).toFixed(2) + 'M'} color="text-indigo-600" />
         <MetricCard label="Clicks" value={d3.format(",.0f")(metrics.clicks)} color="text-purple-600" />
@@ -472,8 +488,8 @@ export default function App() {
   const renderMarket = () => {
     const sortedByInstalls = [...marketBreakdown].sort((a, b) => b.installs - a.installs);
     const sortedByPurchases = [...marketBreakdown].sort((a, b) => b.purchases - a.purchases);
-    const validCPI = [...marketBreakdown].filter(m => m.installs > 0).sort((a, b) => a.cpi - b.cpi);
-    const validCPP = [...marketBreakdown].filter(m => m.purchases > 0).sort((a, b) => a.cpp - b.cpp);
+    const validCPI = [...marketBreakdown].filter(m => m.installs > 0 && m.cost > 0).sort((a, b) => a.cpi - b.cpi);
+    const validCPP = [...marketBreakdown].filter(m => m.purchases > 0 && m.cost > 0).sort((a, b) => a.cpp - b.cpp);
 
     const activeMarketData = selectedMarketView === 'All' 
       ? null 
@@ -588,8 +604,8 @@ export default function App() {
 
     const sortedByInstalls = [...localChannelBreakdown].sort((a, b) => b.installs - a.installs);
     const sortedByPurchases = [...localChannelBreakdown].sort((a, b) => b.purchases - a.purchases);
-    const validCPI = [...localChannelBreakdown].filter(c => c.installs > 0).sort((a, b) => a.cpi - b.cpi);
-    const validCPP = [...localChannelBreakdown].filter(c => c.purchases > 0).sort((a, b) => a.cpp - b.cpp);
+    const validCPI = [...localChannelBreakdown].filter(c => c.installs > 0 && c.cost > 0).sort((a, b) => a.cpi - b.cpi);
+    const validCPP = [...localChannelBreakdown].filter(c => c.purchases > 0 && c.cost > 0).sort((a, b) => a.cpp - b.cpp);
 
     const activeChannelData = selectedChannelView === 'All' 
       ? null 
