@@ -256,10 +256,10 @@ export default function App() {
   };
 
   // --- COMPONENTS ---
-  const MetricCard = ({ label, value }) => (
+  const MetricCard = ({ label, value, color }) => (
     <div className="bg-white p-5 rounded-[1.5rem] border border-slate-100 shadow-sm transition-all hover:shadow-lg hover:-translate-y-1 group">
-      <p className="text-[9px] font-black text-slate-400 uppercase tracking-widest mb-1">{label}</p>
-      <h3 className="text-lg font-black text-slate-900 truncate" title={value}>{value}</h3>
+      <p className={`text-[10px] font-black ${color} uppercase tracking-widest mb-1`}>{label}</p>
+      <h3 className="text-xl font-black text-slate-900 truncate" title={value}>{value}</h3>
     </div>
   );
 
@@ -300,7 +300,7 @@ export default function App() {
     </div>
   );
 
-  const ChannelNavigator = () => (
+  const ChannelNavigator = ({ channels }) => (
     <div className="flex gap-3 overflow-x-auto pb-4 mb-8 border-b border-slate-100 hide-scrollbar">
       <button 
         onClick={() => setSelectedChannelView('All')} 
@@ -308,7 +308,7 @@ export default function App() {
       >
         Global Overview
       </button>
-      {channelBreakdown.map(c => (
+      {channels.map(c => (
         <button 
           key={c.name} 
           onClick={() => setSelectedChannelView(c.name)} 
@@ -349,7 +349,7 @@ export default function App() {
     );
   };
 
-  const MarketBarChartCard = ({ title, icon: Icon, data, dataKey, color, isCurrency, insight }) => (
+  const EntityBarChartCard = ({ title, icon: Icon, data, dataKey, color, isCurrency, insight }) => (
     <div className="bg-white p-6 rounded-[2rem] border border-slate-100 shadow-sm flex flex-col h-full hover:shadow-md transition-shadow">
         <div className="flex items-center gap-2 mb-6">
            <Icon className={`w-5 h-5 ${color.replace('bg-', 'text-')}`} />
@@ -438,15 +438,18 @@ export default function App() {
   // --- RENDERS ---
   const renderSummary = () => (
     <div className="animate-in fade-in duration-700">
-      <div className="grid grid-cols-2 lg:grid-cols-4 xl:grid-cols-8 gap-4 mb-10">
-        <MetricCard label="Ad Spend" value={`$${d3.format(",.0f")(metrics.cost)}`} />
-        <MetricCard label="Impressions" value={(metrics.impressions / 1000000).toFixed(2) + 'M'} />
-        <MetricCard label="Clicks" value={d3.format(",.0f")(metrics.clicks)} />
-        <MetricCard label="Installs" value={d3.format(",.0f")(metrics.installs)} />
-        <MetricCard label="Logins" value={d3.format(",.0f")(metrics.logins)} />
-        <MetricCard label="Purchases" value={d3.format(",.0f")(metrics.purchases)} />
-        <MetricCard label="CPI" value={`$${metrics.cpi.toFixed(2)}`} />
-        <MetricCard label="CPP" value={`$${metrics.cpp.toFixed(2)}`} />
+      <div className="grid grid-cols-2 lg:grid-cols-5 gap-6 mb-10">
+        <MetricCard label="Ad Spend" value={`$${d3.format(",.0f")(metrics.cost)}`} color="text-blue-600" />
+        <MetricCard label="Impressions" value={(metrics.impressions / 1000000).toFixed(2) + 'M'} color="text-indigo-600" />
+        <MetricCard label="Clicks" value={d3.format(",.0f")(metrics.clicks)} color="text-purple-600" />
+        <MetricCard label="Installs" value={d3.format(",.0f")(metrics.installs)} color="text-emerald-600" />
+        <MetricCard label="Logins" value={d3.format(",.0f")(metrics.logins)} color="text-cyan-600" />
+        
+        <MetricCard label="Purchases" value={d3.format(",.0f")(metrics.purchases)} color="text-fuchsia-600" />
+        <MetricCard label="Install-to-Login %" value={`${metrics.ltr.toFixed(2)}%`} color="text-teal-500" />
+        <MetricCard label="Login-to-Purch %" value={`${metrics.ltp.toFixed(2)}%`} color="text-rose-500" />
+        <MetricCard label="CPI" value={`$${metrics.cpi.toFixed(2)}`} color="text-amber-500" />
+        <MetricCard label="CPP" value={`$${metrics.cpp.toFixed(2)}`} color="text-red-500" />
       </div>
 
       <InsightBox text={getAIInsight('summary')} />
@@ -521,23 +524,23 @@ export default function App() {
 
         {selectedMarketView === 'All' ? (
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
-            <MarketBarChartCard title="Total Installs" icon={Download} data={sortedByInstalls} dataKey="installs" color="bg-emerald-500" 
+            <EntityBarChartCard title="Total Installs" icon={Download} data={sortedByInstalls} dataKey="installs" color="bg-emerald-500" 
               insight={`${sortedByInstalls[0]?.name || 'Top market'} leads acquisition volume, accounting for ${(sortedByInstalls[0]?.installs / (metrics.installs || 1) * 100).toFixed(1)}% of total installs.`} />
-            <MarketBarChartCard title="Total Purchases" icon={ShoppingCart} data={sortedByPurchases} dataKey="purchases" color="bg-fuchsia-500" 
+            <EntityBarChartCard title="Total Purchases" icon={ShoppingCart} data={sortedByPurchases} dataKey="purchases" color="bg-fuchsia-500" 
               insight={`${sortedByPurchases[0]?.name || 'Top market'} drives the highest bottom-funnel intent, producing ${sortedByPurchases[0]?.purchases.toLocaleString()} conversions.`} />
-            <MarketBarChartCard title="Cost Per Install (CPI)" icon={Activity} data={validCPI.slice(0, 8)} dataKey="cpi" color="bg-amber-500" isCurrency={true} 
+            <EntityBarChartCard title="Cost Per Install (CPI)" icon={Activity} data={validCPI.slice(0, 8)} dataKey="cpi" color="bg-amber-500" isCurrency={true} 
               insight={`${validCPI[0]?.name || 'Top market'} offers the most cost-effective top-funnel acquisition at $${validCPI[0]?.cpi.toFixed(2)} CPI.`} />
-            <MarketBarChartCard title="Cost Per Purchase (CPP)" icon={Target} data={validCPP.slice(0, 8)} dataKey="cpp" color="bg-red-500" isCurrency={true} 
+            <EntityBarChartCard title="Cost Per Purchase (CPP)" icon={Target} data={validCPP.slice(0, 8)} dataKey="cpp" color="bg-red-500" isCurrency={true} 
               insight={`${validCPP[0]?.name || 'Top market'} delivers the best conversion ROI, acquiring paying users for just $${validCPP[0]?.cpp.toFixed(2)}.`} />
           </div>
         ) : (
           <div className="animate-in fade-in zoom-in-95 duration-500">
             <div className="grid grid-cols-2 lg:grid-cols-5 gap-4 mb-8">
-               <MetricCard label="Ad Spend" value={`$${d3.format(",.0f")(activeMarketSummary?.cost || 0)}`} />
-               <MetricCard label="Installs" value={d3.format(",.0f")(activeMarketSummary?.installs || 0)} />
-               <MetricCard label="Purchases" value={d3.format(",.0f")(activeMarketSummary?.purchases || 0)} />
-               <MetricCard label="CPI" value={`$${(activeMarketSummary?.cpi || 0).toFixed(2)}`} />
-               <MetricCard label="CPP" value={`$${(activeMarketSummary?.cpp || 0).toFixed(2)}`} />
+               <MetricCard label="Ad Spend" value={`$${d3.format(",.0f")(activeMarketSummary?.cost || 0)}`} color="text-blue-600" />
+               <MetricCard label="Installs" value={d3.format(",.0f")(activeMarketSummary?.installs || 0)} color="text-emerald-600" />
+               <MetricCard label="Purchases" value={d3.format(",.0f")(activeMarketSummary?.purchases || 0)} color="text-fuchsia-600" />
+               <MetricCard label="CPI" value={`$${(activeMarketSummary?.cpi || 0).toFixed(2)}`} color="text-amber-500" />
+               <MetricCard label="CPP" value={`$${(activeMarketSummary?.cpp || 0).toFixed(2)}`} color="text-red-500" />
             </div>
 
             <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
@@ -588,18 +591,29 @@ export default function App() {
   };
 
   const renderChannel = () => {
-    const sortedByInstalls = [...channelBreakdown].sort((a, b) => b.installs - a.installs);
-    const sortedByPurchases = [...channelBreakdown].sort((a, b) => b.purchases - a.purchases);
-    const validCPI = [...channelBreakdown].filter(c => c.installs > 0).sort((a, b) => a.cpi - b.cpi);
-    const validCPP = [...channelBreakdown].filter(c => c.purchases > 0).sort((a, b) => a.cpp - b.cpp);
+    // 1. Determine which data to use based on the global Market Selector
+    const localFilteredData = selectedMarketView === 'All' 
+      ? filteredData 
+      : filteredData.filter(d => d.market === selectedMarketView);
+
+    // 2. Build the breakdown based strictly on the selected market
+    const localChannelBreakdown = d3.groups(localFilteredData, d => d.channel)
+      .map(([name, values]) => ({ name, ...aggregate(values) }))
+      .filter(c => c.cost > 0 || c.purchases > 0)
+      .sort((a, b) => b.cost - a.cost);
+
+    const sortedByInstalls = [...localChannelBreakdown].sort((a, b) => b.installs - a.installs);
+    const sortedByPurchases = [...localChannelBreakdown].sort((a, b) => b.purchases - a.purchases);
+    const validCPI = [...localChannelBreakdown].filter(c => c.installs > 0).sort((a, b) => a.cpi - b.cpi);
+    const validCPP = [...localChannelBreakdown].filter(c => c.purchases > 0).sort((a, b) => a.cpp - b.cpp);
 
     const activeChannelData = selectedChannelView === 'All' 
       ? null 
-      : d3.groups(filteredData.filter(d => d.channel === selectedChannelView), d => d.timeKey)
+      : d3.groups(localFilteredData.filter(d => d.channel === selectedChannelView), d => d.timeKey)
           .map(([key, values]) => ({ week: values[0].week, year: values[0].year, ...aggregate(values) }))
           .sort((a,b) => a.week - b.week);
           
-    const activeChannelSummary = selectedChannelView === 'All' ? null : channelBreakdown.find(c => c.name === selectedChannelView);
+    const activeChannelSummary = selectedChannelView === 'All' ? null : localChannelBreakdown.find(c => c.name === selectedChannelView);
 
     const calculateInsight = (dataArray, metricName, metricKey, isCurrency) => {
       if (!dataArray || dataArray.length < 2) return `Monitoring ${metricName} stabilization trends over time.`;
@@ -617,32 +631,49 @@ export default function App() {
 
     return (
       <div className="animate-in fade-in duration-500">
-        <div className="mb-6">
-          <h2 className="text-3xl font-black text-slate-900 tracking-tight">Channel Attribution</h2>
-          <p className="text-slate-500 font-medium italic">Marketing platform breakdown mapped directly to purchase intent.</p>
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 mb-6">
+          <div>
+            <h2 className="text-3xl font-black text-slate-900 tracking-tight">Channel Attribution</h2>
+            <p className="text-slate-500 font-medium italic">Marketing platform performance across the funnel.</p>
+          </div>
+          
+          {/* THE REQUESTED MARKET SELECTOR DROPDOWN */}
+          <div className="flex flex-col items-end">
+             <span className="text-[10px] font-black uppercase text-slate-400 mb-1 tracking-widest">Filter by Market</span>
+             <select 
+               value={selectedMarketView}
+               onChange={(e) => setSelectedMarketView(e.target.value)}
+               className="px-4 py-2.5 bg-white border border-slate-200 rounded-xl text-sm font-black text-indigo-700 shadow-sm outline-none focus:border-indigo-500 cursor-pointer"
+             >
+               <option value="All">Global (All Markets)</option>
+               {marketBreakdown.map(m => (
+                 <option key={m.name} value={m.name}>{m.name}</option>
+               ))}
+             </select>
+          </div>
         </div>
 
-        <ChannelNavigator />
+        <ChannelNavigator channels={localChannelBreakdown} />
 
         {selectedChannelView === 'All' ? (
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
-            <MarketBarChartCard title="Total Installs" icon={Download} data={sortedByInstalls} dataKey="installs" color="bg-emerald-500" 
-              insight={`${sortedByInstalls[0]?.name || 'Top channel'} leads acquisition volume, accounting for ${(sortedByInstalls[0]?.installs / (metrics.installs || 1) * 100).toFixed(1)}% of total installs.`} />
-            <MarketBarChartCard title="Total Purchases" icon={ShoppingCart} data={sortedByPurchases} dataKey="purchases" color="bg-fuchsia-500" 
-              insight={`${sortedByPurchases[0]?.name || 'Top channel'} drives the highest bottom-funnel intent, producing ${sortedByPurchases[0]?.purchases.toLocaleString()} conversions.`} />
-            <MarketBarChartCard title="Cost Per Install (CPI)" icon={Activity} data={validCPI.slice(0, 8)} dataKey="cpi" color="bg-amber-500" isCurrency={true} 
-              insight={`${validCPI[0]?.name || 'Top channel'} offers the most cost-effective top-funnel acquisition at $${validCPI[0]?.cpi.toFixed(2)} CPI.`} />
-            <MarketBarChartCard title="Cost Per Purchase (CPP)" icon={Target} data={validCPP.slice(0, 8)} dataKey="cpp" color="bg-red-500" isCurrency={true} 
-              insight={`${validCPP[0]?.name || 'Top channel'} delivers the best conversion ROI, acquiring paying users for just $${validCPP[0]?.cpp.toFixed(2)}.`} />
+            <EntityBarChartCard title="Total Installs" icon={Download} data={sortedByInstalls} dataKey="installs" color="bg-emerald-500" 
+              insight={`${sortedByInstalls[0]?.name || 'Top channel'} drives the highest top-funnel acquisition.`} />
+            <EntityBarChartCard title="Total Purchases" icon={ShoppingCart} data={sortedByPurchases} dataKey="purchases" color="bg-fuchsia-500" 
+              insight={`${sortedByPurchases[0]?.name || 'Top channel'} brings in the highest volume of paying users.`} />
+            <EntityBarChartCard title="Cost Per Install (CPI)" icon={Activity} data={validCPI.slice(0, 8)} dataKey="cpi" color="bg-amber-500" isCurrency={true} 
+              insight={`${validCPI[0]?.name || 'Top channel'} provides the cheapest initial user acquisition at $${validCPI[0]?.cpi.toFixed(2)} CPI.`} />
+            <EntityBarChartCard title="Cost Per Purchase (CPP)" icon={Target} data={validCPP.slice(0, 8)} dataKey="cpp" color="bg-red-500" isCurrency={true} 
+              insight={`${validCPP[0]?.name || 'Top channel'} is your most efficient conversion engine at $${validCPP[0]?.cpp.toFixed(2)} CPP.`} />
           </div>
         ) : (
           <div className="animate-in fade-in zoom-in-95 duration-500">
             <div className="grid grid-cols-2 lg:grid-cols-5 gap-4 mb-8">
-               <MetricCard label="Ad Spend" value={`$${d3.format(",.0f")(activeChannelSummary?.cost || 0)}`} />
-               <MetricCard label="Installs" value={d3.format(",.0f")(activeChannelSummary?.installs || 0)} />
-               <MetricCard label="Purchases" value={d3.format(",.0f")(activeChannelSummary?.purchases || 0)} />
-               <MetricCard label="CPI" value={`$${(activeChannelSummary?.cpi || 0).toFixed(2)}`} />
-               <MetricCard label="CPP" value={`$${(activeChannelSummary?.cpp || 0).toFixed(2)}`} />
+               <MetricCard label="Ad Spend" value={`$${d3.format(",.0f")(activeChannelSummary?.cost || 0)}`} color="text-blue-600" />
+               <MetricCard label="Installs" value={d3.format(",.0f")(activeChannelSummary?.installs || 0)} color="text-emerald-600" />
+               <MetricCard label="Purchases" value={d3.format(",.0f")(activeChannelSummary?.purchases || 0)} color="text-fuchsia-600" />
+               <MetricCard label="CPI" value={`$${(activeChannelSummary?.cpi || 0).toFixed(2)}`} color="text-amber-500" />
+               <MetricCard label="CPP" value={`$${(activeChannelSummary?.cpp || 0).toFixed(2)}`} color="text-red-500" />
             </div>
 
             <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
