@@ -223,7 +223,7 @@ export default function App() {
   const channelBreakdown = useMemo(() => {
     return d3.groups(filteredData, d => d.channel)
       .map(([name, values]) => ({ name, ...aggregate(values) }))
-      .filter(m => m.cost >= 1 || m.purchases >= 1) 
+      .filter(m => m.cost >= 1 || m.purchases >= 1)
       .sort((a, b) => b.cost - a.cost);
   }, [filteredData]);
 
@@ -232,10 +232,6 @@ export default function App() {
   const getAIInsight = (context, activeData = null) => {
     if (filteredData.length === 0) return "No data available for the current selection.";
     
-    if (context === 'summary') {
-      const cvrToPurchase = metrics.installs > 0 ? ((metrics.purchases / metrics.installs) * 100).toFixed(1) : 0;
-      return `Funnel Efficiency: ${cvrToPurchase}% of all installs convert into a purchase, yielding a global Cost Per Purchase (CPP) of $${metrics.cpp.toFixed(2)}. ${marketBreakdown[0]?.name || 'Top market'} remains your heaviest investment vehicle.`;
-    }
     if (context === 'detailed') {
       const dataToAnalyze = activeData || weeklyTimeline;
       if (dataToAnalyze.length > 1) {
@@ -436,54 +432,82 @@ export default function App() {
   };
 
   // --- RENDERS ---
-  const renderSummary = () => (
-    <div className="animate-in fade-in duration-700">
-      <div className="grid grid-cols-2 md:grid-cols-5 gap-4 mb-10">
-        <MetricCard label="Ad Spend" value={`$${d3.format(",.0f")(metrics.cost)}`} color="text-blue-600" />
-        <MetricCard label="Impressions" value={(metrics.impressions / 1000000).toFixed(2) + 'M'} color="text-indigo-600" />
-        <MetricCard label="Clicks" value={d3.format(",.0f")(metrics.clicks)} color="text-purple-600" />
-        <MetricCard label="Installs" value={d3.format(",.0f")(metrics.installs)} color="text-emerald-600" />
-        <MetricCard label="Logins" value={d3.format(",.0f")(metrics.logins)} color="text-cyan-600" />
-        
-        <MetricCard label="Purchases" value={d3.format(",.0f")(metrics.purchases)} color="text-fuchsia-600" />
-        <MetricCard label="Install-to-Login %" value={`${metrics.ltr.toFixed(2)}%`} color="text-teal-500" />
-        <MetricCard label="Login-to-Purch %" value={`${metrics.ltp.toFixed(2)}%`} color="text-rose-500" />
-        <MetricCard label="CPI" value={`$${metrics.cpi.toFixed(2)}`} color="text-amber-500" />
-        <MetricCard label="CPP" value={`$${metrics.cpp.toFixed(2)}`} color="text-red-500" />
-      </div>
+  const renderSummary = () => {
+    const ltr = metrics.installs > 0 ? ((metrics.logins / metrics.installs) * 100).toFixed(2) : 0;
+    const ltp = metrics.logins > 0 ? ((metrics.purchases / metrics.logins) * 100).toFixed(2) : 0;
+    const cvr = metrics.installs > 0 ? ((metrics.purchases / metrics.installs) * 100).toFixed(2) : 0;
+    const topMarket = marketBreakdown[0]?.name || 'N/A';
+    const topChannel = channelBreakdown[0]?.name || 'N/A';
 
-      <InsightBox text={getAIInsight('summary')} />
+    const summaryInsights = [
+      `Overall Funnel Efficiency: Out of ${d3.format(",.0f")(metrics.installs)} installs, ${ltr}% successfully logged in, and ${ltp}% of those logins resulted in a confirmed purchase.`,
+      `Cost Dynamics: The blended Cost Per Install (CPI) sits at $${metrics.cpi.toFixed(2)}, scaling to an effective Cost Per Purchase (CPP) of $${metrics.cpp.toFixed(2)}.`,
+      `Platform vs Adjust Sync: A total ad spend of $${d3.format(",.0f")(metrics.cost)} generated ${d3.format(",.0f")(metrics.clicks)} clicks, converting to ${d3.format(",.0f")(metrics.purchases)} Adjust-verified purchases (a ${cvr}% install-to-purchase rate).`,
+      `Market & Channel Leaders: '${topMarket}' is currently the most active geographical market, while '${topChannel}' drives the highest measurable bottom-funnel engagement.`
+    ];
 
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
-        <div className="lg:col-span-2 bg-white p-8 rounded-[2.5rem] border border-slate-100 shadow-sm flex flex-col">
-          <div className="flex justify-between items-center mb-8">
-            <h4 className="text-sm font-black text-slate-800 uppercase tracking-widest flex items-center gap-2">
-              <TrendingUp className="w-4 h-4 text-indigo-500" /> Spend vs MMP Installs
-            </h4>
-            <div className="flex gap-4 text-[10px] font-black uppercase text-slate-400">
-              <span className="flex items-center gap-1"><div className="w-2 h-2 rounded-full bg-indigo-500"/> Cost</span>
-              <span className="flex items-center gap-1"><div className="w-2 h-2 rounded-full bg-emerald-500"/> Installs</span>
+    return (
+      <div className="animate-in fade-in duration-700">
+        <div className="grid grid-cols-2 md:grid-cols-5 gap-4 mb-10">
+          <MetricCard label="Ad Spend" value={`$${d3.format(",.0f")(metrics.cost)}`} color="text-blue-600" />
+          <MetricCard label="Impressions" value={(metrics.impressions / 1000000).toFixed(2) + 'M'} color="text-indigo-600" />
+          <MetricCard label="Clicks" value={d3.format(",.0f")(metrics.clicks)} color="text-purple-600" />
+          <MetricCard label="Installs" value={d3.format(",.0f")(metrics.installs)} color="text-emerald-600" />
+          <MetricCard label="Logins" value={d3.format(",.0f")(metrics.logins)} color="text-cyan-600" />
+          
+          <MetricCard label="Purchases" value={d3.format(",.0f")(metrics.purchases)} color="text-fuchsia-600" />
+          <MetricCard label="Install-to-Login %" value={`${metrics.ltr.toFixed(2)}%`} color="text-teal-500" />
+          <MetricCard label="Login-to-Purch %" value={`${metrics.ltp.toFixed(2)}%`} color="text-rose-500" />
+          <MetricCard label="CPI" value={`$${metrics.cpi.toFixed(2)}`} color="text-amber-500" />
+          <MetricCard label="CPP" value={`$${metrics.cpp.toFixed(2)}`} color="text-red-500" />
+        </div>
+
+        <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
+          <div className="lg:col-span-2 bg-white p-8 rounded-[2.5rem] border border-slate-100 shadow-sm flex flex-col">
+            <div className="flex justify-between items-center mb-8">
+              <h4 className="text-sm font-black text-slate-800 uppercase tracking-widest flex items-center gap-2">
+                <TrendingUp className="w-4 h-4 text-indigo-500" /> Spend vs MMP Installs
+              </h4>
+              <div className="flex gap-4 text-[10px] font-black uppercase text-slate-400">
+                <span className="flex items-center gap-1"><div className="w-2 h-2 rounded-full bg-indigo-500"/> Cost</span>
+                <span className="flex items-center gap-1"><div className="w-2 h-2 rounded-full bg-emerald-500"/> Installs</span>
+              </div>
+            </div>
+            <div className="flex-1 min-h-[340px]">
+               <DualAxisLineChart 
+                  chartData={weeklyTimeline} 
+                  leftKey="cost" rightKey="installs" 
+                  leftColorText="fill-indigo-300" rightColorText="fill-emerald-300"
+                  leftColorHex="#6366f1" rightColorHex="#10b981"
+                  isLeftCurrency={true} isRightCurrency={false} 
+               />
             </div>
           </div>
-          <div className="flex-1 min-h-[340px]">
-             <DualAxisLineChart 
-                chartData={weeklyTimeline} 
-                leftKey="cost" rightKey="installs" 
-                leftColorText="fill-indigo-300" rightColorText="fill-emerald-300"
-                leftColorHex="#6366f1" rightColorHex="#10b981"
-                isLeftCurrency={true} isRightCurrency={false} 
-             />
+          <div className="bg-white p-8 rounded-[2.5rem] border border-slate-100 shadow-sm">
+            <h4 className="text-sm font-black text-slate-800 mb-6 uppercase tracking-widest flex items-center gap-2">
+              <ShoppingCart className="w-4 h-4 text-fuchsia-500" /> Top Market Purchases
+            </h4>
+            <BarChart chartData={[...marketBreakdown].sort((a,b)=>b.purchases-a.purchases)} valueKey="purchases" color="bg-fuchsia-500" />
           </div>
         </div>
-        <div className="bg-white p-8 rounded-[2.5rem] border border-slate-100 shadow-sm">
-          <h4 className="text-sm font-black text-slate-800 mb-6 uppercase tracking-widest flex items-center gap-2">
-            <ShoppingCart className="w-4 h-4 text-fuchsia-500" /> Top Market Purchases
-          </h4>
-          <BarChart chartData={[...marketBreakdown].sort((a,b)=>b.purchases-a.purchases)} valueKey="purchases" color="bg-fuchsia-500" />
+
+        <div className="mt-8 bg-indigo-50/60 border border-indigo-100 p-8 rounded-[2.5rem]">
+           <div className="flex items-center gap-3 mb-6">
+              <Zap className="w-5 h-5 text-indigo-500" />
+              <h4 className="text-lg font-black text-slate-800 tracking-tight">Executive AI Analysis</h4>
+           </div>
+           <ul className="space-y-4">
+              {summaryInsights.map((bullet, idx) => (
+                 <li key={idx} className="flex items-start gap-3">
+                    <div className="w-1.5 h-1.5 rounded-full bg-indigo-500 mt-2 flex-shrink-0" />
+                    <p className="text-sm font-medium text-slate-700 leading-relaxed">{bullet}</p>
+                 </li>
+              ))}
+           </ul>
         </div>
       </div>
-    </div>
-  );
+    );
+  };
 
   const renderMarket = () => {
     const sortedByInstalls = [...marketBreakdown].sort((a, b) => b.installs - a.installs);
@@ -782,8 +806,6 @@ export default function App() {
         </div>
 
         <MarketNavigator />
-
-        <InsightBox text={getAIInsight('detailed', activeTableData)} />
         
         <div className="bg-white rounded-[2rem] border border-slate-100 shadow-sm overflow-hidden mb-8">
           <div className="overflow-x-auto">
@@ -830,6 +852,40 @@ export default function App() {
             </table>
           </div>
         </div>
+
+        {compareWeeks.length > 0 && activeTableData.length > 0 && (
+          <div className="grid grid-cols-1 lg:grid-cols-2 gap-8 mt-8 animate-in fade-in zoom-in-95 duration-500">
+             <div className="bg-white p-8 rounded-[2.5rem] border border-slate-100 shadow-sm flex flex-col">
+               <div className="flex justify-between items-center mb-8">
+                 <h4 className="text-sm font-black text-slate-800 uppercase tracking-widest flex items-center gap-2">
+                   <Layers className="w-4 h-4 text-emerald-500" /> Comparison: Installs vs Purchases
+                 </h4>
+               </div>
+               <div className="flex-1 min-h-[300px]">
+                  <DualAxisLineChart 
+                     chartData={activeTableData} leftKey="installs" rightKey="purchases" 
+                     leftColorText="fill-emerald-300" rightColorText="fill-fuchsia-300"
+                     leftColorHex="#10b981" rightColorHex="#d946ef" isLeftCurrency={false} isRightCurrency={false} 
+                  />
+               </div>
+             </div>
+             <div className="bg-white p-8 rounded-[2.5rem] border border-slate-100 shadow-sm flex flex-col">
+               <div className="flex justify-between items-center mb-8">
+                 <h4 className="text-sm font-black text-slate-800 uppercase tracking-widest flex items-center gap-2">
+                   <Activity className="w-4 h-4 text-red-500" /> Comparison: CPI vs CPP
+                 </h4>
+               </div>
+               <div className="flex-1 min-h-[300px]">
+                  <DualAxisLineChart 
+                     chartData={activeTableData} leftKey="cpi" rightKey="cpp" 
+                     leftColorText="fill-amber-300" rightColorText="fill-red-300"
+                     leftColorHex="#f59e0b" rightColorHex="#ef4444" isLeftCurrency={true} isRightCurrency={true} 
+                  />
+               </div>
+             </div>
+          </div>
+        )}
+
       </div>
     );
   };
