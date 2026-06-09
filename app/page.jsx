@@ -11,9 +11,6 @@ import {
 const COMBINED_COUNTRY_CSV_URL = "https://docs.google.com/spreadsheets/d/e/2PACX-1vSt_K4Y6h2g2iVm2CDrc33rQGDToGd41a805URte2UEDqMYB_K8V4YKLIJ9rCMoLdmwvbco7uyevE9U/pub?gid=1273221446&single=true&output=csv";
 const RAW_ADJUST_CSV_URL = "https://docs.google.com/spreadsheets/d/e/2PACX-1vSt_K4Y6h2g2iVm2CDrc33rQGDToGd41a805URte2UEDqMYB_K8V4YKLIJ9rCMoLdmwvbco7uyevE9U/pub?gid=588241351&single=true&output=csv";
 
-// Updated to a reliable, hotlink-friendly CDN source
-const STC_LOGO = "https://upload.wikimedia.org/wikipedia/commons/c/c2/STC_Logo.svg";
-
 // Helper: Convert Week Number to Approximate Date 
 const getDateFromWeek = (week, year = 2026) => {
   return new Date(year, 0, 1 + (week - 1) * 7);
@@ -230,12 +227,53 @@ export default function App() {
       .sort((a, b) => b.cost - a.cost);
   }, [filteredData]);
 
+
+  // --- DYNAMIC AI INSIGHTS ---
+  const getAIInsight = (context, activeData = null) => {
+    if (filteredData.length === 0) return "No data available for the current selection.";
+    
+    if (context === 'detailed') {
+      const dataToAnalyze = activeData || weeklyTimeline;
+      if (dataToAnalyze.length > 1) {
+        const sortedByCPP = [...dataToAnalyze].filter(w => w.purchases > 0).sort((a,b)=>a.cpp-b.cpp);
+        const worstCPP = [...dataToAnalyze].filter(w => w.purchases > 0).sort((a,b)=>b.cpp-a.cpp)[0];
+        
+        let string = `Week ${sortedByCPP[0]?.week} yielded the highest conversion efficiency ($${sortedByCPP[0]?.cpp.toFixed(2)} CPP). `;
+        if (worstCPP && worstCPP.cpp > sortedByCPP[0].cpp * 1.5) {
+           string += `Conversely, Week ${worstCPP.week} saw CPP spike to $${worstCPP.cpp.toFixed(2)}, indicating heavy ad waste or tracking drop-off.`;
+        } else {
+           string += `Overall stability is strong across the selected timeframe for this view.`;
+        }
+        return string;
+      }
+      return "Analyzing single week data. Add more weeks to see CPI & CPP progression trends over time.";
+    }
+    return "";
+  };
+
   // --- UI COMPONENTS ---
   const MetricCard = ({ label, value, color }) => (
     <div className="bg-[#131A2A]/80 backdrop-blur-xl p-6 rounded-[1.5rem] border border-white/5 shadow-xl transition-all hover:shadow-[0_0_20px_rgba(168,85,247,0.15)] hover:-translate-y-1 relative overflow-hidden group">
       <div className="absolute top-0 right-0 w-32 h-32 bg-gradient-to-br from-white/5 to-transparent rounded-full blur-2xl -mr-10 -mt-10 group-hover:bg-purple-500/10 transition-colors duration-500"></div>
       <p className={`text-[10px] font-black ${color} uppercase tracking-widest mb-2 relative z-10`}>{label}</p>
       <h3 className="text-2xl font-black text-white truncate relative z-10" title={value}>{value}</h3>
+    </div>
+  );
+
+  const InsightBox = ({ text }) => (
+    <div className="bg-gradient-to-br from-[#2D1B69] to-[#1A0B2E] rounded-[2.5rem] p-8 text-white shadow-2xl shadow-purple-900/20 mb-10 relative overflow-hidden border border-purple-500/30">
+      <div className="absolute top-0 right-0 p-8 opacity-10">
+        <Zap className="w-32 h-32 text-purple-300" />
+      </div>
+      <div className="relative z-10">
+        <div className="flex items-center gap-3 mb-4">
+          <div className="bg-white/10 p-2 rounded-xl backdrop-blur-md">
+            <Zap className="w-4 h-4 text-purple-300" />
+          </div>
+          <span className="text-[10px] font-black uppercase tracking-[0.25em] text-purple-200">AI Funnel Insight</span>
+        </div>
+        <p className="text-xl font-medium leading-relaxed italic max-w-4xl text-purple-50">"{text}"</p>
+      </div>
     </div>
   );
 
@@ -648,7 +686,7 @@ export default function App() {
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
             <EntityBarChartCard title="Total Installs" icon={Download} data={sortedByInstalls} dataKey="installs" color="bg-emerald-500" 
               insight={`${sortedByInstalls[0]?.name || 'Top channel'} drives the highest top-funnel acquisition.`} />
-            <EntityBarChartCard title="Total Purchases" icon={ShoppingCart} data={sortedByPurchases} dataKey="purchases" color="bg-rose-500" 
+            <EntityBarChartCard title="Total Purchases" icon={ShoppingCart} data={sortedByPurchases} dataKey="purchases" color="bg-fuchsia-500" 
               insight={`${sortedByPurchases[0]?.name || 'Top channel'} brings in the highest volume of paying users.`} />
             <EntityBarChartCard title="Cost Per Install (CPI)" icon={Activity} data={validCPI.slice(0, 8)} dataKey="cpi" color="bg-amber-500" isCurrency={true} 
               insight={`${validCPI[0]?.name || 'Top channel'} provides the cheapest initial user acquisition at $${validCPI[0]?.cpi.toFixed(2)} CPI.`} />
@@ -884,7 +922,7 @@ export default function App() {
         <div className="max-w-7xl mx-auto flex flex-col lg:flex-row justify-between items-center gap-6">
           <div className="flex items-center gap-4">
             <div className="bg-white px-3 py-2 rounded-xl flex items-center justify-center shadow-[0_0_20px_rgba(168,85,247,0.3)]">
-              <img src={STC_LOGO} alt="STC Logo" className="h-8 w-auto object-contain" />
+              <span className="text-xl font-black text-[#0B0F19] tracking-tighter">stc</span>
             </div>
             <div>
               <h1 className="text-xl font-black tracking-tighter text-white leading-none">ROVA PERFORMANCE</h1>
