@@ -104,7 +104,7 @@ export default function App() {
             week, year,
             date: getDateFromWeek(week, year),
             market: normalizeMarket(row['Country'] || row['Geo']),
-            channel: (!row['Network'] || row['Network'] === 'BLANK' || row['Network'] === 'Organic') ? 'Other' : row['Network'],
+            channel: (!row['Network'] || row['Network'] === 'BLANK' || row['Network'] === 'Organic') ? 'Other' : (row['Network'] || row['Source']),
             source: 'Adjust',
             trafficType
           };
