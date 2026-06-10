@@ -66,6 +66,14 @@ const parseMetric = (val) => {
   return parseFloat(val.toString().replace(/,/g, '').trim()) || 0;
 };
 
+// Enhancement: Abbreviated Number Formatter
+const formatShort = (num) => {
+  if (!num) return '0';
+  if (num >= 1000000) return (num / 1000000).toFixed(1) + 'M';
+  if (num >= 1000) return (num / 1000).toFixed(0) + 'K';
+  return d3.format(",.0f")(num);
+};
+
 export default function App() {
   const [data, setData] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -85,13 +93,23 @@ export default function App() {
   const [currency, setCurrency] = useState('USD');
   const [kpi, setKpi] = useState({ isOpen: false, isSet: false, budget: '', impressions: '', installs: '' });
 
-  // PDF Report State
   const [reportModal, setReportModal] = useState({ isOpen: false, start: '', end: '', market: 'All', channel: 'All', traffic: 'All' });
   const [isGeneratingPdf, setIsGeneratingPdf] = useState(false);
 
   const exRate = currency === 'BHD' ? 0.377 : 1;
   const exSym = currency === 'BHD' ? 'BD ' : '$';
   const formatC = (val, dec = 0) => `${exSym}${d3.format(`,.${dec}f`)(val * exRate)}`;
+
+  // Enhancement: Secure PDF Print Trigger (Moved to top-level to prevent Hook violation)
+  useEffect(() => {
+    if (isGeneratingPdf) {
+      const timer = setTimeout(() => {
+        window.print();
+        setIsGeneratingPdf(false);
+      }, 1500);
+      return () => clearTimeout(timer);
+    }
+  }, [isGeneratingPdf]);
 
   useEffect(() => {
     Promise.all([
@@ -202,7 +220,6 @@ export default function App() {
   const marketBreakdown = useMemo(() => d3.groups(filteredData, d => d.market).map(([name, values]) => ({ name, ...aggregate(values) })).filter(m => m.cost >= 1 || m.purchases >= 1).sort((a, b) => b.cost - a.cost), [filteredData]);
   const channelBreakdown = useMemo(() => d3.groups(filteredData, d => d.channel).map(([name, values]) => ({ name, ...aggregate(values) })).filter(m => m.cost >= 1 || m.purchases >= 1).sort((a, b) => b.cost - a.cost), [filteredData]);
 
-  // --- INTERACTIVE DRILL-DOWN HANDLER ---
   const handleDrillDown = (type, value) => {
     setActiveTab('detailed');
     if (type === 'market') {
@@ -212,7 +229,6 @@ export default function App() {
       setSelectedDetailedChannel(value);
       setSelectedMarketView('All');
     }
-    // Scroll to top
     window.scrollTo({ top: 0, behavior: 'smooth' });
   };
 
@@ -238,8 +254,8 @@ export default function App() {
                 <strong className="text-white text-base">Performance Overview ({selectedType}):</strong>
                 <ul className="list-none mt-3 space-y-1.5 bg-white/5 p-5 rounded-xl border border-white/10">
                   <li><strong>Ad Spend:</strong> {formatC(stats.tCost)}</li>
-                  <li><strong>Impressions:</strong> {d3.format(",.0f")(stats.tImps)}</li>
-                  <li><strong>Clicks:</strong> {d3.format(",.0f")(stats.tClicks)}</li>
+                  <li><strong>Impressions:</strong> {formatShort(stats.tImps)}</li>
+                  <li><strong>Clicks:</strong> {formatShort(stats.tClicks)}</li>
                   <li><strong>Installs:</strong> {d3.format(",.0f")(stats.tInstalls)}</li>
                   <li><strong>Purchases:</strong> {d3.format(",.0f")(stats.tPurchases)}</li>
                 </ul>
@@ -328,7 +344,7 @@ export default function App() {
     return (
       <div className="space-y-4">
         {chartData.slice(0, 8).map((item, i) => {
-          const formattedVal = isPercent ? `${item[valueKey].toFixed(2)}%` : isCurrency ? formatC(item[valueKey]) : d3.format(",.0f")(item[valueKey]);
+          const formattedVal = isPercent ? `${item[valueKey].toFixed(2)}%` : isCurrency ? formatC(item[valueKey]) : formatShort(item[valueKey]);
           return (
             <div key={i} onClick={() => onClickItem && onClickItem(item[labelKey])} className={`group relative ${onClickItem ? 'cursor-pointer' : ''}`}>
               <div className="flex justify-between items-end mb-1.5">
@@ -448,78 +464,6 @@ export default function App() {
     );
   };
 
-  const renderKpiTracker = () => {
-    const canSetKpi = dateRange.start && dateRange.end && trafficFilter === 'Paid';
-
-    if (!canSetKpi) {
-      return (
-        <div className="mb-8 w-full border border-dashed border-white/10 rounded-2xl p-6 text-slate-500 flex items-center justify-center gap-3 font-bold text-sm bg-[#131A2A]/50 cursor-not-allowed">
-          <Target className="w-5 h-5 opacity-50" /> KPI Tracker (Requires custom Date Range & 'Paid' Traffic filter to activate)
-        </div>
-      );
-    }
-
-    if (kpi.isOpen && !kpi.isSet) {
-      return (
-        <div className="mb-8 bg-[#131A2A] p-8 rounded-[2rem] border border-purple-500/30 shadow-xl relative overflow-hidden animate-in fade-in slide-in-from-top-4">
-           <div className="absolute top-0 right-0 w-32 h-32 bg-purple-500/10 rounded-full blur-3xl"></div>
-           <div className="flex justify-between items-center mb-6 relative z-10">
-             <h4 className="text-sm font-black text-white uppercase tracking-widest flex items-center gap-2"><Target className="w-4 h-4 text-purple-400" /> Configure KPI Targets ({dateRange.start} to {dateRange.end})</h4>
-             <button onClick={() => setKpi({...kpi, isOpen: false})} className="text-slate-400 hover:text-white"><Zap className="w-4 h-4 rotate-45"/></button>
-           </div>
-           <div className="grid grid-cols-1 md:grid-cols-3 gap-4 relative z-10">
-              <input type="number" placeholder={`Budget (${currency})`} value={kpi.budget} onChange={e=>setKpi({...kpi, budget: e.target.value})} className="w-full text-xs font-bold text-white bg-[#0B0F19] border border-white/10 rounded-xl px-4 py-3 outline-none focus:border-purple-500" />
-              <input type="number" placeholder="Target Impressions" value={kpi.impressions} onChange={e=>setKpi({...kpi, impressions: e.target.value})} className="w-full text-xs font-bold text-white bg-[#0B0F19] border border-white/10 rounded-xl px-4 py-3 outline-none focus:border-purple-500" />
-              <input type="number" placeholder="Target Installs" value={kpi.installs} onChange={e=>setKpi({...kpi, installs: e.target.value})} className="w-full text-xs font-bold text-white bg-[#0B0F19] border border-white/10 rounded-xl px-4 py-3 outline-none focus:border-purple-500" />
-           </div>
-           <button onClick={() => setKpi({...kpi, isSet: true, isOpen: false})} className="mt-6 w-full bg-gradient-to-r from-purple-600 to-rose-500 text-white rounded-xl py-3 font-black text-sm shadow-lg shadow-purple-500/25 transition-all hover:scale-[1.01] relative z-10">Track Pacing Against Live Data</button>
-        </div>
-      );
-    }
-
-    if (kpi.isSet) {
-      const actuals = metrics; 
-      const bPct = Math.min((actuals.cost / (parseFloat(kpi.budget) / exRate || 1)) * 100, 100);
-      const impPct = Math.min((actuals.impressions / (parseFloat(kpi.impressions) || 1)) * 100, 100);
-      const instPct = Math.min((actuals.installs / (parseFloat(kpi.installs) || 1)) * 100, 100);
-
-      const ProgressBar = ({ label, actual, target, pct, isCurr, color = "bg-purple-500" }) => (
-        <div>
-          <div className="flex justify-between text-xs font-bold text-slate-300 mb-2">
-            <span>{label}</span>
-            <span>{isCurr ? formatC(actual) : d3.format(",.0f")(actual)} / {isCurr ? `${exSym}${d3.format(",.0f")(target)}` : d3.format(",.0f")(target)}</span>
-          </div>
-          <div className="h-2 bg-[#0B0F19] rounded-full overflow-hidden border border-white/5">
-            <div className={`h-full ${color} rounded-full relative`} style={{ width: `${pct}%` }}>
-              <div className="absolute inset-0 bg-white/20 w-full animate-[shimmer_2s_infinite]"></div>
-            </div>
-          </div>
-        </div>
-      );
-
-      return (
-        <div className="mb-8 bg-[#131A2A] p-8 rounded-[2rem] border border-white/5 shadow-xl animate-in fade-in">
-           <div className="flex justify-between items-center mb-6">
-             <h4 className="text-sm font-black text-white uppercase tracking-widest flex items-center gap-2"><Target className="w-4 h-4 text-purple-400" /> Goal Pacing ({dateRange.start} to {dateRange.end})</h4>
-             <button onClick={() => setKpi({...kpi, isSet: false, isOpen: true})} className="text-xs font-black uppercase tracking-widest text-purple-400 hover:text-purple-300">Edit Goals</button>
-           </div>
-           <div className="space-y-6">
-              <ProgressBar label="Budget Delivery" actual={actuals.cost} target={kpi.budget} pct={bPct} isCurr color="bg-blue-500" />
-              <ProgressBar label="Impressions Generated" actual={actuals.impressions} target={kpi.impressions} pct={impPct} color="bg-cyan-500" />
-              <ProgressBar label="Installs Acquired" actual={actuals.installs} target={kpi.installs} pct={instPct} color="bg-emerald-500" />
-           </div>
-        </div>
-      );
-    }
-
-    return (
-      <button onClick={() => setKpi({...kpi, isOpen: true})} className="mb-8 w-full border border-dashed border-white/10 rounded-2xl p-6 text-slate-400 hover:text-white hover:border-purple-500/50 hover:bg-purple-500/5 transition-all flex items-center justify-center gap-3 font-bold text-sm">
-        <Target className="w-5 h-5 text-purple-400" /> Set Campaign Goal & KPI Pacing Tracker
-      </button>
-    );
-  };
-
-  // --- RENDERS ---
   const renderSummary = () => {
     const ltr = metrics.installs > 0 ? ((metrics.logins / metrics.installs) * 100).toFixed(2) : 0;
     const ltp = metrics.logins > 0 ? ((metrics.purchases / metrics.logins) * 100).toFixed(2) : 0;
@@ -528,9 +472,9 @@ export default function App() {
     const topChannel = channelBreakdown[0]?.name || 'N/A';
 
     const summaryInsights = [
-      `Overall Funnel Efficiency: Out of ${d3.format(",.0f")(metrics.installs)} installs, ${ltr}% successfully logged in, and ${ltp}% of those logins resulted in a confirmed purchase.`,
+      `Overall Funnel Efficiency: Out of ${formatShort(metrics.installs)} installs, ${ltr}% successfully logged in, and ${ltp}% of those logins resulted in a confirmed purchase.`,
       `Cost Dynamics: The blended Cost Per Install (CPI) sits at ${formatC(metrics.cpi, 2)}, scaling to an effective Cost Per Purchase (CPP) of ${formatC(metrics.cpp, 2)}.`,
-      `Platform vs Adjust Sync: A total ad spend of ${formatC(metrics.cost)} generated ${d3.format(",.0f")(metrics.clicks)} clicks, converting to ${d3.format(",.0f")(metrics.purchases)} Adjust-verified purchases (a ${cvr}% install-to-purchase rate).`,
+      `Platform vs Adjust Sync: A total ad spend of ${formatC(metrics.cost)} generated ${formatShort(metrics.clicks)} clicks, converting to ${formatShort(metrics.purchases)} Adjust-verified purchases (a ${cvr}% install-to-purchase rate).`,
       `Market & Channel Leaders: '${topMarket}' is currently the most active geographical market, while '${topChannel}' drives the highest measurable bottom-funnel engagement.`
     ];
 
@@ -541,11 +485,11 @@ export default function App() {
 
         <div className="grid grid-cols-2 md:grid-cols-5 gap-4 mb-10">
           <MetricCard label="Ad Spend" value={formatC(metrics.cost)} color="text-purple-400" />
-          <MetricCard label="Impressions" value={(metrics.impressions / 1000000).toFixed(2) + 'M'} color="text-cyan-400" />
-          <MetricCard label="Clicks" value={d3.format(",.0f")(metrics.clicks)} color="text-blue-400" />
-          <MetricCard label="Installs" value={d3.format(",.0f")(metrics.installs)} color="text-emerald-400" />
-          <MetricCard label="Logins" value={d3.format(",.0f")(metrics.logins)} color="text-amber-400" />
-          <MetricCard label="Purchases" value={d3.format(",.0f")(metrics.purchases)} color="text-rose-400" />
+          <MetricCard label="Impressions" value={formatShort(metrics.impressions)} color="text-cyan-400" />
+          <MetricCard label="Clicks" value={formatShort(metrics.clicks)} color="text-blue-400" />
+          <MetricCard label="Installs" value={formatShort(metrics.installs)} color="text-emerald-400" />
+          <MetricCard label="Logins" value={formatShort(metrics.logins)} color="text-amber-400" />
+          <MetricCard label="Purchases" value={formatShort(metrics.purchases)} color="text-rose-400" />
           <MetricCard label="Install-to-Login %" value={`${metrics.ltr.toFixed(2)}%`} color="text-teal-400" />
           <MetricCard label="Login-to-Purch %" value={`${metrics.ltp.toFixed(2)}%`} color="text-pink-400" />
           <MetricCard label="CPI" value={formatC(metrics.cpi, 2)} color="text-orange-400" />
@@ -622,8 +566,8 @@ export default function App() {
           <div className="animate-in fade-in zoom-in-95 duration-500">
             <div className="grid grid-cols-2 lg:grid-cols-5 gap-4 mb-8">
                <MetricCard label="Ad Spend" value={formatC(activeMarketSummary?.cost || 0)} color="text-purple-400" />
-               <MetricCard label="Installs" value={d3.format(",.0f")(activeMarketSummary?.installs || 0)} color="text-emerald-400" />
-               <MetricCard label="Purchases" value={d3.format(",.0f")(activeMarketSummary?.purchases || 0)} color="text-rose-400" />
+               <MetricCard label="Installs" value={formatShort(activeMarketSummary?.installs || 0)} color="text-emerald-400" />
+               <MetricCard label="Purchases" value={formatShort(activeMarketSummary?.purchases || 0)} color="text-rose-400" />
                <MetricCard label="CPI" value={formatC(activeMarketSummary?.cpi || 0, 2)} color="text-amber-400" />
                <MetricCard label="CPP" value={formatC(activeMarketSummary?.cpp || 0, 2)} color="text-red-400" />
             </div>
@@ -697,10 +641,10 @@ export default function App() {
           <div className="animate-in fade-in zoom-in-95 duration-500">
             <div className="grid grid-cols-2 md:grid-cols-4 xl:grid-cols-7 gap-4 mb-8">
                <MetricCard label="Ad Spend" value={formatC(activeChannelSummary?.cost || 0)} color="text-purple-400" />
-               <MetricCard label="Impressions" value={d3.format(",.0f")(activeChannelSummary?.impressions || 0)} color="text-cyan-400" />
-               <MetricCard label="Clicks" value={d3.format(",.0f")(activeChannelSummary?.clicks || 0)} color="text-blue-400" />
-               <MetricCard label="Installs" value={d3.format(",.0f")(activeChannelSummary?.installs || 0)} color="text-emerald-400" />
-               <MetricCard label="Purchases" value={d3.format(",.0f")(activeChannelSummary?.purchases || 0)} color="text-rose-400" />
+               <MetricCard label="Impressions" value={formatShort(activeChannelSummary?.impressions || 0)} color="text-cyan-400" />
+               <MetricCard label="Clicks" value={formatShort(activeChannelSummary?.clicks || 0)} color="text-blue-400" />
+               <MetricCard label="Installs" value={formatShort(activeChannelSummary?.installs || 0)} color="text-emerald-400" />
+               <MetricCard label="Purchases" value={formatShort(activeChannelSummary?.purchases || 0)} color="text-rose-400" />
                <MetricCard label="CPI" value={formatC(activeChannelSummary?.cpi || 0, 2)} color="text-amber-400" />
                <MetricCard label="CPP" value={formatC(activeChannelSummary?.cpp || 0, 2)} color="text-red-400" />
             </div>
@@ -753,7 +697,6 @@ export default function App() {
       ? filteredData 
       : filteredData.filter(d => d.market === selectedMarketView);
       
-    // Apply Channel Filter for Detailed View
     marketFilteredData = selectedDetailedChannel === 'All'
       ? marketFilteredData
       : marketFilteredData.filter(d => d.channel === selectedDetailedChannel);
@@ -802,7 +745,7 @@ export default function App() {
           {['All Weeks', 'Salary Weeks', 'BAU'].map(type => (
             <button 
               key={type} 
-              onClick={() => setSelectedWeekTypeView(type)} 
+              onClick={() => setSelectedWeekTypeView(prev => prev === type ? '' : type)} 
               className={`whitespace-nowrap px-6 py-2.5 rounded-xl text-sm font-black transition-all ${selectedWeekTypeView === type ? 'bg-gradient-to-r from-purple-600 to-rose-500 text-white shadow-lg shadow-purple-500/25 border-none' : 'bg-[#131A2A] text-slate-400 border border-white/5 hover:bg-white/5 hover:text-white'}`}
             >
               {type}
@@ -896,15 +839,6 @@ export default function App() {
 
     const ltr = reportMetrics.installs > 0 ? ((reportMetrics.logins / reportMetrics.installs) * 100).toFixed(1) : 0;
     const ltp = reportMetrics.logins > 0 ? ((reportMetrics.purchases / reportMetrics.logins) * 100).toFixed(1) : 0;
-    
-    // Simulate printing delay to allow charts to render
-    useEffect(() => {
-       const timer = setTimeout(() => {
-          window.print();
-          setIsGeneratingPdf(false);
-       }, 1500);
-       return () => clearTimeout(timer);
-    }, []);
 
     return (
       <div className="bg-white text-slate-900 min-h-screen p-10 w-[1000px] mx-auto print-only relative z-[99999]">
@@ -926,8 +860,8 @@ export default function App() {
 
          <div className="grid grid-cols-4 gap-4 mb-8">
             <div className="p-4 border border-slate-200 rounded-2xl"><p className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-1">Ad Spend</p><h3 className="text-xl font-black text-slate-900">{formatC(reportMetrics.cost)}</h3></div>
-            <div className="p-4 border border-slate-200 rounded-2xl"><p className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-1">Installs</p><h3 className="text-xl font-black text-slate-900">{d3.format(",.0f")(reportMetrics.installs)}</h3></div>
-            <div className="p-4 border border-slate-200 rounded-2xl"><p className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-1">Purchases</p><h3 className="text-xl font-black text-slate-900">{d3.format(",.0f")(reportMetrics.purchases)}</h3></div>
+            <div className="p-4 border border-slate-200 rounded-2xl"><p className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-1">Installs</p><h3 className="text-xl font-black text-slate-900">{formatShort(reportMetrics.installs)}</h3></div>
+            <div className="p-4 border border-slate-200 rounded-2xl"><p className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-1">Purchases</p><h3 className="text-xl font-black text-slate-900">{formatShort(reportMetrics.purchases)}</h3></div>
             <div className="p-4 border border-slate-200 rounded-2xl"><p className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-1">CPP</p><h3 className="text-xl font-black text-red-500">{formatC(reportMetrics.cpp, 2)}</h3></div>
          </div>
 
