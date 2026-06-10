@@ -1,4 +1,4 @@
-import { ClerkProvider, SignedIn, SignedOut, RedirectToSignIn } from '@clerk/nextjs'
+import { ClerkProvider } from '@clerk/nextjs'
 import { dark } from '@clerk/themes'
 import './globals.css'
 
@@ -19,15 +19,7 @@ export default function RootLayout({
     >
       <html lang="en">
         <body>
-          {/* If the user is NOT logged in, immediately bounce them to the Clerk Portal */}
-          <SignedOut>
-            <RedirectToSignIn />
-          </SignedOut>
-
-          {/* If the user IS logged in, render the Rova Dashboard */}
-          <SignedIn>
-            {children}
-          </SignedIn>
+          {children}
         </body>
       </html>
     </ClerkProvider>
