@@ -81,7 +81,7 @@ export default function App() {
   const [compareWeeks, setCompareWeeks] = useState([]); 
   const [trafficFilter, setTrafficFilter] = useState('All'); 
 
-  // New State: Currency & KPI Goals
+  // State: Currency & KPI Goals
   const [currency, setCurrency] = useState('USD');
   const [kpi, setKpi] = useState({ isOpen: false, isSet: false, start: '', end: '', budget: '', impressions: '', installs: '' });
 
@@ -403,7 +403,8 @@ export default function App() {
 
   const renderLeaderboard = () => {
     const topInstalls = [...channelBreakdown].sort((a,b)=>b.installs - a.installs)[0];
-    const topCPP = [...channelBreakdown].filter(c=>c.purchases > 0).sort((a,b)=>a.cpp - b.cpp)[0];
+    // Ensure we strictly analyze paid channels (cost > 0)
+    const topCPP = [...channelBreakdown].filter(c=>c.purchases > 0 && c.cost > 0).sort((a,b)=>a.cpp - b.cpp)[0];
     const topMarket = [...marketBreakdown].sort((a,b)=>b.purchases - a.purchases)[0];
 
     return (
@@ -418,7 +419,7 @@ export default function App() {
          </div>
          <div className="bg-[#131A2A] p-5 rounded-2xl border border-white/5 flex items-center gap-4 hover:border-amber-500/30 transition-all">
             <div className="p-3 bg-amber-500/20 text-amber-400 rounded-xl"><Zap className="w-5 h-5"/></div>
-            <div><p className="text-[10px] uppercase tracking-widest text-slate-400">Most Efficient</p><p className="font-black text-white">{topCPP?.name || 'N/A'} <span className="text-amber-400 text-xs font-bold">({formatC(topCPP?.cpp, 2)} CPP)</span></p></div>
+            <div><p className="text-[10px] uppercase tracking-widest text-slate-400">Most Efficient Paid</p><p className="font-black text-white">{topCPP?.name || 'N/A'} <span className="text-amber-400 text-xs font-bold">({formatC(topCPP?.cpp, 2)} CPP)</span></p></div>
          </div>
       </div>
     );
@@ -512,7 +513,6 @@ export default function App() {
       <div className="animate-in fade-in duration-700">
         
         {renderLeaderboard()}
-        {renderKpiTracker()}
 
         <div className="grid grid-cols-2 md:grid-cols-5 gap-4 mb-10">
           <MetricCard label="Ad Spend" value={formatC(metrics.cost)} color="text-purple-400" />
@@ -885,7 +885,7 @@ export default function App() {
             ))}
           </nav>
 
-          <div className="relative flex items-center gap-3">
+          <div className="flex items-center gap-3">
             <button 
                onClick={() => setCurrency(c => c === 'USD' ? 'BHD' : 'USD')}
                className="flex items-center gap-2 px-4 py-2.5 rounded-2xl border transition-all font-black text-xs tracking-widest uppercase bg-[#131A2A] border-white/5 text-slate-300 hover:border-purple-500/50 hover:text-white"
@@ -893,68 +893,70 @@ export default function App() {
                <DollarSign className="w-4 h-4 text-emerald-400" /> {currency}
             </button>
 
-            <button 
-              onClick={() => setIsFilterOpen(!isFilterOpen)}
-              className={`flex items-center gap-3 px-5 py-2.5 rounded-2xl border transition-all font-bold text-sm ${
-                (dateRange.start || compareWeeks.length > 0 || trafficFilter !== 'All')
-                ? 'bg-purple-500/10 border-purple-500/50 text-purple-300' 
-                : 'bg-[#131A2A] border-white/5 text-slate-300 hover:border-purple-500/50'
-              }`}
-            >
-              <Filter className="w-4 h-4" />
-              {(dateRange.start || compareWeeks.length > 0 || trafficFilter !== 'All') ? 'Filters Active' : 'Filter Data'}
-              <ChevronDown className={`w-4 h-4 transition-transform ${isFilterOpen ? 'rotate-180' : ''}`} />
-            </button>
+            <div className="relative">
+              <button 
+                onClick={() => setIsFilterOpen(!isFilterOpen)}
+                className={`flex items-center gap-3 px-5 py-2.5 rounded-2xl border transition-all font-bold text-sm ${
+                  (dateRange.start || compareWeeks.length > 0 || trafficFilter !== 'All')
+                  ? 'bg-purple-500/10 border-purple-500/50 text-purple-300' 
+                  : 'bg-[#131A2A] border-white/5 text-slate-300 hover:border-purple-500/50'
+                }`}
+              >
+                <Filter className="w-4 h-4" />
+                {(dateRange.start || compareWeeks.length > 0 || trafficFilter !== 'All') ? 'Filters Active' : 'Filter Data'}
+                <ChevronDown className={`w-4 h-4 transition-transform ${isFilterOpen ? 'rotate-180' : ''}`} />
+              </button>
 
-            {isFilterOpen && (
-              <>
-                <div className="fixed inset-0 z-40" onClick={() => setIsFilterOpen(false)} />
-                <div className="absolute right-0 mt-3 w-96 bg-[#131A2A] rounded-[2.5rem] border border-white/10 shadow-[0_20px_50px_rgba(0,0,0,0.5)] z-50 p-6 animate-in zoom-in-95 duration-200">
-                  <div className="flex justify-between items-center mb-6 px-1 border-b border-white/5 pb-4">
-                    <span className="text-[10px] font-black uppercase tracking-widest text-slate-400">Master Filters</span>
-                    <button onClick={() => { setDateRange({start:'', end:''}); setCompareWeeks([]); setTrafficFilter('All'); }} className="text-[10px] font-black uppercase tracking-widest text-purple-400 hover:text-purple-300">
-                      Reset All
-                    </button>
+              {isFilterOpen && (
+                <>
+                  <div className="fixed inset-0 z-40" onClick={() => setIsFilterOpen(false)} />
+                  <div className="absolute right-0 mt-3 w-96 bg-[#131A2A] rounded-[2.5rem] border border-white/10 shadow-[0_20px_50px_rgba(0,0,0,0.5)] z-50 p-6 animate-in zoom-in-95 duration-200">
+                    <div className="flex justify-between items-center mb-6 px-1 border-b border-white/5 pb-4">
+                      <span className="text-[10px] font-black uppercase tracking-widest text-slate-400">Master Filters</span>
+                      <button onClick={() => { setDateRange({start:'', end:''}); setCompareWeeks([]); setTrafficFilter('All'); }} className="text-[10px] font-black uppercase tracking-widest text-purple-400 hover:text-purple-300">
+                        Reset All
+                      </button>
+                    </div>
+                    
+                    <div className="space-y-6">
+                      <div>
+                        <h4 className="text-[10px] font-black uppercase tracking-widest text-slate-400 mb-3 flex items-center gap-2"><Users className="w-3 h-3" /> Traffic Segment</h4>
+                        <div className="flex bg-[#0B0F19] p-1 rounded-xl border border-white/5">
+                          {['All', 'Paid', 'Organic'].map(type => (
+                             <button key={type} onClick={() => setTrafficFilter(type)} className={`flex-1 text-xs font-bold py-2 rounded-lg transition-all ${trafficFilter === type ? 'bg-gradient-to-r from-purple-600 to-rose-500 text-white shadow-md' : 'text-slate-400 hover:text-white'}`}>
+                               {type}
+                             </button>
+                          ))}
+                        </div>
+                      </div>
+                      <div className={compareWeeks.length > 0 ? 'opacity-30 pointer-events-none' : ''}>
+                        <h4 className="text-[10px] font-black uppercase tracking-widest text-slate-400 mb-3 flex items-center gap-2"><CalendarDays className="w-3 h-3" /> Custom Date Range</h4>
+                        <div className="flex gap-2">
+                           <input type="date" value={dateRange.start} onChange={e => setDateRange(prev => ({...prev, start: e.target.value}))} onClick={(e) => e.target.showPicker && e.target.showPicker()} style={{ colorScheme: 'dark' }} className="w-full text-xs font-bold text-slate-200 bg-[#0B0F19] border border-white/10 rounded-xl px-3 py-2 outline-none focus:border-purple-500 cursor-pointer" />
+                           <input type="date" value={dateRange.end} onChange={e => setDateRange(prev => ({...prev, end: e.target.value}))} onClick={(e) => e.target.showPicker && e.target.showPicker()} style={{ colorScheme: 'dark' }} className="w-full text-xs font-bold text-slate-200 bg-[#0B0F19] border border-white/10 rounded-xl px-3 py-2 outline-none focus:border-purple-500 cursor-pointer" />
+                        </div>
+                      </div>
+                      <div className={dateRange.start || dateRange.end ? 'opacity-30 pointer-events-none' : ''}>
+                        <h4 className="text-[10px] font-black uppercase tracking-widest text-slate-400 mb-3 flex items-center gap-2"><Layers className="w-3 h-3" /> Compare Specific Weeks</h4>
+                        <div className="max-h-40 overflow-y-auto pr-2 grid grid-cols-2 gap-2 custom-scrollbar">
+                           {allTimeKeys.map(key => {
+                              const year = Math.floor(key / 100);
+                              const week = key % 100;
+                              const isSelected = compareWeeks.includes(key);
+                              return (
+                                 <button key={key} onClick={() => setCompareWeeks(prev => isSelected ? prev.filter(k => k !== key) : [...prev, key])} className={`flex items-center justify-between px-3 py-2 rounded-xl border text-xs font-bold transition-all ${isSelected ? 'bg-purple-500/20 border-purple-500/50 text-purple-300' : 'border-white/5 hover:bg-white/5 text-slate-400 hover:text-white'}`}>
+                                   W{week} '{year.toString().slice(2)}
+                                   {isSelected && <Check className="w-3 h-3 text-purple-400" />}
+                                 </button>
+                              );
+                           })}
+                        </div>
+                      </div>
+                    </div>
                   </div>
-                  
-                  <div className="space-y-6">
-                    <div>
-                      <h4 className="text-[10px] font-black uppercase tracking-widest text-slate-400 mb-3 flex items-center gap-2"><Users className="w-3 h-3" /> Traffic Segment</h4>
-                      <div className="flex bg-[#0B0F19] p-1 rounded-xl border border-white/5">
-                        {['All', 'Paid', 'Organic'].map(type => (
-                           <button key={type} onClick={() => setTrafficFilter(type)} className={`flex-1 text-xs font-bold py-2 rounded-lg transition-all ${trafficFilter === type ? 'bg-gradient-to-r from-purple-600 to-rose-500 text-white shadow-md' : 'text-slate-400 hover:text-white'}`}>
-                             {type}
-                           </button>
-                        ))}
-                      </div>
-                    </div>
-                    <div className={compareWeeks.length > 0 ? 'opacity-30 pointer-events-none' : ''}>
-                      <h4 className="text-[10px] font-black uppercase tracking-widest text-slate-400 mb-3 flex items-center gap-2"><CalendarDays className="w-3 h-3" /> Custom Date Range</h4>
-                      <div className="flex gap-2">
-                         <input type="date" value={dateRange.start} onChange={e => setDateRange(prev => ({...prev, start: e.target.value}))} onClick={(e) => e.target.showPicker && e.target.showPicker()} style={{ colorScheme: 'dark' }} className="w-full text-xs font-bold text-slate-200 bg-[#0B0F19] border border-white/10 rounded-xl px-3 py-2 outline-none focus:border-purple-500 cursor-pointer" />
-                         <input type="date" value={dateRange.end} onChange={e => setDateRange(prev => ({...prev, end: e.target.value}))} onClick={(e) => e.target.showPicker && e.target.showPicker()} style={{ colorScheme: 'dark' }} className="w-full text-xs font-bold text-slate-200 bg-[#0B0F19] border border-white/10 rounded-xl px-3 py-2 outline-none focus:border-purple-500 cursor-pointer" />
-                      </div>
-                    </div>
-                    <div className={dateRange.start || dateRange.end ? 'opacity-30 pointer-events-none' : ''}>
-                      <h4 className="text-[10px] font-black uppercase tracking-widest text-slate-400 mb-3 flex items-center gap-2"><Layers className="w-3 h-3" /> Compare Specific Weeks</h4>
-                      <div className="max-h-40 overflow-y-auto pr-2 grid grid-cols-2 gap-2 custom-scrollbar">
-                         {allTimeKeys.map(key => {
-                            const year = Math.floor(key / 100);
-                            const week = key % 100;
-                            const isSelected = compareWeeks.includes(key);
-                            return (
-                               <button key={key} onClick={() => setCompareWeeks(prev => isSelected ? prev.filter(k => k !== key) : [...prev, key])} className={`flex items-center justify-between px-3 py-2 rounded-xl border text-xs font-bold transition-all ${isSelected ? 'bg-purple-500/20 border-purple-500/50 text-purple-300' : 'border-white/5 hover:bg-white/5 text-slate-400 hover:text-white'}`}>
-                                 W{week} '{year.toString().slice(2)}
-                                 {isSelected && <Check className="w-3 h-3 text-purple-400" />}
-                               </button>
-                            );
-                         })}
-                      </div>
-                    </div>
-                  </div>
-                </div>
-              </>
-            )}
+                </>
+              )}
+            </div>
           </div>
         </div>
       </header>
@@ -962,6 +964,7 @@ export default function App() {
       <main className="max-w-7xl mx-auto px-6 py-12 relative">
         <div className="absolute top-0 left-1/2 -translate-x-1/2 w-full h-[600px] bg-gradient-to-b from-purple-900/10 via-transparent to-transparent pointer-events-none rounded-full blur-[100px]"></div>
         <div className="relative z-10">
+          {renderKpiTracker()}
           {activeTab === 'summary' && renderSummary()}
           {activeTab === 'market' && renderMarket()}
           {activeTab === 'channel' && renderChannel()}
