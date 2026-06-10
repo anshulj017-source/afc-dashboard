@@ -1,8 +1,8 @@
 "use client";
 import React, { useState, useMemo, useEffect } from 'react';
 import * as d3 from 'd3';
-// --- CLERK SECURITY IMPORTS ADDED HERE ---
-import { UserButton, SignedIn, SignedOut, RedirectToSignIn } from "@clerk/nextjs"; 
+// --- CLERK SECURITY IMPORTS UPDATED ---
+import { UserButton, SignedIn, SignedOut, SignIn } from "@clerk/nextjs"; 
 import { 
   TrendingUp, Globe, Layers, Filter, Activity, DollarSign, MousePointer2, 
   Eye, Zap, LayoutDashboard, CalendarDays, ChevronDown, Info, Check, 
@@ -990,13 +990,10 @@ export default function App() {
   return (
     <div className="min-h-screen bg-[#0B0F19] text-slate-200 font-sans selection:bg-purple-500/30 selection:text-purple-100">
       
-      {/* SECURITY LOCK: ONLY SHOW THIS TO UNAUTHENTICATED USERS */}
+      {/* SECURITY LOCK: EMBEDDED LOGIN AVOIDS ROUTING CRASHES */}
       <SignedOut>
-        <div className="flex flex-col items-center justify-center min-h-screen gap-5">
-           <div className="w-10 h-10 border-4 border-purple-500/30 border-t-purple-500 rounded-full animate-spin" />
-           <p className="text-sm font-black text-purple-400 tracking-[0.2em] uppercase shadow-purple-500/50 drop-shadow-md">Authenticating Secure Connection</p>
-           {/* This handles the actual redirect safely on the client side */}
-           <RedirectToSignIn />
+        <div className="flex items-center justify-center min-h-screen">
+           <SignIn routing="hash" forceRedirectUrl="/" />
         </div>
       </SignedOut>
 
