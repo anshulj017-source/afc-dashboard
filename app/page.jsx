@@ -94,7 +94,7 @@ export default function App() {
 
         const s2 = mmpData.map(row => {
           const week = parseInt(row['Week'] || row['week'] || row['Wk']) || 0;
-          const year = parseInt(row['Year'] || row['year'] || row['Yr']) || 2024;
+          const year = parseInt(row['Year'] || row['year']) || 2024;
           const rawClass = Object.values(row)[11] || row['Classification'] || row['Network classification'] || '';
           const trafficType = rawClass.toString().toLowerCase().includes('organic') ? 'Organic' : 'Paid';
           const purchases = parseMetric(Object.values(row)[7] || row['Purchases'] || row['Total Purchases']);
@@ -583,7 +583,7 @@ export default function App() {
           <p className="text-slate-400 font-medium italic">Granular timeline combining upper-funnel ad data with bottom-funnel adjust conversions.</p>
         </div>
 
-        <NavigationBar items={marketBreakdown} selected={selectedMarketView} setSelected={setSelectedMarketView} />
+        <NavigationBar items={marketBreakdown} selected={selectedMarketView} setSelected={setSelectedMarketView} defaultLabel="Global Overview" />
         
         <InsightBox text={getAIInsight('detailed', activeTableData)} />
         
@@ -750,8 +750,8 @@ export default function App() {
                     <div className={compareWeeks.length > 0 ? 'opacity-30 pointer-events-none' : ''}>
                       <h4 className="text-[10px] font-black uppercase tracking-widest text-slate-400 mb-3 flex items-center gap-2"><CalendarDays className="w-3 h-3" /> Custom Date Range</h4>
                       <div className="flex gap-2">
-                         <input type="date" value={dateRange.start} onChange={e => setDateRange(prev => ({...prev, start: e.target.value}))} className="w-full text-xs font-bold text-slate-200 bg-[#0B0F19] border border-white/10 rounded-xl px-3 py-2 outline-none focus:border-purple-500" />
-                         <input type="date" value={dateRange.end} onChange={e => setDateRange(prev => ({...prev, end: e.target.value}))} className="w-full text-xs font-bold text-slate-200 bg-[#0B0F19] border border-white/10 rounded-xl px-3 py-2 outline-none focus:border-purple-500" />
+                         <input type="date" value={dateRange.start} onChange={e => setDateRange(prev => ({...prev, start: e.target.value}))} onClick={(e) => e.target.showPicker && e.target.showPicker()} style={{ colorScheme: 'dark' }} className="w-full text-xs font-bold text-slate-200 bg-[#0B0F19] border border-white/10 rounded-xl px-3 py-2 outline-none focus:border-purple-500 cursor-pointer" />
+                         <input type="date" value={dateRange.end} onChange={e => setDateRange(prev => ({...prev, end: e.target.value}))} onClick={(e) => e.target.showPicker && e.target.showPicker()} style={{ colorScheme: 'dark' }} className="w-full text-xs font-bold text-slate-200 bg-[#0B0F19] border border-white/10 rounded-xl px-3 py-2 outline-none focus:border-purple-500 cursor-pointer" />
                       </div>
                     </div>
                     <div className={dateRange.start || dateRange.end ? 'opacity-30 pointer-events-none' : ''}>
