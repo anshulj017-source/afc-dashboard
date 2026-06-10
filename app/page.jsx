@@ -1,10 +1,11 @@
 "use client";
 import React, { useState, useMemo, useEffect } from 'react';
 import * as d3 from 'd3';
+import { UserButton } from "@clerk/nextjs"; // <-- CLERK IMPORT
 import { 
   TrendingUp, Globe, Layers, Filter, Activity, DollarSign, MousePointer2, 
   Eye, Zap, LayoutDashboard, CalendarDays, ChevronDown, Info, Check, 
-  Download, Target, ShoppingCart, Users, TableProperties, Trophy, ArrowRight, FileText
+  BarChart3, Download, Target, ShoppingCart, Users, TableProperties, Trophy, ArrowRight, FileText
 } from 'lucide-react';
 
 const COMBINED_COUNTRY_CSV_URL = "https://docs.google.com/spreadsheets/d/e/2PACX-1vSt_K4Y6h2g2iVm2CDrc33rQGDToGd41a805URte2UEDqMYB_K8V4YKLIJ9rCMoLdmwvbco7uyevE9U/pub?gid=1273221446&single=true&output=csv";
@@ -72,7 +73,7 @@ const parseMetric = (val) => {
   return parseFloat(val.toString().replace(/,/g, '').trim()) || 0;
 };
 
-// --- STABLE UI COMPONENTS (Extracted for SSR Safety & Performance) ---
+// --- STABLE UI COMPONENTS ---
 const MetricCard = ({ label, value, color }) => (
   <div className="bg-[#131A2A]/80 backdrop-blur-xl p-6 rounded-[1.5rem] border border-white/5 shadow-xl transition-all hover:shadow-[0_0_20px_rgba(168,85,247,0.15)] hover:-translate-y-1 relative overflow-hidden group">
     <div className="absolute top-0 right-0 w-32 h-32 bg-gradient-to-br from-white/5 to-transparent rounded-full blur-2xl -mr-10 -mt-10 group-hover:bg-purple-500/10 transition-colors duration-500"></div>
@@ -159,7 +160,6 @@ const DualAxisLineChart = ({ chartData, leftKey, rightKey, leftColorText, rightC
   const lineLeft = d3.line().x(d => x(`W${d.week}`)).y(d => yLeft(d[leftKey])).curve(d3.curveMonotoneX);
   const lineRight = d3.line().x(d => x(`W${d.week}`)).y(d => yRight(d[rightKey])).curve(d3.curveMonotoneX);
   const skipCount = Math.ceil(chartData.length / 10);
-
   const fmtT = (t, isC) => isC ? `${exSym}${d3.format(".1s")(t * exRate)}` : d3.format(".1s")(t);
 
   return (
@@ -242,10 +242,7 @@ export default function App() {
   }, [isGeneratingPdf]);
 
   useEffect(() => {
-    Promise.all([
-      d3.csv(COMBINED_COUNTRY_CSV_URL),
-      d3.csv(RAW_ADJUST_CSV_URL)
-    ])
+    Promise.all([d3.csv(COMBINED_COUNTRY_CSV_URL), d3.csv(RAW_ADJUST_CSV_URL)])
       .then(([adData, mmpData]) => {
         const s1 = adData.map(row => {
           const week = parseInt(row['Week'] || row['week']) || 0;
@@ -741,7 +738,7 @@ export default function App() {
                    <h4 className="text-sm font-black text-white uppercase tracking-widest flex items-center gap-2"><Eye className="w-4 h-4 text-cyan-400" /> Awareness: Impressions & CPM</h4>
                  </div>
                  <div className="flex-1 min-h-[300px]">
-                    <DualAxisLineChart chartData={activeChannelData} leftKey="impressions" rightKey="cpm" leftColorText="fill-cyan-400" rightColorText="fill-purple-400" leftColorHex="#22d3ee" rightColorHex="#c084fc" isLeftCurrency={false} isRightCurrency={true} exSym={exSym} exRate={exRate} />
+                    <DualAxisLineChart chartData={activeChannelData} leftKey="impressions" rightKey="cpm" leftColorText="fill-cyan-400" rightColorText="fill-purple-400" leftColorHex="#0891b2" rightColorHex="#9333ea" isLeftCurrency={false} isRightCurrency={true} exSym={exSym} exRate={exRate} />
                  </div>
                </div>
                <div className="bg-[#131A2A] p-8 rounded-[2.5rem] border border-white/5 shadow-xl flex flex-col">
@@ -749,7 +746,7 @@ export default function App() {
                    <h4 className="text-sm font-black text-white uppercase tracking-widest flex items-center gap-2"><MousePointer2 className="w-4 h-4 text-blue-400" /> Engagement: Clicks & CPC</h4>
                  </div>
                  <div className="flex-1 min-h-[300px]">
-                    <DualAxisLineChart chartData={activeChannelData} leftKey="clicks" rightKey="cpc" leftColorText="fill-blue-400" rightColorText="fill-orange-400" leftColorHex="#60a5fa" rightColorHex="#fb923c" isLeftCurrency={false} isRightCurrency={true} exSym={exSym} exRate={exRate} />
+                    <DualAxisLineChart chartData={activeChannelData} leftKey="clicks" rightKey="cpc" leftColorText="fill-blue-400" rightColorText="fill-orange-400" leftColorHex="#2563eb" rightColorHex="#ea580c" isLeftCurrency={false} isRightCurrency={true} exSym={exSym} exRate={exRate} />
                  </div>
                </div>
             </div>
@@ -926,7 +923,7 @@ export default function App() {
     }
 
     return (
-      <div className="bg-white text-slate-900 min-h-screen p-10 w-[1000px] mx-auto print-only relative z-[99999]">
+      <div className="bg-white text-slate-900 min-h-screen p-10 w-[1000px] mx-auto">
          <div className="flex justify-between items-end border-b-2 border-slate-200 pb-6 mb-8">
             <div>
                <h1 className="text-4xl font-black tracking-tighter text-slate-900">ROVA PERFORMANCE</h1>
@@ -1099,13 +1096,17 @@ export default function App() {
               ))}
             </nav>
 
-            <div className="flex items-center gap-3">
+            <div className="flex items-center gap-4">
               <button 
                  onClick={() => setCurrency(c => c === 'USD' ? 'BHD' : 'USD')}
                  className="flex items-center gap-2 px-4 py-2.5 rounded-2xl border transition-all font-black text-xs tracking-widest uppercase bg-[#131A2A] border-white/5 text-slate-300 hover:border-purple-500/50 hover:text-white"
               >
                  <DollarSign className="w-4 h-4 text-emerald-400" /> {currency}
               </button>
+
+              <div className="bg-[#131A2A] border border-white/10 rounded-full p-1 shadow-lg shadow-purple-500/10 hover:border-purple-500/50 transition-colors">
+                <UserButton afterSignOutUrl="/" />
+              </div>
 
               <div className="relative">
                 <button 
