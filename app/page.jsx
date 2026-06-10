@@ -1,7 +1,6 @@
 "use client";
 import React, { useState, useMemo, useEffect } from 'react';
 import * as d3 from 'd3';
-// --- CLERK SECURITY IMPORTS UPDATED ---
 import { UserButton, SignedIn, SignedOut, SignIn } from "@clerk/nextjs"; 
 import { 
   TrendingUp, Globe, Layers, Filter, Activity, DollarSign, MousePointer2, 
@@ -12,7 +11,7 @@ import {
 const COMBINED_COUNTRY_CSV_URL = "https://docs.google.com/spreadsheets/d/e/2PACX-1vSt_K4Y6h2g2iVm2CDrc33rQGDToGd41a805URte2UEDqMYB_K8V4YKLIJ9rCMoLdmwvbco7uyevE9U/pub?gid=1273221446&single=true&output=csv";
 const RAW_ADJUST_CSV_URL = "https://docs.google.com/spreadsheets/d/e/2PACX-1vSt_K4Y6h2g2iVm2CDrc33rQGDToGd41a805URte2UEDqMYB_K8V4YKLIJ9rCMoLdmwvbco7uyevE9U/pub?gid=588241351&single=true&output=csv";
 
-// --- CORE HELPERS ---
+// --- SSR-SAFE CORE HELPERS ---
 const MONTHS = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
 const getDateFromWeek = (week, year = 2024) => {
   const d = new Date(year, 0, 1 + (week - 1) * 7);
@@ -212,6 +211,9 @@ export default function App() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
 
+  // --- HYDRATION SAFE DATE FIX ---
+  const [clientDate, setClientDate] = useState("");
+
   const [activeTab, setActiveTab] = useState('summary');
   const [selectedMarketView, setSelectedMarketView] = useState('All');
   const [selectedChannelView, setSelectedChannelView] = useState('All');
@@ -232,6 +234,11 @@ export default function App() {
   const exRate = currency === 'BHD' ? 0.377 : 1;
   const exSym = currency === 'BHD' ? 'BD ' : '$';
   const formatC = (val, dec = 0) => `${exSym}${d3.format(`,.${dec}f`)(val * exRate)}`;
+
+  useEffect(() => {
+    // Generate the date exclusively on the client side to avoid hydration mismatch
+    setClientDate(new Date().toLocaleDateString());
+  }, []);
 
   useEffect(() => {
     if (isGeneratingPdf) {
@@ -932,7 +939,7 @@ export default function App() {
                <p className="text-sm font-bold text-slate-500 uppercase tracking-widest mt-1">Detailed Intelligence Report</p>
             </div>
             <div className="text-right">
-               <p className="text-xs font-bold text-slate-500">Generated: {new Date().toLocaleDateString()}</p>
+               <p className="text-xs font-bold text-slate-500">Generated: {clientDate}</p>
                <div className="mt-2 text-xs font-bold text-slate-700 space-y-1">
                  <p>Market: <span className="text-indigo-600">{reportModal.market}</span></p>
                  <p>Channel: <span className="text-indigo-600">{reportModal.channel}</span></p>
