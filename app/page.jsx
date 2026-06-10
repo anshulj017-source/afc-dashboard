@@ -4,7 +4,7 @@ import * as d3 from 'd3';
 import { 
   TrendingUp, Globe, Layers, Filter, Activity, DollarSign, MousePointer2, 
   Eye, Zap, LayoutDashboard, Calendar, ChevronDown, Info, Check, 
-  BarChart3, Download, Target, ShoppingCart, CalendarDays, Users, TableProperties
+  BarChart3, Download, Target, ShoppingCart, CalendarDays, Users, TableProperties, Trophy, ArrowRight
 } from 'lucide-react';
 
 const COMBINED_COUNTRY_CSV_URL = "https://docs.google.com/spreadsheets/d/e/2PACX-1vSt_K4Y6h2g2iVm2CDrc33rQGDToGd41a805URte2UEDqMYB_K8V4YKLIJ9rCMoLdmwvbco7uyevE9U/pub?gid=1273221446&single=true&output=csv";
@@ -80,6 +80,15 @@ export default function App() {
   const [dateRange, setDateRange] = useState({ start: '', end: '' });
   const [compareWeeks, setCompareWeeks] = useState([]); 
   const [trafficFilter, setTrafficFilter] = useState('All'); 
+
+  // New State: Currency & KPI Goals
+  const [currency, setCurrency] = useState('USD');
+  const [kpi, setKpi] = useState({ isOpen: false, isSet: false, start: '', end: '', budget: '', impressions: '', installs: '' });
+
+  // Currency Helpers
+  const exRate = currency === 'BHD' ? 0.377 : 1;
+  const exSym = currency === 'BHD' ? 'BD ' : '$';
+  const formatC = (val, dec = 0) => `${exSym}${d3.format(`,.${dec}f`)(val * exRate)}`;
 
   useEffect(() => {
     Promise.all([
@@ -197,15 +206,10 @@ export default function App() {
       if (!activeData || activeData.length === 0) return "Analyzing single week data. Select a broader date range or market view to see progression trends over time.";
       
       const computeStats = (dataArray) => {
-        const tImps = d3.sum(dataArray, d => d.impressions);
-        const tClicks = d3.sum(dataArray, d => d.clicks);
-        const tInstalls = d3.sum(dataArray, d => d.installs);
-        const tLogins = d3.sum(dataArray, d => d.logins);
-        const tPurchases = d3.sum(dataArray, d => d.purchases);
-        const tCost = d3.sum(dataArray, d => d.cost);
-        const avgCpi = tInstalls > 0 ? tCost / tInstalls : 0;
-        const avgCpp = tPurchases > 0 ? tCost / tPurchases : 0;
-        return { tImps, tClicks, tInstalls, tLogins, tPurchases, tCost, avgCpi, avgCpp };
+        const tImps = d3.sum(dataArray, d => d.impressions), tClicks = d3.sum(dataArray, d => d.clicks);
+        const tInstalls = d3.sum(dataArray, d => d.installs), tLogins = d3.sum(dataArray, d => d.logins);
+        const tPurchases = d3.sum(dataArray, d => d.purchases), tCost = d3.sum(dataArray, d => d.cost);
+        return { tImps, tClicks, tInstalls, tLogins, tPurchases, tCost, avgCpi: tInstalls > 0 ? tCost/tInstalls : 0, avgCpp: tPurchases > 0 ? tCost/tPurchases : 0 };
       };
 
       if (selectedType === 'Salary Weeks' || selectedType === 'BAU') {
@@ -215,26 +219,21 @@ export default function App() {
              <div>
                 <strong className="text-white text-base">Performance Overview ({selectedType}):</strong>
                 <ul className="list-none mt-3 space-y-1.5 bg-white/5 p-5 rounded-xl border border-white/10">
-                  <li><strong>Ad Spend:</strong> ${d3.format(",.0f")(stats.tCost)}</li>
+                  <li><strong>Ad Spend:</strong> {formatC(stats.tCost)}</li>
                   <li><strong>Impressions:</strong> {d3.format(",.0f")(stats.tImps)}</li>
                   <li><strong>Clicks:</strong> {d3.format(",.0f")(stats.tClicks)}</li>
                   <li><strong>Installs:</strong> {d3.format(",.0f")(stats.tInstalls)}</li>
-                  <li><strong>Logins:</strong> {d3.format(",.0f")(stats.tLogins)}</li>
                   <li><strong>Purchases:</strong> {d3.format(",.0f")(stats.tPurchases)}</li>
                 </ul>
              </div>
-             <p className="mt-4"><strong className="text-white">Efficiency Metrics:</strong> The average Cost Per Install (CPI) settled at <span className="text-amber-300 font-bold">${stats.avgCpi.toFixed(2)}</span>, with a Cost Per Purchase (CPP) of <span className="text-red-400 font-bold">${stats.avgCpp.toFixed(2)}</span>.</p>
+             <p className="mt-4"><strong className="text-white">Efficiency Metrics:</strong> The average Cost Per Install (CPI) settled at <span className="text-amber-300 font-bold">{formatC(stats.avgCpi, 2)}</span>, with a Cost Per Purchase (CPP) of <span className="text-red-400 font-bold">{formatC(stats.avgCpp, 2)}</span>.</p>
              <p><strong className="text-white">Action Plan:</strong> {selectedType === 'Salary Weeks' ? 'Consumer purchasing power is at its peak. Maximize daily budget caps, increase bids on high-intent keywords, and prioritize aggressive retargeting to capture immediate conversions.' : 'Focus on top-funnel acquisition and brand awareness. Maintain strict CPP limits, optimize creative assets, and build retargeting pools for the next salary cycle.'}</p>
           </div>
         );
       } else {
-        const salaryData = marketFilteredData.filter(d => d.weekType === 'Salary Weeks');
-        const bauData = marketFilteredData.filter(d => d.weekType === 'BAU');
-        const sStats = computeStats(salaryData);
-        const bStats = computeStats(bauData);
-
+        const sStats = computeStats(marketFilteredData.filter(d => d.weekType === 'Salary Weeks'));
+        const bStats = computeStats(marketFilteredData.filter(d => d.weekType === 'BAU'));
         const cppDiff = bStats.avgCpp > 0 ? ((sStats.avgCpp - bStats.avgCpp) / bStats.avgCpp) * 100 : 0;
-        const cppText = cppDiff > 0 ? `${cppDiff.toFixed(1)}% higher` : `${Math.abs(cppDiff).toFixed(1)}% lower`;
         const volDiff = bStats.tPurchases > 0 ? ((sStats.tPurchases - bStats.tPurchases) / bStats.tPurchases) * 100 : 0;
 
         return (
@@ -244,33 +243,27 @@ export default function App() {
                 <div className="bg-white/5 p-5 rounded-xl border border-white/10">
                    <p className="font-bold text-white mb-3 border-b border-white/10 pb-2">Salary Weeks</p>
                    <ul className="space-y-1.5">
-                     <li><strong>Spend:</strong> ${d3.format(",.0f")(sStats.tCost)}</li>
-                     <li><strong>Impressions:</strong> {d3.format(",.0f")(sStats.tImps)}</li>
-                     <li><strong>Clicks:</strong> {d3.format(",.0f")(sStats.tClicks)}</li>
+                     <li><strong>Spend:</strong> {formatC(sStats.tCost)}</li>
                      <li><strong>Installs:</strong> {d3.format(",.0f")(sStats.tInstalls)}</li>
-                     <li><strong>Logins:</strong> {d3.format(",.0f")(sStats.tLogins)}</li>
                      <li><strong>Purchases:</strong> {d3.format(",.0f")(sStats.tPurchases)}</li>
                    </ul>
                    <div className="mt-4 pt-3 border-t border-white/10 text-xs">
-                      <span className="text-amber-300 font-bold">${sStats.avgCpi.toFixed(2)} CPI</span> <span className="mx-2">|</span> <span className="text-red-400 font-bold">${sStats.avgCpp.toFixed(2)} CPP</span>
+                      <span className="text-amber-300 font-bold">{formatC(sStats.avgCpi, 2)} CPI</span> <span className="mx-2">|</span> <span className="text-red-400 font-bold">{formatC(sStats.avgCpp, 2)} CPP</span>
                    </div>
                 </div>
                 <div className="bg-white/5 p-5 rounded-xl border border-white/10">
                    <p className="font-bold text-white mb-3 border-b border-white/10 pb-2">BAU Periods</p>
                    <ul className="space-y-1.5">
-                     <li><strong>Spend:</strong> ${d3.format(",.0f")(bStats.tCost)}</li>
-                     <li><strong>Impressions:</strong> {d3.format(",.0f")(bStats.tImps)}</li>
-                     <li><strong>Clicks:</strong> {d3.format(",.0f")(bStats.tClicks)}</li>
+                     <li><strong>Spend:</strong> {formatC(bStats.tCost)}</li>
                      <li><strong>Installs:</strong> {d3.format(",.0f")(bStats.tInstalls)}</li>
-                     <li><strong>Logins:</strong> {d3.format(",.0f")(bStats.tLogins)}</li>
                      <li><strong>Purchases:</strong> {d3.format(",.0f")(bStats.tPurchases)}</li>
                    </ul>
                    <div className="mt-4 pt-3 border-t border-white/10 text-xs">
-                      <span className="text-amber-300 font-bold">${bStats.avgCpi.toFixed(2)} CPI</span> <span className="mx-2">|</span> <span className="text-red-400 font-bold">${bStats.avgCpp.toFixed(2)} CPP</span>
+                      <span className="text-amber-300 font-bold">{formatC(bStats.avgCpi, 2)} CPI</span> <span className="mx-2">|</span> <span className="text-red-400 font-bold">{formatC(bStats.avgCpp, 2)} CPP</span>
                    </div>
                 </div>
              </div>
-             <p className="mt-4"><strong className="text-white">Observation:</strong> Salary week CPP is {cppText} than BAU periods, with purchase volume shifting by {volDiff > 0 ? '+' : ''}{volDiff.toFixed(1)}%.</p>
+             <p className="mt-4"><strong className="text-white">Observation:</strong> Salary week CPP is {cppDiff > 0 ? `${cppDiff.toFixed(1)}% higher` : `${Math.abs(cppDiff).toFixed(1)}% lower`} than BAU periods, with purchase volume shifting by {volDiff > 0 ? '+' : ''}{volDiff.toFixed(1)}%.</p>
              <p><strong className="text-white">Action Plan:</strong> Implement a pulsing budget strategy. Allocate ~65% of monthly budgets to Salary Weeks to capture high-intent users, while pacing BAU spend to focus on low-cost installs and audience building.</p>
           </div>
         );
@@ -317,7 +310,7 @@ export default function App() {
     return (
       <div className="space-y-4">
         {chartData.slice(0, 8).map((item, i) => {
-          const formattedVal = isPercent ? `${item[valueKey].toFixed(2)}%` : isCurrency ? `$${d3.format(",.2f")(item[valueKey])}` : d3.format(",.0f")(item[valueKey]);
+          const formattedVal = isPercent ? `${item[valueKey].toFixed(2)}%` : isCurrency ? formatC(item[valueKey]) : d3.format(",.0f")(item[valueKey]);
           return (
             <div key={i} className="group relative">
               <div className="flex justify-between items-end mb-1.5">
@@ -351,7 +344,7 @@ export default function App() {
     </div>
   );
 
-  const DualAxisLineChart = ({ chartData, leftKey, rightKey, leftColorText, rightColorText, leftColorHex, rightColorHex, isLeftCurrency, isRightCurrency, width = 800, height = 300, insight = null }) => {
+  const DualAxisLineChart = ({ chartData, leftKey, rightKey, leftColorText, rightColorText, leftColorHex, rightColorHex, isLeftCurrency, isRightCurrency, width = 800, height = 300 }) => {
     if (!chartData || chartData.length < 2) return (
       <div className="h-full w-full min-h-[250px] flex items-center justify-center bg-white/5 rounded-3xl border border-dashed border-white/10 text-[10px] font-black text-slate-500 uppercase tracking-widest">Select multiple periods</div>
     );
@@ -365,6 +358,8 @@ export default function App() {
     const lineRight = d3.line().x(d => x(`W${d.week}`)).y(d => yRight(d[rightKey])).curve(d3.curveMonotoneX);
     const skipCount = Math.ceil(chartData.length / 10);
 
+    const fmtT = (t, isC) => isC ? `${exSym}${d3.format(".1s")(t * exRate)}` : d3.format(".1s")(t);
+
     return (
       <div className="flex flex-col h-full">
         <svg width="100%" height="100%" viewBox={`0 0 ${width} ${height}`} preserveAspectRatio="xMidYMid meet" className="overflow-visible min-h-[250px] flex-1">
@@ -372,12 +367,12 @@ export default function App() {
             {yLeft.ticks(5).map(t => (
               <g key={`l-${t}`} transform={`translate(0, ${yLeft(t)})`}>
                 <line x2={iw} stroke="#1e293b" strokeWidth="1" />
-                <text x="-10" dy="0.32em" textAnchor="end" className={`text-[9px] ${leftColorText} font-bold`}>{isLeftCurrency ? `$${d3.format(".1s")(t)}` : d3.format(".1s")(t)}</text>
+                <text x="-10" dy="0.32em" textAnchor="end" className={`text-[9px] ${leftColorText} font-bold`}>{fmtT(t, isLeftCurrency)}</text>
               </g>
             ))}
             {yRight.ticks(5).map(t => (
                <g key={`r-${t}`} transform={`translate(${iw}, ${yRight(t)})`}>
-                 <text x="10" dy="0.32em" textAnchor="start" className={`text-[9px] ${rightColorText} font-bold`}>{isRightCurrency ? `$${d3.format(".1s")(t)}` : d3.format(".1s")(t)}</text>
+                 <text x="10" dy="0.32em" textAnchor="start" className={`text-[9px] ${rightColorText} font-bold`}>{fmtT(t, isRightCurrency)}</text>
                </g>
             ))}
             <path d={lineLeft(chartData)} fill="none" stroke={leftColorHex} strokeWidth="4" strokeLinecap="round" style={{ filter: `drop-shadow(0 0 8px ${leftColorHex}60)` }} />
@@ -389,8 +384,8 @@ export default function App() {
                  <foreignObject x={x(`W${d.week}`) > iw / 2 ? x(`W${d.week}`) - 140 : x(`W${d.week}`) + 10} y={10} width="130" height="90" className="opacity-0 group-hover:opacity-100 pointer-events-none transition-opacity z-50">
                    <div className="bg-[#0f172a]/90 backdrop-blur-md text-white text-[10px] p-3 rounded-xl shadow-2xl flex flex-col gap-1.5 border border-white/10">
                      <span className="font-black text-slate-300 border-b border-white/10 pb-1.5 mb-0.5">Week {d.week}, {d.year}</span>
-                     <div className="flex justify-between"><span className={leftColorText.replace('fill-', 'text-')}>{leftKey.toUpperCase()}:</span> <span>{isLeftCurrency ? '$' : ''}{d3.format(",.2f")(d[leftKey])}</span></div>
-                     <div className="flex justify-between"><span className={rightColorText.replace('fill-', 'text-')}>{rightKey.toUpperCase()}:</span> <span>{isRightCurrency ? '$' : ''}{d3.format(",.2f")(d[rightKey])}</span></div>
+                     <div className="flex justify-between"><span className={leftColorText.replace('fill-', 'text-')}>{leftKey.toUpperCase()}:</span> <span>{isLeftCurrency ? formatC(d[leftKey]) : d3.format(",.2f")(d[leftKey])}</span></div>
+                     <div className="flex justify-between"><span className={rightColorText.replace('fill-', 'text-')}>{rightKey.toUpperCase()}:</span> <span>{isRightCurrency ? formatC(d[rightKey]) : d3.format(",.2f")(d[rightKey])}</span></div>
                    </div>
                  </foreignObject>
                </g>
@@ -402,14 +397,100 @@ export default function App() {
             )))}
           </g>
         </svg>
-        {insight && (
-          <div className="bg-white/5 p-4 rounded-2xl mt-6 border border-white/5 relative overflow-hidden">
-             <Zap className={`w-12 h-12 absolute -right-2 -top-2 opacity-5 ${leftColorText.replace('fill-', 'text-')}`} />
-             <p className="text-xs font-bold text-slate-400 relative z-10">"{insight}"</p>
-          </div>
-        )}
       </div>
     );
+  };
+
+  const renderLeaderboard = () => {
+    const topInstalls = [...channelBreakdown].sort((a,b)=>b.installs - a.installs)[0];
+    const topCPP = [...channelBreakdown].filter(c=>c.purchases > 0).sort((a,b)=>a.cpp - b.cpp)[0];
+    const topMarket = [...marketBreakdown].sort((a,b)=>b.purchases - a.purchases)[0];
+
+    return (
+      <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-8">
+         <div className="bg-[#131A2A] p-5 rounded-2xl border border-white/5 flex items-center gap-4 hover:border-purple-500/30 transition-all">
+            <div className="p-3 bg-purple-500/20 text-purple-400 rounded-xl"><Trophy className="w-5 h-5"/></div>
+            <div><p className="text-[10px] uppercase tracking-widest text-slate-400">Top Market (Sales)</p><p className="font-black text-white">{topMarket?.name || 'N/A'}</p></div>
+         </div>
+         <div className="bg-[#131A2A] p-5 rounded-2xl border border-white/5 flex items-center gap-4 hover:border-emerald-500/30 transition-all">
+            <div className="p-3 bg-emerald-500/20 text-emerald-400 rounded-xl"><Layers className="w-5 h-5"/></div>
+            <div><p className="text-[10px] uppercase tracking-widest text-slate-400">Volume Leader</p><p className="font-black text-white">{topInstalls?.name || 'N/A'}</p></div>
+         </div>
+         <div className="bg-[#131A2A] p-5 rounded-2xl border border-white/5 flex items-center gap-4 hover:border-amber-500/30 transition-all">
+            <div className="p-3 bg-amber-500/20 text-amber-400 rounded-xl"><Zap className="w-5 h-5"/></div>
+            <div><p className="text-[10px] uppercase tracking-widest text-slate-400">Most Efficient</p><p className="font-black text-white">{topCPP?.name || 'N/A'} <span className="text-amber-400 text-xs font-bold">({formatC(topCPP?.cpp, 2)} CPP)</span></p></div>
+         </div>
+      </div>
+    );
+  };
+
+  const renderKpiTracker = () => {
+    if (!kpi.isOpen && !kpi.isSet) {
+      return (
+        <button onClick={() => setKpi({...kpi, isOpen: true})} className="mb-8 w-full border border-dashed border-white/10 rounded-2xl p-6 text-slate-400 hover:text-white hover:border-purple-500/50 hover:bg-purple-500/5 transition-all flex items-center justify-center gap-3 font-bold text-sm">
+          <Target className="w-5 h-5 text-purple-400" /> Set Campaign Goal & KPI Pacing Tracker
+        </button>
+      );
+    }
+
+    if (kpi.isOpen && !kpi.isSet) {
+      return (
+        <div className="mb-8 bg-[#131A2A] p-8 rounded-[2rem] border border-purple-500/30 shadow-xl relative overflow-hidden animate-in fade-in slide-in-from-top-4">
+           <div className="absolute top-0 right-0 w-32 h-32 bg-purple-500/10 rounded-full blur-3xl"></div>
+           <div className="flex justify-between items-center mb-6 relative z-10">
+             <h4 className="text-sm font-black text-white uppercase tracking-widest flex items-center gap-2"><Target className="w-4 h-4 text-purple-400" /> Configure KPI Targets</h4>
+             <button onClick={() => setKpi({...kpi, isOpen: false})} className="text-slate-400 hover:text-white"><Zap className="w-4 h-4 rotate-45"/></button>
+           </div>
+           <div className="grid grid-cols-2 md:grid-cols-5 gap-4 relative z-10">
+              <input type="date" value={kpi.start} onChange={e=>setKpi({...kpi, start: e.target.value})} style={{colorScheme:'dark'}} className="w-full text-xs font-bold text-white bg-[#0B0F19] border border-white/10 rounded-xl px-4 py-3 outline-none focus:border-purple-500 cursor-pointer" />
+              <input type="date" value={kpi.end} onChange={e=>setKpi({...kpi, end: e.target.value})} style={{colorScheme:'dark'}} className="w-full text-xs font-bold text-white bg-[#0B0F19] border border-white/10 rounded-xl px-4 py-3 outline-none focus:border-purple-500 cursor-pointer" />
+              <input type="number" placeholder={`Budget (${currency})`} value={kpi.budget} onChange={e=>setKpi({...kpi, budget: e.target.value})} className="w-full text-xs font-bold text-white bg-[#0B0F19] border border-white/10 rounded-xl px-4 py-3 outline-none focus:border-purple-500" />
+              <input type="number" placeholder="Target Impressions" value={kpi.impressions} onChange={e=>setKpi({...kpi, impressions: e.target.value})} className="w-full text-xs font-bold text-white bg-[#0B0F19] border border-white/10 rounded-xl px-4 py-3 outline-none focus:border-purple-500" />
+              <input type="number" placeholder="Target Installs" value={kpi.installs} onChange={e=>setKpi({...kpi, installs: e.target.value})} className="w-full text-xs font-bold text-white bg-[#0B0F19] border border-white/10 rounded-xl px-4 py-3 outline-none focus:border-purple-500" />
+           </div>
+           <button onClick={() => setKpi({...kpi, isSet: true, isOpen: false})} className="mt-6 w-full bg-gradient-to-r from-purple-600 to-rose-500 text-white rounded-xl py-3 font-black text-sm shadow-lg shadow-purple-500/25 transition-all hover:scale-[1.01] relative z-10">Track Pacing</button>
+        </div>
+      );
+    }
+
+    if (kpi.isSet) {
+      const start = new Date(kpi.start); start.setHours(0,0,0,0);
+      const end = new Date(kpi.end); end.setHours(23,59,59,999);
+      const relevant = processedData.filter(d => d.date >= start && d.date <= end);
+      const actuals = aggregate(relevant);
+
+      const bPct = Math.min((actuals.cost / (parseFloat(kpi.budget) / exRate || 1)) * 100, 100);
+      const impPct = Math.min((actuals.impressions / (parseFloat(kpi.impressions) || 1)) * 100, 100);
+      const instPct = Math.min((actuals.installs / (parseFloat(kpi.installs) || 1)) * 100, 100);
+
+      const ProgressBar = ({ label, actual, target, pct, isCurr, color = "bg-purple-500" }) => (
+        <div>
+          <div className="flex justify-between text-xs font-bold text-slate-300 mb-2">
+            <span>{label}</span>
+            <span>{isCurr ? formatC(actual) : d3.format(",.0f")(actual)} / {isCurr ? `${exSym}${d3.format(",.0f")(target)}` : d3.format(",.0f")(target)}</span>
+          </div>
+          <div className="h-2 bg-[#0B0F19] rounded-full overflow-hidden border border-white/5">
+            <div className={`h-full ${color} rounded-full relative`} style={{ width: `${pct}%` }}>
+              <div className="absolute inset-0 bg-white/20 w-full animate-[shimmer_2s_infinite]"></div>
+            </div>
+          </div>
+        </div>
+      );
+
+      return (
+        <div className="mb-8 bg-[#131A2A] p-8 rounded-[2rem] border border-white/5 shadow-xl animate-in fade-in">
+           <div className="flex justify-between items-center mb-6">
+             <h4 className="text-sm font-black text-white uppercase tracking-widest flex items-center gap-2"><Target className="w-4 h-4 text-purple-400" /> Goal Pacing ({kpi.start} to {kpi.end})</h4>
+             <button onClick={() => setKpi({...kpi, isSet: false, isOpen: true})} className="text-xs font-black uppercase tracking-widest text-purple-400 hover:text-purple-300">Edit Goals</button>
+           </div>
+           <div className="space-y-6">
+              <ProgressBar label="Budget Delivery" actual={actuals.cost} target={kpi.budget} pct={bPct} isCurr color="bg-blue-500" />
+              <ProgressBar label="Impressions Generated" actual={actuals.impressions} target={kpi.impressions} pct={impPct} color="bg-cyan-500" />
+              <ProgressBar label="Installs Acquired" actual={actuals.installs} target={kpi.installs} pct={instPct} color="bg-emerald-500" />
+           </div>
+        </div>
+      );
+    }
   };
 
   // --- RENDERS ---
@@ -422,15 +503,19 @@ export default function App() {
 
     const summaryInsights = [
       `Overall Funnel Efficiency: Out of ${d3.format(",.0f")(metrics.installs)} installs, ${ltr}% successfully logged in, and ${ltp}% of those logins resulted in a confirmed purchase.`,
-      `Cost Dynamics: The blended Cost Per Install (CPI) sits at $${metrics.cpi.toFixed(2)}, scaling to an effective Cost Per Purchase (CPP) of $${metrics.cpp.toFixed(2)}.`,
-      `Platform vs Adjust Sync: A total ad spend of $${d3.format(",.0f")(metrics.cost)} generated ${d3.format(",.0f")(metrics.clicks)} clicks, converting to ${d3.format(",.0f")(metrics.purchases)} Adjust-verified purchases (a ${cvr}% install-to-purchase rate).`,
+      `Cost Dynamics: The blended Cost Per Install (CPI) sits at ${formatC(metrics.cpi, 2)}, scaling to an effective Cost Per Purchase (CPP) of ${formatC(metrics.cpp, 2)}.`,
+      `Platform vs Adjust Sync: A total ad spend of ${formatC(metrics.cost)} generated ${d3.format(",.0f")(metrics.clicks)} clicks, converting to ${d3.format(",.0f")(metrics.purchases)} Adjust-verified purchases (a ${cvr}% install-to-purchase rate).`,
       `Market & Channel Leaders: '${topMarket}' is currently the most active geographical market, while '${topChannel}' drives the highest measurable bottom-funnel engagement.`
     ];
 
     return (
       <div className="animate-in fade-in duration-700">
+        
+        {renderLeaderboard()}
+        {renderKpiTracker()}
+
         <div className="grid grid-cols-2 md:grid-cols-5 gap-4 mb-10">
-          <MetricCard label="Ad Spend" value={`$${d3.format(",.0f")(metrics.cost)}`} color="text-purple-400" />
+          <MetricCard label="Ad Spend" value={formatC(metrics.cost)} color="text-purple-400" />
           <MetricCard label="Impressions" value={(metrics.impressions / 1000000).toFixed(2) + 'M'} color="text-cyan-400" />
           <MetricCard label="Clicks" value={d3.format(",.0f")(metrics.clicks)} color="text-blue-400" />
           <MetricCard label="Installs" value={d3.format(",.0f")(metrics.installs)} color="text-emerald-400" />
@@ -438,8 +523,8 @@ export default function App() {
           <MetricCard label="Purchases" value={d3.format(",.0f")(metrics.purchases)} color="text-rose-400" />
           <MetricCard label="Install-to-Login %" value={`${metrics.ltr.toFixed(2)}%`} color="text-teal-400" />
           <MetricCard label="Login-to-Purch %" value={`${metrics.ltp.toFixed(2)}%`} color="text-pink-400" />
-          <MetricCard label="CPI" value={`$${metrics.cpi.toFixed(2)}`} color="text-orange-400" />
-          <MetricCard label="CPP" value={`$${metrics.cpp.toFixed(2)}`} color="text-red-400" />
+          <MetricCard label="CPI" value={formatC(metrics.cpi, 2)} color="text-orange-400" />
+          <MetricCard label="CPP" value={formatC(metrics.cpp, 2)} color="text-red-400" />
         </div>
 
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
@@ -492,16 +577,6 @@ export default function App() {
           
     const activeMarketSummary = selectedMarketView === 'All' ? null : marketBreakdown.find(m => m.name === selectedMarketView);
 
-    const calculateInsight = (dataArray, metricName, metricKey, isCurrency) => {
-      if (!dataArray || dataArray.length < 2) return `Monitoring ${metricName} stabilization trends over time.`;
-      const recent = dataArray[dataArray.length - 1];
-      const previous = dataArray[dataArray.length - 2];
-      const diff = ((recent[metricKey] - previous[metricKey]) / (previous[metricKey] || 1)) * 100;
-      const format = (val) => isCurrency ? `$${val.toFixed(2)}` : d3.format(",.0f")(val);
-      if (Math.abs(diff) < 5) return `Recent ${metricName} (${format(recent[metricKey])}) aligns with historical averages. Consistency achieved.`;
-      return `Noticeable shift: ${metricName} ${diff > 0 ? 'grew' : 'dropped'} by ${Math.abs(diff).toFixed(1)}% in the most recent tracked period compared to the prior week.`;
-    };
-
     return (
       <div className="animate-in fade-in duration-500">
         <div className="mb-6">
@@ -521,11 +596,11 @@ export default function App() {
         ) : (
           <div className="animate-in fade-in zoom-in-95 duration-500">
             <div className="grid grid-cols-2 lg:grid-cols-5 gap-4 mb-8">
-               <MetricCard label="Ad Spend" value={`$${d3.format(",.0f")(activeMarketSummary?.cost || 0)}`} color="text-purple-400" />
+               <MetricCard label="Ad Spend" value={formatC(activeMarketSummary?.cost || 0)} color="text-purple-400" />
                <MetricCard label="Installs" value={d3.format(",.0f")(activeMarketSummary?.installs || 0)} color="text-emerald-400" />
                <MetricCard label="Purchases" value={d3.format(",.0f")(activeMarketSummary?.purchases || 0)} color="text-rose-400" />
-               <MetricCard label="CPI" value={`$${(activeMarketSummary?.cpi || 0).toFixed(2)}`} color="text-amber-400" />
-               <MetricCard label="CPP" value={`$${(activeMarketSummary?.cpp || 0).toFixed(2)}`} color="text-red-400" />
+               <MetricCard label="CPI" value={formatC(activeMarketSummary?.cpi || 0, 2)} color="text-amber-400" />
+               <MetricCard label="CPP" value={formatC(activeMarketSummary?.cpp || 0, 2)} color="text-red-400" />
             </div>
 
             <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
@@ -534,7 +609,7 @@ export default function App() {
                    <h4 className="text-sm font-black text-white uppercase tracking-widest flex items-center gap-2"><Layers className="w-4 h-4 text-emerald-400" /> Volume: Installs & Purchases</h4>
                  </div>
                  <div className="flex-1 min-h-[300px]">
-                    <DualAxisLineChart chartData={activeMarketData} leftKey="installs" rightKey="purchases" leftColorText="fill-emerald-400" rightColorText="fill-rose-400" leftColorHex="#34d399" rightColorHex="#fb7185" isLeftCurrency={false} isRightCurrency={false} insight={calculateInsight(activeMarketData, 'Purchases', 'purchases', false)} />
+                    <DualAxisLineChart chartData={activeMarketData} leftKey="installs" rightKey="purchases" leftColorText="fill-emerald-400" rightColorText="fill-rose-400" leftColorHex="#34d399" rightColorHex="#fb7185" isLeftCurrency={false} isRightCurrency={false} />
                  </div>
                </div>
 
@@ -543,7 +618,7 @@ export default function App() {
                    <h4 className="text-sm font-black text-white uppercase tracking-widest flex items-center gap-2"><Activity className="w-4 h-4 text-amber-400" /> Efficiency: CPI & CPP</h4>
                  </div>
                  <div className="flex-1 min-h-[300px]">
-                    <DualAxisLineChart chartData={activeMarketData} leftKey="cpi" rightKey="cpp" leftColorText="fill-amber-400" rightColorText="fill-red-400" leftColorHex="#fbbf24" rightColorHex="#f87171" isLeftCurrency={true} isRightCurrency={true} insight={calculateInsight(activeMarketData, 'Cost Per Purchase', 'cpp', true)} />
+                    <DualAxisLineChart chartData={activeMarketData} leftKey="cpi" rightKey="cpp" leftColorText="fill-amber-400" rightColorText="fill-red-400" leftColorHex="#fbbf24" rightColorHex="#f87171" isLeftCurrency={true} isRightCurrency={true} />
                  </div>
                </div>
             </div>
@@ -567,16 +642,6 @@ export default function App() {
       : d3.groups(localFilteredData.filter(d => d.channel === selectedChannelView), d => d.timeKey).map(([key, values]) => ({ week: values[0].week, year: values[0].year, ...aggregate(values) })).sort((a,b) => a.week - b.week);
           
     const activeChannelSummary = selectedChannelView === 'All' ? null : localChannelBreakdown.find(c => c.name === selectedChannelView);
-
-    const calculateInsight = (dataArray, metricName, metricKey, isCurrency) => {
-      if (!dataArray || dataArray.length < 2) return `Monitoring ${metricName} stabilization trends over time.`;
-      const recent = dataArray[dataArray.length - 1];
-      const previous = dataArray[dataArray.length - 2];
-      const diff = ((recent[metricKey] - previous[metricKey]) / (previous[metricKey] || 1)) * 100;
-      const format = (val) => isCurrency ? `$${val.toFixed(2)}` : d3.format(",.0f")(val);
-      if (Math.abs(diff) < 5) return `Recent ${metricName} (${format(recent[metricKey])}) aligns with historical averages. Consistency achieved.`;
-      return `Noticeable shift: ${metricName} ${diff > 0 ? 'grew' : 'dropped'} by ${Math.abs(diff).toFixed(1)}% in the most recent tracked period compared to the prior week.`;
-    };
 
     return (
       <div className="animate-in fade-in duration-500">
@@ -606,13 +671,13 @@ export default function App() {
         ) : (
           <div className="animate-in fade-in zoom-in-95 duration-500">
             <div className="grid grid-cols-2 md:grid-cols-4 xl:grid-cols-7 gap-4 mb-8">
-               <MetricCard label="Ad Spend" value={`$${d3.format(",.0f")(activeChannelSummary?.cost || 0)}`} color="text-purple-400" />
+               <MetricCard label="Ad Spend" value={formatC(activeChannelSummary?.cost || 0)} color="text-purple-400" />
                <MetricCard label="Impressions" value={d3.format(",.0f")(activeChannelSummary?.impressions || 0)} color="text-cyan-400" />
                <MetricCard label="Clicks" value={d3.format(",.0f")(activeChannelSummary?.clicks || 0)} color="text-blue-400" />
                <MetricCard label="Installs" value={d3.format(",.0f")(activeChannelSummary?.installs || 0)} color="text-emerald-400" />
                <MetricCard label="Purchases" value={d3.format(",.0f")(activeChannelSummary?.purchases || 0)} color="text-rose-400" />
-               <MetricCard label="CPI" value={`$${(activeChannelSummary?.cpi || 0).toFixed(2)}`} color="text-amber-400" />
-               <MetricCard label="CPP" value={`$${(activeChannelSummary?.cpp || 0).toFixed(2)}`} color="text-red-400" />
+               <MetricCard label="CPI" value={formatC(activeChannelSummary?.cpi || 0, 2)} color="text-amber-400" />
+               <MetricCard label="CPP" value={formatC(activeChannelSummary?.cpp || 0, 2)} color="text-red-400" />
             </div>
 
             <div className="grid grid-cols-1 lg:grid-cols-2 gap-8 mb-8">
@@ -621,7 +686,7 @@ export default function App() {
                    <h4 className="text-sm font-black text-white uppercase tracking-widest flex items-center gap-2"><Layers className="w-4 h-4 text-emerald-400" /> Volume: Installs & Purchases</h4>
                  </div>
                  <div className="flex-1 min-h-[300px]">
-                    <DualAxisLineChart chartData={activeChannelData} leftKey="installs" rightKey="purchases" leftColorText="fill-emerald-400" rightColorText="fill-rose-400" leftColorHex="#34d399" rightColorHex="#fb7185" isLeftCurrency={false} isRightCurrency={false} insight={calculateInsight(activeChannelData, 'Purchases', 'purchases', false)} />
+                    <DualAxisLineChart chartData={activeChannelData} leftKey="installs" rightKey="purchases" leftColorText="fill-emerald-400" rightColorText="fill-rose-400" leftColorHex="#34d399" rightColorHex="#fb7185" isLeftCurrency={false} isRightCurrency={false} />
                  </div>
                </div>
                <div className="bg-[#131A2A] p-8 rounded-[2.5rem] border border-white/5 shadow-xl flex flex-col">
@@ -629,7 +694,7 @@ export default function App() {
                    <h4 className="text-sm font-black text-white uppercase tracking-widest flex items-center gap-2"><Activity className="w-4 h-4 text-red-400" /> Efficiency: CPI & CPP</h4>
                  </div>
                  <div className="flex-1 min-h-[300px]">
-                    <DualAxisLineChart chartData={activeChannelData} leftKey="cpi" rightKey="cpp" leftColorText="fill-amber-400" rightColorText="fill-red-400" leftColorHex="#fbbf24" rightColorHex="#f87171" isLeftCurrency={true} isRightCurrency={true} insight={calculateInsight(activeChannelData, 'Cost Per Purchase', 'cpp', true)} />
+                    <DualAxisLineChart chartData={activeChannelData} leftKey="cpi" rightKey="cpp" leftColorText="fill-amber-400" rightColorText="fill-red-400" leftColorHex="#fbbf24" rightColorHex="#f87171" isLeftCurrency={true} isRightCurrency={true} />
                  </div>
                </div>
             </div>
@@ -640,7 +705,7 @@ export default function App() {
                    <h4 className="text-sm font-black text-white uppercase tracking-widest flex items-center gap-2"><Eye className="w-4 h-4 text-cyan-400" /> Awareness: Impressions & CPM</h4>
                  </div>
                  <div className="flex-1 min-h-[300px]">
-                    <DualAxisLineChart chartData={activeChannelData} leftKey="impressions" rightKey="cpm" leftColorText="fill-cyan-400" rightColorText="fill-purple-400" leftColorHex="#22d3ee" rightColorHex="#c084fc" isLeftCurrency={false} isRightCurrency={true} insight={calculateInsight(activeChannelData, 'Impressions', 'impressions', false)} />
+                    <DualAxisLineChart chartData={activeChannelData} leftKey="impressions" rightKey="cpm" leftColorText="fill-cyan-400" rightColorText="fill-purple-400" leftColorHex="#22d3ee" rightColorHex="#c084fc" isLeftCurrency={false} isRightCurrency={true} />
                  </div>
                </div>
                <div className="bg-[#131A2A] p-8 rounded-[2.5rem] border border-white/5 shadow-xl flex flex-col">
@@ -648,7 +713,7 @@ export default function App() {
                    <h4 className="text-sm font-black text-white uppercase tracking-widest flex items-center gap-2"><MousePointer2 className="w-4 h-4 text-blue-400" /> Engagement: Clicks & CPC</h4>
                  </div>
                  <div className="flex-1 min-h-[300px]">
-                    <DualAxisLineChart chartData={activeChannelData} leftKey="clicks" rightKey="cpc" leftColorText="fill-blue-400" rightColorText="fill-orange-400" leftColorHex="#60a5fa" rightColorHex="#fb923c" isLeftCurrency={false} isRightCurrency={true} insight={calculateInsight(activeChannelData, 'Cost Per Click', 'cpc', true)} />
+                    <DualAxisLineChart chartData={activeChannelData} leftKey="clicks" rightKey="cpc" leftColorText="fill-blue-400" rightColorText="fill-orange-400" leftColorHex="#60a5fa" rightColorHex="#fb923c" isLeftCurrency={false} isRightCurrency={true} />
                  </div>
                </div>
             </div>
@@ -673,9 +738,11 @@ export default function App() {
 
     return (
       <div className="animate-in fade-in duration-500">
-        <div className="mb-6">
-          <h2 className="text-3xl font-black text-white tracking-tight">Detailed Data Hub</h2>
-          <p className="text-slate-400 font-medium italic">Granular timeline combining upper-funnel ad data with bottom-funnel adjust conversions.</p>
+        <div className="mb-6 flex items-center justify-between">
+          <div>
+            <h2 className="text-3xl font-black text-white tracking-tight">Detailed Data Hub</h2>
+            <p className="text-slate-400 font-medium italic">Granular timeline combining upper-funnel ad data with bottom-funnel adjust conversions.</p>
+          </div>
         </div>
 
         <NavigationBar items={marketBreakdown} selected={selectedMarketView} setSelected={setSelectedMarketView} defaultLabel="Global Overview" />
@@ -720,15 +787,15 @@ export default function App() {
                         <span className="font-black text-white">W{w.week} - {getMonthFromWeek(w.week, w.year)} {w.year}</span>
                       </div>
                     </td>
-                    <td className="px-6 py-5 text-right font-mono font-bold text-slate-300">${w.cost.toLocaleString(undefined, {minimumFractionDigits: 2})}</td>
-                    <td className="px-6 py-5 text-right font-mono text-slate-400">{w.clicks.toLocaleString()}</td>
-                    <td className="px-6 py-5 text-right font-mono font-bold text-emerald-400">{w.installs.toLocaleString()}</td>
-                    <td className="px-6 py-5 text-right font-mono font-bold text-cyan-400">{w.logins.toLocaleString()}</td>
+                    <td className="px-6 py-5 text-right font-mono font-bold text-slate-300">{formatC(w.cost)}</td>
+                    <td className="px-6 py-5 text-right font-mono text-slate-400">{d3.format(",.0f")(w.clicks)}</td>
+                    <td className="px-6 py-5 text-right font-mono font-bold text-emerald-400">{d3.format(",.0f")(w.installs)}</td>
+                    <td className="px-6 py-5 text-right font-mono font-bold text-cyan-400">{d3.format(",.0f")(w.logins)}</td>
                     <td className="px-6 py-5 text-right font-mono font-bold text-slate-500">{w.ltr.toFixed(1)}%</td>
-                    <td className="px-6 py-5 text-right font-mono font-bold text-rose-400">{w.purchases.toLocaleString()}</td>
+                    <td className="px-6 py-5 text-right font-mono font-bold text-rose-400">{d3.format(",.0f")(w.purchases)}</td>
                     <td className="px-6 py-5 text-right font-mono font-bold text-slate-500">{w.ltp.toFixed(1)}%</td>
-                    <td className="px-6 py-5 text-right"><span className="bg-amber-500/10 text-amber-400 px-3 py-1 rounded-full text-[10px] font-black border border-amber-500/20">${w.cpi.toFixed(2)}</span></td>
-                    <td className="px-6 py-5 text-right"><span className="bg-red-500/10 text-red-400 px-3 py-1 rounded-full text-[10px] font-black border border-red-500/20">${w.cpp.toFixed(2)}</span></td>
+                    <td className="px-6 py-5 text-right"><span className="bg-amber-500/10 text-amber-400 px-3 py-1 rounded-full text-[10px] font-black border border-amber-500/20">{formatC(w.cpi, 2)}</span></td>
+                    <td className="px-6 py-5 text-right"><span className="bg-red-500/10 text-red-400 px-3 py-1 rounded-full text-[10px] font-black border border-red-500/20">{formatC(w.cpp, 2)}</span></td>
                   </tr>
                 ))}
               </tbody>
@@ -818,7 +885,14 @@ export default function App() {
             ))}
           </nav>
 
-          <div className="relative">
+          <div className="relative flex items-center gap-3">
+            <button 
+               onClick={() => setCurrency(c => c === 'USD' ? 'BHD' : 'USD')}
+               className="flex items-center gap-2 px-4 py-2.5 rounded-2xl border transition-all font-black text-xs tracking-widest uppercase bg-[#131A2A] border-white/5 text-slate-300 hover:border-purple-500/50 hover:text-white"
+            >
+               <DollarSign className="w-4 h-4 text-emerald-400" /> {currency}
+            </button>
+
             <button 
               onClick={() => setIsFilterOpen(!isFilterOpen)}
               className={`flex items-center gap-3 px-5 py-2.5 rounded-2xl border transition-all font-bold text-sm ${
@@ -898,7 +972,7 @@ export default function App() {
       <footer className="max-w-7xl mx-auto px-6 pb-12 border-t border-white/5 mt-12 pt-8 flex flex-col md:flex-row justify-between items-center gap-6 opacity-60 hover:opacity-100 transition-opacity">
         <div className="flex items-center gap-4">
           <Info className="w-4 h-4 text-slate-400" />
-          <span className="text-[10px] font-black uppercase tracking-widest text-slate-500">MMP Cross-Engine v4.5 | Dark Mode Protocol Active</span>
+          <span className="text-[10px] font-black uppercase tracking-widest text-slate-500">MMP Cross-Engine v4.6 | Currency & KPI Engine Active</span>
         </div>
         <div className="flex gap-4 items-center bg-[#131A2A] px-4 py-2 rounded-full border border-white/5">
           <div className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse shadow-[0_0_8px_rgba(52,211,153,0.8)]" />
