@@ -70,6 +70,7 @@ export default function App() {
   const [data, setData] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
+
   const [activeTab, setActiveTab] = useState('summary');
   const [selectedMarketView, setSelectedMarketView] = useState('All');
   const [selectedChannelView, setSelectedChannelView] = useState('All');
@@ -91,7 +92,7 @@ export default function App() {
           const year = parseInt(row['Year'] || row['year']) || 2024;
           const rawS1Channel = Object.values(row)[7] || row['Channel'];
           const rawWeekTypeS1 = Object.values(row)[12] || row['Week Type'];
-          
+
           return {
             cost: parseMetric(row['Cost'] || row['Spend'] || row['cost']),
             impressions: parseMetric(row['Impression'] || row['Impressions']),
@@ -107,7 +108,7 @@ export default function App() {
 
         const s2 = mmpData.map(row => {
           const week = parseInt(row['Week'] || row['week'] || row['Wk']) || 0;
-          const year = parseInt(row['Year'] || row['year']) || 2024;
+          const year = parseInt(row['Year'] || row['year'] || row['Yr']) || 2024;
           const rawClass = Object.values(row)[11] || row['Classification'] || row['Network classification'] || '';
           const trafficType = rawClass.toString().toLowerCase().includes('organic') ? 'Organic' : 'Paid';
           const purchases = parseMetric(Object.values(row)[7] || row['Purchases'] || row['Total Purchases']);
@@ -131,7 +132,7 @@ export default function App() {
       })
       .catch((err) => {
         console.error("Error fetching data:", err);
-        setError("Failed to load data. Please ensure CSV links are correct and published.");
+        setError("Failed to load data.");
         setLoading(false);
       });
   }, []);
@@ -189,22 +190,91 @@ export default function App() {
   const marketBreakdown = useMemo(() => d3.groups(filteredData, d => d.market).map(([name, values]) => ({ name, ...aggregate(values) })).filter(m => m.cost >= 1).sort((a, b) => b.cost - a.cost), [filteredData]);
   const channelBreakdown = useMemo(() => d3.groups(filteredData, d => d.channel).map(([name, values]) => ({ name, ...aggregate(values) })).filter(m => m.cost >= 1 || m.purchases >= 1).sort((a, b) => b.cost - a.cost), [filteredData]);
 
-  const getAIInsight = (context, activeData = null) => {
+  const getAIInsight = (context, activeData = null, marketFilteredData = null, selectedType = 'All Weeks') => {
     if (filteredData.length === 0) return "No data available for the current selection.";
+    
     if (context === 'detailed') {
-      const dataToAnalyze = activeData || weeklyTimeline;
-      if (dataToAnalyze.length > 1) {
-        const sortedByCPP = [...dataToAnalyze].filter(w => w.purchases > 0).sort((a,b)=>a.cpp-b.cpp);
-        const worstCPP = [...dataToAnalyze].filter(w => w.purchases > 0).sort((a,b)=>b.cpp-a.cpp)[0];
-        let string = `Week ${sortedByCPP[0]?.week} yielded the highest conversion efficiency ($${sortedByCPP[0]?.cpp.toFixed(2)} CPP). `;
-        if (worstCPP && worstCPP.cpp > sortedByCPP[0].cpp * 1.5) {
-           string += `Conversely, Week ${worstCPP.week} saw CPP spike to $${worstCPP.cpp.toFixed(2)}, indicating heavy ad waste or tracking drop-off.`;
-        } else {
-           string += `Overall stability is strong across the selected timeframe for this view.`;
-        }
-        return string;
+      if (!activeData || activeData.length === 0) return "Analyzing single week data. Select a broader date range or market view to see progression trends over time.";
+      
+      const computeStats = (dataArray) => {
+        const tImps = d3.sum(dataArray, d => d.impressions);
+        const tClicks = d3.sum(dataArray, d => d.clicks);
+        const tInstalls = d3.sum(dataArray, d => d.installs);
+        const tLogins = d3.sum(dataArray, d => d.logins);
+        const tPurchases = d3.sum(dataArray, d => d.purchases);
+        const tCost = d3.sum(dataArray, d => d.cost);
+        const avgCpi = tInstalls > 0 ? tCost / tInstalls : 0;
+        const avgCpp = tPurchases > 0 ? tCost / tPurchases : 0;
+        return { tImps, tClicks, tInstalls, tLogins, tPurchases, tCost, avgCpi, avgCpp };
+      };
+
+      if (selectedType === 'Salary Weeks' || selectedType === 'BAU') {
+        const stats = computeStats(marketFilteredData.filter(d => d.weekType === selectedType));
+        return (
+          <div className="space-y-4 text-sm text-purple-50">
+             <div>
+                <strong className="text-white text-base">Performance Overview ({selectedType}):</strong>
+                <ul className="list-none mt-3 space-y-1.5 bg-white/5 p-5 rounded-xl border border-white/10">
+                  <li><strong>Ad Spend:</strong> ${d3.format(",.0f")(stats.tCost)}</li>
+                  <li><strong>Impressions:</strong> {d3.format(",.0f")(stats.tImps)}</li>
+                  <li><strong>Clicks:</strong> {d3.format(",.0f")(stats.tClicks)}</li>
+                  <li><strong>Installs:</strong> {d3.format(",.0f")(stats.tInstalls)}</li>
+                  <li><strong>Logins:</strong> {d3.format(",.0f")(stats.tLogins)}</li>
+                  <li><strong>Purchases:</strong> {d3.format(",.0f")(stats.tPurchases)}</li>
+                </ul>
+             </div>
+             <p className="mt-4"><strong className="text-white">Efficiency Metrics:</strong> The average Cost Per Install (CPI) settled at <span className="text-amber-300 font-bold">${stats.avgCpi.toFixed(2)}</span>, with a Cost Per Purchase (CPP) of <span className="text-red-400 font-bold">${stats.avgCpp.toFixed(2)}</span>.</p>
+             <p><strong className="text-white">Action Plan:</strong> {selectedType === 'Salary Weeks' ? 'Consumer purchasing power is at its peak. Maximize daily budget caps, increase bids on high-intent keywords, and prioritize aggressive retargeting to capture immediate conversions.' : 'Focus on top-funnel acquisition and brand awareness. Maintain strict CPP limits, optimize creative assets, and build retargeting pools for the next salary cycle.'}</p>
+          </div>
+        );
+      } else {
+        const salaryData = marketFilteredData.filter(d => d.weekType === 'Salary Weeks');
+        const bauData = marketFilteredData.filter(d => d.weekType === 'BAU');
+        const sStats = computeStats(salaryData);
+        const bStats = computeStats(bauData);
+
+        const cppDiff = bStats.avgCpp > 0 ? ((sStats.avgCpp - bStats.avgCpp) / bStats.avgCpp) * 100 : 0;
+        const cppText = cppDiff > 0 ? `${cppDiff.toFixed(1)}% higher` : `${Math.abs(cppDiff).toFixed(1)}% lower`;
+        const volDiff = bStats.tPurchases > 0 ? ((sStats.tPurchases - bStats.tPurchases) / bStats.tPurchases) * 100 : 0;
+
+        return (
+          <div className="space-y-4 text-sm text-purple-50">
+             <strong className="text-white text-base">Comparison Analysis (Salary vs BAU):</strong>
+             <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mt-3">
+                <div className="bg-white/5 p-5 rounded-xl border border-white/10">
+                   <p className="font-bold text-white mb-3 border-b border-white/10 pb-2">Salary Weeks</p>
+                   <ul className="space-y-1.5">
+                     <li><strong>Spend:</strong> ${d3.format(",.0f")(sStats.tCost)}</li>
+                     <li><strong>Impressions:</strong> {d3.format(",.0f")(sStats.tImps)}</li>
+                     <li><strong>Clicks:</strong> {d3.format(",.0f")(sStats.tClicks)}</li>
+                     <li><strong>Installs:</strong> {d3.format(",.0f")(sStats.tInstalls)}</li>
+                     <li><strong>Logins:</strong> {d3.format(",.0f")(sStats.tLogins)}</li>
+                     <li><strong>Purchases:</strong> {d3.format(",.0f")(sStats.tPurchases)}</li>
+                   </ul>
+                   <div className="mt-4 pt-3 border-t border-white/10 text-xs">
+                      <span className="text-amber-300 font-bold">${sStats.avgCpi.toFixed(2)} CPI</span> <span className="mx-2">|</span> <span className="text-red-400 font-bold">${sStats.avgCpp.toFixed(2)} CPP</span>
+                   </div>
+                </div>
+                <div className="bg-white/5 p-5 rounded-xl border border-white/10">
+                   <p className="font-bold text-white mb-3 border-b border-white/10 pb-2">BAU Periods</p>
+                   <ul className="space-y-1.5">
+                     <li><strong>Spend:</strong> ${d3.format(",.0f")(bStats.tCost)}</li>
+                     <li><strong>Impressions:</strong> {d3.format(",.0f")(bStats.tImps)}</li>
+                     <li><strong>Clicks:</strong> {d3.format(",.0f")(bStats.tClicks)}</li>
+                     <li><strong>Installs:</strong> {d3.format(",.0f")(bStats.tInstalls)}</li>
+                     <li><strong>Logins:</strong> {d3.format(",.0f")(bStats.tLogins)}</li>
+                     <li><strong>Purchases:</strong> {d3.format(",.0f")(bStats.tPurchases)}</li>
+                   </ul>
+                   <div className="mt-4 pt-3 border-t border-white/10 text-xs">
+                      <span className="text-amber-300 font-bold">${bStats.avgCpi.toFixed(2)} CPI</span> <span className="mx-2">|</span> <span className="text-red-400 font-bold">${bStats.avgCpp.toFixed(2)} CPP</span>
+                   </div>
+                </div>
+             </div>
+             <p className="mt-4"><strong className="text-white">Observation:</strong> Salary week CPP is {cppText} than BAU periods, with purchase volume shifting by {volDiff > 0 ? '+' : ''}{volDiff.toFixed(1)}%.</p>
+             <p><strong className="text-white">Action Plan:</strong> Implement a pulsing budget strategy. Allocate ~65% of monthly budgets to Salary Weeks to capture high-intent users, while pacing BAU spend to focus on low-cost installs and audience building.</p>
+          </div>
+        );
       }
-      return "Analyzing single week data. Select a broader date range or market view to see progression trends over time.";
     }
     return "";
   };
@@ -222,11 +292,13 @@ export default function App() {
     <div className="bg-gradient-to-br from-[#2D1B69] to-[#1A0B2E] rounded-[2.5rem] p-8 text-white shadow-2xl shadow-purple-900/20 mb-10 relative overflow-hidden border border-purple-500/30">
       <div className="absolute top-0 right-0 p-8 opacity-10"><Zap className="w-32 h-32 text-purple-300" /></div>
       <div className="relative z-10">
-        <div className="flex items-center gap-3 mb-4">
+        <div className="flex items-center gap-3 mb-6">
           <div className="bg-white/10 p-2 rounded-xl backdrop-blur-md"><Zap className="w-4 h-4 text-purple-300" /></div>
-          <span className="text-[10px] font-black uppercase tracking-[0.25em] text-purple-200">AI Funnel Insight</span>
+          <span className="text-[10px] font-black uppercase tracking-[0.25em] text-purple-200">AI Detailed Insight</span>
         </div>
-        <p className="text-xl font-medium leading-relaxed italic max-w-4xl text-purple-50">"{text}"</p>
+        <div className="text-base font-medium leading-relaxed max-w-5xl text-purple-50">
+           {typeof text === 'string' ? `"${text}"` : text}
+        </div>
       </div>
     </div>
   );
@@ -587,15 +659,17 @@ export default function App() {
   };
 
   const renderDetailed = () => {
-    // Determine the subset of data based on BOTH Market and WeekType selectors
-    const baseDetailedData = filteredData.filter(d => 
-       (selectedMarketView === 'All' || d.market === selectedMarketView) &&
-       (selectedWeekTypeView === 'All Weeks' || d.weekType === selectedWeekTypeView)
-    );
+    const marketFilteredData = selectedMarketView === 'All' 
+      ? filteredData 
+      : filteredData.filter(d => d.market === selectedMarketView);
 
-    const activeTableData = d3.groups(baseDetailedData, d => d.timeKey)
-      .map(([key, values]) => ({ week: values[0].week, year: values[0].year, ...aggregate(values) }))
-      .sort((a,b) => a.week - b.week);
+    const activeDetailedData = selectedWeekTypeView === 'All Weeks'
+      ? marketFilteredData
+      : marketFilteredData.filter(d => d.weekType === selectedWeekTypeView);
+
+    const activeTableData = d3.groups(activeDetailedData, d => d.timeKey)
+        .map(([key, values]) => ({ week: values[0].week, year: values[0].year, ...aggregate(values) }))
+        .sort((a,b) => a.week - b.week);
 
     return (
       <div className="animate-in fade-in duration-500">
@@ -604,10 +678,8 @@ export default function App() {
           <p className="text-slate-400 font-medium italic">Granular timeline combining upper-funnel ad data with bottom-funnel adjust conversions.</p>
         </div>
 
-        {/* Existing Market Navigator */}
         <NavigationBar items={marketBreakdown} selected={selectedMarketView} setSelected={setSelectedMarketView} defaultLabel="Global Overview" />
         
-        {/* NEW: Week Type Selector */}
         <div className="flex gap-3 overflow-x-auto pb-4 mb-8 border-b border-white/5 hide-scrollbar">
           {['All Weeks', 'Salary Weeks', 'BAU'].map(type => (
             <button 
@@ -620,7 +692,7 @@ export default function App() {
           ))}
         </div>
 
-        <InsightBox text={getAIInsight('detailed', activeTableData)} />
+        <InsightBox text={getAIInsight('detailed', activeTableData, marketFilteredData, selectedWeekTypeView)} />
         
         <div className="bg-[#131A2A] rounded-[2rem] border border-white/5 shadow-xl overflow-hidden mb-8">
           <div className="overflow-x-auto">
