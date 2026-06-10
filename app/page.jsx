@@ -11,7 +11,7 @@ import {
 const COMBINED_COUNTRY_CSV_URL = "https://docs.google.com/spreadsheets/d/e/2PACX-1vSt_K4Y6h2g2iVm2CDrc33rQGDToGd41a805URte2UEDqMYB_K8V4YKLIJ9rCMoLdmwvbco7uyevE9U/pub?gid=1273221446&single=true&output=csv";
 const RAW_ADJUST_CSV_URL = "https://docs.google.com/spreadsheets/d/e/2PACX-1vSt_K4Y6h2g2iVm2CDrc33rQGDToGd41a805URte2UEDqMYB_K8V4YKLIJ9rCMoLdmwvbco7uyevE9U/pub?gid=588241351&single=true&output=csv";
 
-// --- SSR-SAFE CORE HELPERS ---
+// --- CORE HELPERS ---
 const MONTHS = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
 const getDateFromWeek = (week, year = 2024) => {
   const d = new Date(year, 0, 1 + (week - 1) * 7);
@@ -207,13 +207,14 @@ const DualAxisLineChart = ({ chartData, leftKey, rightKey, leftColorText, rightC
 
 // === MAIN APPLICATION ===
 export default function App() {
+  // --- STRICT HYDRATION BAILOUT ---
+  const [isMounted, setIsMounted] = useState(false);
+
   const [data, setData] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
 
-  // --- HYDRATION SAFE DATE FIX ---
   const [clientDate, setClientDate] = useState("");
-
   const [activeTab, setActiveTab] = useState('summary');
   const [selectedMarketView, setSelectedMarketView] = useState('All');
   const [selectedChannelView, setSelectedChannelView] = useState('All');
@@ -236,7 +237,8 @@ export default function App() {
   const formatC = (val, dec = 0) => `${exSym}${d3.format(`,.${dec}f`)(val * exRate)}`;
 
   useEffect(() => {
-    // Generate the date exclusively on the client side to avoid hydration mismatch
+    // Tells Next.js the component is now safely inside the browser
+    setIsMounted(true);
     setClientDate(new Date().toLocaleDateString());
   }, []);
 
@@ -442,7 +444,6 @@ export default function App() {
     return "";
   }
 
-  // --- RENDERS ---
   function renderLeaderboard() {
     const topInstalls = [...channelBreakdown].sort((a,b)=>b.installs - a.installs)[0];
     const topCPP = [...channelBreakdown].filter(c=>c.purchases > 0 && c.cost > 0).sort((a,b)=>a.cpp - b.cpp)[0];
@@ -994,6 +995,17 @@ export default function App() {
   }
 
   // --- COMPONENT LEVEL SECURITY RENDER ---
+
+  // Strict bailout: Wait until React has fully mounted in the browser before rendering anything.
+  // This guarantees zero Server-Side Rendering (SSR) HTML mismatches.
+  if (!isMounted) {
+    return (
+      <div className="min-h-screen bg-[#0B0F19] flex items-center justify-center">
+        <div className="w-8 h-8 border-4 border-purple-500/30 border-t-purple-500 rounded-full animate-spin" />
+      </div>
+    );
+  }
+
   return (
     <div className="min-h-screen bg-[#0B0F19] text-slate-200 font-sans selection:bg-purple-500/30 selection:text-purple-100">
       
