@@ -10,14 +10,20 @@ import {
 const COMBINED_COUNTRY_CSV_URL = "https://docs.google.com/spreadsheets/d/e/2PACX-1vSt_K4Y6h2g2iVm2CDrc33rQGDToGd41a805URte2UEDqMYB_K8V4YKLIJ9rCMoLdmwvbco7uyevE9U/pub?gid=1273221446&single=true&output=csv";
 const RAW_ADJUST_CSV_URL = "https://docs.google.com/spreadsheets/d/e/2PACX-1vSt_K4Y6h2g2iVm2CDrc33rQGDToGd41a805URte2UEDqMYB_K8V4YKLIJ9rCMoLdmwvbco7uyevE9U/pub?gid=588241351&single=true&output=csv";
 
+// SSR-Safe Date Parsing
+const MONTHS = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
 const getDateFromWeek = (week, year = 2024) => {
   const d = new Date(year, 0, 1 + (week - 1) * 7);
-  d.setHours(0, 0, 0, 0);
+  d.setHours(12, 0, 0, 0); // Noon prevents timezone-based day shifting
   return d;
 };
+const getMonthFromWeek = (week, year) => MONTHS[getDateFromWeek(week, year).getMonth()];
 
-const getMonthFromWeek = (week, year) => {
-  return getDateFromWeek(week, year).toLocaleString('en-US', { month: 'short' });
+const formatShort = (num) => {
+  if (num === null || num === undefined) return '0';
+  if (num >= 1000000) return (num / 1000000).toFixed(1) + 'M';
+  if (num >= 1000) return (num / 1000).toFixed(0) + 'K';
+  return d3.format(",.0f")(num);
 };
 
 const normalizeMarket = (marketName) => {
@@ -66,14 +72,138 @@ const parseMetric = (val) => {
   return parseFloat(val.toString().replace(/,/g, '').trim()) || 0;
 };
 
-// Enhancement: Abbreviated Number Formatter
-const formatShort = (num) => {
-  if (!num) return '0';
-  if (num >= 1000000) return (num / 1000000).toFixed(1) + 'M';
-  if (num >= 1000) return (num / 1000).toFixed(0) + 'K';
-  return d3.format(",.0f")(num);
+// --- EXTRACTED STABLE UI COMPONENTS ---
+const MetricCard = ({ label, value, color }) => (
+  <div className="bg-[#131A2A]/80 backdrop-blur-xl p-6 rounded-[1.5rem] border border-white/5 shadow-xl transition-all hover:shadow-[0_0_20px_rgba(168,85,247,0.15)] hover:-translate-y-1 relative overflow-hidden group">
+    <div className="absolute top-0 right-0 w-32 h-32 bg-gradient-to-br from-white/5 to-transparent rounded-full blur-2xl -mr-10 -mt-10 group-hover:bg-purple-500/10 transition-colors duration-500"></div>
+    <p className={`text-[10px] font-black ${color} uppercase tracking-widest mb-2 relative z-10`}>{label}</p>
+    <h3 className="text-2xl font-black text-white truncate relative z-10" title={value}>{value}</h3>
+  </div>
+);
+
+const InsightBox = ({ text }) => (
+  <div className="bg-gradient-to-br from-[#2D1B69] to-[#1A0B2E] rounded-[2.5rem] p-8 text-white shadow-2xl shadow-purple-900/20 mb-10 relative overflow-hidden border border-purple-500/30">
+    <div className="absolute top-0 right-0 p-8 opacity-10"><Zap className="w-32 h-32 text-purple-300" /></div>
+    <div className="relative z-10">
+      <div className="flex items-center gap-3 mb-6">
+        <div className="bg-white/10 p-2 rounded-xl backdrop-blur-md"><Zap className="w-4 h-4 text-purple-300" /></div>
+        <span className="text-[10px] font-black uppercase tracking-[0.25em] text-purple-200">AI Detailed Insight</span>
+      </div>
+      <div className="text-base font-medium leading-relaxed max-w-5xl text-purple-50">
+         {typeof text === 'string' ? `"${text}"` : text}
+      </div>
+    </div>
+  </div>
+);
+
+const NavigationBar = ({ items, selected, setSelected, defaultLabel = "Global Overview" }) => (
+  <div className="flex gap-3 overflow-x-auto pb-4 mb-8 border-b border-white/5 hide-scrollbar">
+    <button onClick={() => setSelected('All')} className={`whitespace-nowrap px-6 py-2.5 rounded-xl text-sm font-black transition-all ${selected === 'All' ? 'bg-gradient-to-r from-purple-600 to-rose-500 text-white shadow-lg shadow-purple-500/25 border-none' : 'bg-[#131A2A] text-slate-400 border border-white/5 hover:bg-white/5 hover:text-white'}`}>{defaultLabel}</button>
+    {items.map(item => (
+      <button key={item.name} onClick={() => setSelected(item.name)} className={`whitespace-nowrap px-6 py-2.5 rounded-xl text-sm font-black transition-all ${selected === item.name ? 'bg-gradient-to-r from-purple-600 to-rose-500 text-white shadow-lg shadow-purple-500/25 border-none' : 'bg-[#131A2A] text-slate-400 border border-white/5 hover:bg-white/5 hover:text-white'}`}>{item.name}</button>
+    ))}
+  </div>
+);
+
+const BarChart = ({ chartData, valueKey, labelKey = 'name', color = 'bg-purple-500', isCurrency = false, isPercent = false, onClickItem = null, exSym = '$', exRate = 1 }) => {
+  const maxVal = d3.max(chartData, d => d[valueKey]) || 1;
+  return (
+    <div className="space-y-4">
+      {chartData.slice(0, 8).map((item, i) => {
+        const valStr = isPercent ? `${item[valueKey].toFixed(2)}%` : isCurrency ? `${exSym}${d3.format(",.0f")(item[valueKey] * exRate)}` : formatShort(item[valueKey]);
+        return (
+          <div key={i} onClick={() => onClickItem && onClickItem(item[labelKey])} className={`group relative ${onClickItem ? 'cursor-pointer' : ''}`}>
+            <div className="flex justify-between items-end mb-1.5">
+              <span className={`text-xs font-bold text-white truncate max-w-[150px] ${onClickItem ? 'group-hover:text-purple-300 transition-colors' : ''}`}>{item[labelKey]}</span>
+              <span className="text-[10px] font-black text-slate-400 tabular-nums">{valStr}</span>
+            </div>
+            <div className="h-2.5 bg-[#1e293b] rounded-full overflow-hidden relative">
+              <div className={`h-full ${color} rounded-full transition-all duration-1000 group-hover:brightness-125`} style={{ width: `${(item[valueKey] / maxVal) * 100}%` }} />
+            </div>
+            <div className="absolute -top-10 right-0 bg-[#0f172a] text-white text-[10px] py-1.5 px-3 rounded-lg shadow-2xl opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none z-50 whitespace-nowrap border border-white/10">
+              <span className="font-bold text-purple-300">{item[labelKey]}</span> <span className="text-slate-600 mx-1">|</span> {valStr}
+              {onClickItem && <span className="ml-2 text-emerald-400 font-bold tracking-widest">CLICK TO DRILL</span>}
+            </div>
+          </div>
+        );
+      })}
+    </div>
+  );
 };
 
+const EntityBarChartCard = ({ title, icon: Icon, data, dataKey, color, isCurrency, insight, drillDownType, onDrillDown, exSym, exRate }) => (
+  <div className="bg-[#131A2A] p-6 rounded-[2rem] border border-white/5 shadow-xl flex flex-col h-full hover:border-purple-500/30 transition-colors group">
+      <div className="flex items-center gap-3 mb-6">
+         <div className={`p-2 rounded-xl bg-white/5`}><Icon className={`w-4 h-4 ${color.replace('bg-', 'text-')}`} /></div>
+         <h4 className="text-sm font-black text-white uppercase tracking-widest">{title}</h4>
+      </div>
+      <div className="flex-1 mb-6"><BarChart chartData={data} valueKey={dataKey} color={color} isCurrency={isCurrency} onClickItem={drillDownType ? (name) => onDrillDown(drillDownType, name) : null} exSym={exSym} exRate={exRate} /></div>
+      <div className="bg-white/5 p-4 rounded-2xl mt-auto border border-white/5 relative overflow-hidden">
+         <Zap className={`w-16 h-16 absolute -right-4 -top-4 opacity-5 ${color.replace('bg-', 'text-')} group-hover:scale-110 transition-transform`} />
+         <p className="text-xs font-bold text-slate-400 relative z-10">"{insight}"</p>
+      </div>
+  </div>
+);
+
+const DualAxisLineChart = ({ chartData, leftKey, rightKey, leftColorText, rightColorText, leftColorHex, rightColorHex, isLeftCurrency, isRightCurrency, exSym = '$', exRate = 1 }) => {
+  if (!chartData || chartData.length < 2) return (
+    <div className="h-full w-full min-h-[250px] flex items-center justify-center bg-white/5 rounded-3xl border border-dashed border-white/10 text-[10px] font-black text-slate-500 uppercase tracking-widest">Select multiple periods</div>
+  );
+  const width = 800; const height = 300;
+  const margin = { top: 20, right: 50, bottom: 40, left: 50 };
+  const iw = width - margin.left - margin.right;
+  const ih = height - margin.top - margin.bottom;
+  const x = d3.scalePoint().domain(chartData.map(d => `W${d.week}`)).range([0, iw]);
+  const yLeft = d3.scaleLinear().domain([0, d3.max(chartData, d => d[leftKey]) * 1.1 || 1]).range([ih, 0]);
+  const yRight = d3.scaleLinear().domain([0, d3.max(chartData, d => d[rightKey]) * 1.1 || 1]).range([ih, 0]);
+  const lineLeft = d3.line().x(d => x(`W${d.week}`)).y(d => yLeft(d[leftKey])).curve(d3.curveMonotoneX);
+  const lineRight = d3.line().x(d => x(`W${d.week}`)).y(d => yRight(d[rightKey])).curve(d3.curveMonotoneX);
+  const skipCount = Math.ceil(chartData.length / 10);
+  const fmtT = (t, isC) => isC ? `${exSym}${d3.format(".1s")(t * exRate)}` : d3.format(".1s")(t);
+
+  return (
+    <div className="flex flex-col h-full w-full relative">
+      <svg width="100%" height="100%" viewBox={`0 0 ${width} ${height}`} preserveAspectRatio="xMidYMid meet" className="overflow-visible min-h-[250px] flex-1">
+        <g transform={`translate(${margin.left},${margin.top})`}>
+          {yLeft.ticks(5).map(t => (
+            <g key={`l-${t}`} transform={`translate(0, ${yLeft(t)})`}>
+              <line x2={iw} stroke="#1e293b" strokeWidth="1" />
+              <text x="-10" dy="0.32em" textAnchor="end" className={`text-[9px] ${leftColorText} font-bold`}>{fmtT(t, isLeftCurrency)}</text>
+            </g>
+          ))}
+          {yRight.ticks(5).map(t => (
+             <g key={`r-${t}`} transform={`translate(${iw}, ${yRight(t)})`}>
+               <text x="10" dy="0.32em" textAnchor="start" className={`text-[9px] ${rightColorText} font-bold`}>{fmtT(t, isRightCurrency)}</text>
+             </g>
+          ))}
+          <path d={lineLeft(chartData)} fill="none" stroke={leftColorHex} strokeWidth="4" strokeLinecap="round" style={{ filter: `drop-shadow(0 0 8px ${leftColorHex}60)` }} />
+          <path d={lineRight(chartData)} fill="none" stroke={rightColorHex} strokeWidth="4" strokeLinecap="round" strokeDasharray="6,6" style={{ filter: `drop-shadow(0 0 8px ${rightColorHex}60)` }} />
+          {chartData.map((d, i) => (
+             <g key={`hover-${i}`} className="group cursor-pointer">
+               <rect x={x(`W${d.week}`) - 15} y={0} width={30} height={ih} fill="transparent" />
+               <line x1={x(`W${d.week}`)} x2={x(`W${d.week}`)} y1={0} y2={ih} stroke="#475569" strokeWidth="1" strokeDasharray="4,4" className="opacity-0 group-hover:opacity-100" />
+               <foreignObject x={x(`W${d.week}`) > iw / 2 ? x(`W${d.week}`) - 140 : x(`W${d.week}`) + 10} y={10} width="130" height="90" className="opacity-0 group-hover:opacity-100 pointer-events-none transition-opacity z-50">
+                 <div className="bg-[#0f172a]/90 backdrop-blur-md text-white text-[10px] p-3 rounded-xl shadow-2xl flex flex-col gap-1.5 border border-white/10">
+                   <span className="font-black text-slate-300 border-b border-white/10 pb-1.5 mb-0.5">Week {d.week}, {d.year}</span>
+                   <div className="flex justify-between"><span className={leftColorText.replace('fill-', 'text-')}>{leftKey.toUpperCase()}:</span> <span>{isLeftCurrency ? `${exSym}${d3.format(",.2f")(d[leftKey] * exRate)}` : d3.format(",.2f")(d[leftKey])}</span></div>
+                   <div className="flex justify-between"><span className={rightColorText.replace('fill-', 'text-')}>{rightKey.toUpperCase()}:</span> <span>{isRightCurrency ? `${exSym}${d3.format(",.2f")(d[rightKey] * exRate)}` : d3.format(",.2f")(d[rightKey])}</span></div>
+                 </div>
+               </foreignObject>
+             </g>
+          ))}
+          {chartData.map((d, i) => ((i % skipCount === 0 || i === chartData.length - 1) && (
+            <g key={`x-${i}`} transform={`translate(${x(`W${d.week}`)}, ${ih})`}>
+              <text y="24" textAnchor="middle" className="text-[10px] fill-slate-500 font-black">W{d.week}</text>
+            </g>
+          )))}
+        </g>
+      </svg>
+    </div>
+  );
+};
+
+
+// === MAIN APPLICATION ===
 export default function App() {
   const [data, setData] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -83,6 +213,8 @@ export default function App() {
   const [selectedMarketView, setSelectedMarketView] = useState('All');
   const [selectedChannelView, setSelectedChannelView] = useState('All');
   const [selectedDetailedChannel, setSelectedDetailedChannel] = useState('All');
+  
+  // Week Type Defaults to Unselected
   const [selectedWeekTypeView, setSelectedWeekTypeView] = useState('');
   
   const [isFilterOpen, setIsFilterOpen] = useState(false);
@@ -100,7 +232,6 @@ export default function App() {
   const exSym = currency === 'BHD' ? 'BD ' : '$';
   const formatC = (val, dec = 0) => `${exSym}${d3.format(`,.${dec}f`)(val * exRate)}`;
 
-  // Enhancement: Secure PDF Print Trigger (Moved to top-level to prevent Hook violation)
   useEffect(() => {
     if (isGeneratingPdf) {
       const timer = setTimeout(() => {
@@ -112,10 +243,7 @@ export default function App() {
   }, [isGeneratingPdf]);
 
   useEffect(() => {
-    Promise.all([
-      d3.csv(COMBINED_COUNTRY_CSV_URL),
-      d3.csv(RAW_ADJUST_CSV_URL)
-    ])
+    Promise.all([d3.csv(COMBINED_COUNTRY_CSV_URL), d3.csv(RAW_ADJUST_CSV_URL)])
       .then(([adData, mmpData]) => {
         const s1 = adData.map(row => {
           const week = parseInt(row['Week'] || row['week']) || 0;
@@ -306,141 +434,6 @@ export default function App() {
     return "";
   };
 
-  // --- UI COMPONENTS ---
-  const MetricCard = ({ label, value, color }) => (
-    <div className="bg-[#131A2A]/80 backdrop-blur-xl p-6 rounded-[1.5rem] border border-white/5 shadow-xl transition-all hover:shadow-[0_0_20px_rgba(168,85,247,0.15)] hover:-translate-y-1 relative overflow-hidden group">
-      <div className="absolute top-0 right-0 w-32 h-32 bg-gradient-to-br from-white/5 to-transparent rounded-full blur-2xl -mr-10 -mt-10 group-hover:bg-purple-500/10 transition-colors duration-500"></div>
-      <p className={`text-[10px] font-black ${color} uppercase tracking-widest mb-2 relative z-10`}>{label}</p>
-      <h3 className="text-2xl font-black text-white truncate relative z-10" title={value}>{value}</h3>
-    </div>
-  );
-
-  const InsightBox = ({ text }) => (
-    <div className="bg-gradient-to-br from-[#2D1B69] to-[#1A0B2E] rounded-[2.5rem] p-8 text-white shadow-2xl shadow-purple-900/20 mb-10 relative overflow-hidden border border-purple-500/30">
-      <div className="absolute top-0 right-0 p-8 opacity-10"><Zap className="w-32 h-32 text-purple-300" /></div>
-      <div className="relative z-10">
-        <div className="flex items-center gap-3 mb-6">
-          <div className="bg-white/10 p-2 rounded-xl backdrop-blur-md"><Zap className="w-4 h-4 text-purple-300" /></div>
-          <span className="text-[10px] font-black uppercase tracking-[0.25em] text-purple-200">AI Detailed Insight</span>
-        </div>
-        <div className="text-base font-medium leading-relaxed max-w-5xl text-purple-50">
-           {typeof text === 'string' ? `"${text}"` : text}
-        </div>
-      </div>
-    </div>
-  );
-
-  const NavigationBar = ({ items, selected, setSelected, defaultLabel = "Global Overview" }) => (
-    <div className="flex gap-3 overflow-x-auto pb-4 mb-8 border-b border-white/5 hide-scrollbar">
-      <button onClick={() => setSelected('All')} className={`whitespace-nowrap px-6 py-2.5 rounded-xl text-sm font-black transition-all ${selected === 'All' ? 'bg-gradient-to-r from-purple-600 to-rose-500 text-white shadow-lg shadow-purple-500/25 border-none' : 'bg-[#131A2A] text-slate-400 border border-white/5 hover:bg-white/5 hover:text-white'}`}>{defaultLabel}</button>
-      {items.map(item => (
-        <button key={item.name} onClick={() => setSelected(item.name)} className={`whitespace-nowrap px-6 py-2.5 rounded-xl text-sm font-black transition-all ${selected === item.name ? 'bg-gradient-to-r from-purple-600 to-rose-500 text-white shadow-lg shadow-purple-500/25 border-none' : 'bg-[#131A2A] text-slate-400 border border-white/5 hover:bg-white/5 hover:text-white'}`}>{item.name}</button>
-      ))}
-    </div>
-  );
-
-  const BarChart = ({ chartData, valueKey, labelKey = 'name', color = 'bg-purple-500', isCurrency = false, isPercent = false, onClickItem = null }) => {
-    const maxVal = d3.max(chartData, d => d[valueKey]) || 1;
-    return (
-      <div className="space-y-4">
-        {chartData.slice(0, 8).map((item, i) => {
-          const formattedVal = isPercent ? `${item[valueKey].toFixed(2)}%` : isCurrency ? formatC(item[valueKey]) : formatShort(item[valueKey]);
-          return (
-            <div key={i} onClick={() => onClickItem && onClickItem(item[labelKey])} className={`group relative ${onClickItem ? 'cursor-pointer' : ''}`}>
-              <div className="flex justify-between items-end mb-1.5">
-                <span className={`text-xs font-bold text-white truncate max-w-[150px] ${onClickItem ? 'group-hover:text-purple-300 transition-colors' : ''}`}>{item[labelKey]}</span>
-                <span className="text-[10px] font-black text-slate-400 tabular-nums">{formattedVal}</span>
-              </div>
-              <div className="h-2.5 bg-[#1e293b] rounded-full overflow-hidden relative">
-                <div className={`h-full ${color} rounded-full transition-all duration-1000 group-hover:brightness-125`} style={{ width: `${(item[valueKey] / maxVal) * 100}%` }} />
-              </div>
-              <div className="absolute -top-10 right-0 bg-[#0f172a] text-white text-[10px] py-1.5 px-3 rounded-lg shadow-2xl opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none z-50 whitespace-nowrap border border-white/10">
-                <span className="font-bold text-purple-300">{item[labelKey]}</span> <span className="text-slate-600 mx-1">|</span> {formattedVal}
-                {onClickItem && <span className="ml-2 text-emerald-400 font-bold tracking-widest">CLICK TO DRILL</span>}
-              </div>
-            </div>
-          );
-        })}
-      </div>
-    );
-  };
-
-  const EntityBarChartCard = ({ title, icon: Icon, data, dataKey, color, isCurrency, insight, drillDownType }) => (
-    <div className="bg-[#131A2A] p-6 rounded-[2rem] border border-white/5 shadow-xl flex flex-col h-full hover:border-purple-500/30 transition-colors group">
-        <div className="flex items-center gap-3 mb-6">
-           <div className={`p-2 rounded-xl bg-white/5`}><Icon className={`w-4 h-4 ${color.replace('bg-', 'text-')}`} /></div>
-           <h4 className="text-sm font-black text-white uppercase tracking-widest">{title}</h4>
-        </div>
-        <div className="flex-1 mb-6">
-           <BarChart 
-             chartData={data} valueKey={dataKey} color={color} isCurrency={isCurrency} 
-             onClickItem={drillDownType ? (name) => handleDrillDown(drillDownType, name) : null}
-           />
-        </div>
-        <div className="bg-white/5 p-4 rounded-2xl mt-auto border border-white/5 relative overflow-hidden">
-           <Zap className={`w-16 h-16 absolute -right-4 -top-4 opacity-5 ${color.replace('bg-', 'text-')} group-hover:scale-110 transition-transform`} />
-           <p className="text-xs font-bold text-slate-400 relative z-10">"{insight}"</p>
-        </div>
-    </div>
-  );
-
-  const DualAxisLineChart = ({ chartData, leftKey, rightKey, leftColorText, rightColorText, leftColorHex, rightColorHex, isLeftCurrency, isRightCurrency, width = 800, height = 300 }) => {
-    if (!chartData || chartData.length < 2) return (
-      <div className="h-full w-full min-h-[250px] flex items-center justify-center bg-white/5 rounded-3xl border border-dashed border-white/10 text-[10px] font-black text-slate-500 uppercase tracking-widest">Select multiple periods</div>
-    );
-    const margin = { top: 20, right: 50, bottom: 40, left: 50 };
-    const iw = width - margin.left - margin.right;
-    const ih = height - margin.top - margin.bottom;
-    const x = d3.scalePoint().domain(chartData.map(d => `W${d.week}`)).range([0, iw]);
-    const yLeft = d3.scaleLinear().domain([0, d3.max(chartData, d => d[leftKey]) * 1.1 || 1]).range([ih, 0]);
-    const yRight = d3.scaleLinear().domain([0, d3.max(chartData, d => d[rightKey]) * 1.1 || 1]).range([ih, 0]);
-    const lineLeft = d3.line().x(d => x(`W${d.week}`)).y(d => yLeft(d[leftKey])).curve(d3.curveMonotoneX);
-    const lineRight = d3.line().x(d => x(`W${d.week}`)).y(d => yRight(d[rightKey])).curve(d3.curveMonotoneX);
-    const skipCount = Math.ceil(chartData.length / 10);
-
-    const fmtT = (t, isC) => isC ? `${exSym}${d3.format(".1s")(t * exRate)}` : d3.format(".1s")(t);
-
-    return (
-      <div className="flex flex-col h-full w-full relative">
-        <svg width="100%" height="100%" viewBox={`0 0 ${width} ${height}`} preserveAspectRatio="xMidYMid meet" className="overflow-visible min-h-[250px] flex-1">
-          <g transform={`translate(${margin.left},${margin.top})`}>
-            {yLeft.ticks(5).map(t => (
-              <g key={`l-${t}`} transform={`translate(0, ${yLeft(t)})`}>
-                <line x2={iw} stroke="#1e293b" strokeWidth="1" />
-                <text x="-10" dy="0.32em" textAnchor="end" className={`text-[9px] ${leftColorText} font-bold`}>{fmtT(t, isLeftCurrency)}</text>
-              </g>
-            ))}
-            {yRight.ticks(5).map(t => (
-               <g key={`r-${t}`} transform={`translate(${iw}, ${yRight(t)})`}>
-                 <text x="10" dy="0.32em" textAnchor="start" className={`text-[9px] ${rightColorText} font-bold`}>{fmtT(t, isRightCurrency)}</text>
-               </g>
-            ))}
-            <path d={lineLeft(chartData)} fill="none" stroke={leftColorHex} strokeWidth="4" strokeLinecap="round" style={{ filter: `drop-shadow(0 0 8px ${leftColorHex}60)` }} />
-            <path d={lineRight(chartData)} fill="none" stroke={rightColorHex} strokeWidth="4" strokeLinecap="round" strokeDasharray="6,6" style={{ filter: `drop-shadow(0 0 8px ${rightColorHex}60)` }} />
-            {chartData.map((d, i) => (
-               <g key={`hover-${i}`} className="group cursor-pointer">
-                 <rect x={x(`W${d.week}`) - 15} y={0} width={30} height={ih} fill="transparent" />
-                 <line x1={x(`W${d.week}`)} x2={x(`W${d.week}`)} y1={0} y2={ih} stroke="#475569" strokeWidth="1" strokeDasharray="4,4" className="opacity-0 group-hover:opacity-100" />
-                 <foreignObject x={x(`W${d.week}`) > iw / 2 ? x(`W${d.week}`) - 140 : x(`W${d.week}`) + 10} y={10} width="130" height="90" className="opacity-0 group-hover:opacity-100 pointer-events-none transition-opacity z-50">
-                   <div className="bg-[#0f172a]/90 backdrop-blur-md text-white text-[10px] p-3 rounded-xl shadow-2xl flex flex-col gap-1.5 border border-white/10">
-                     <span className="font-black text-slate-300 border-b border-white/10 pb-1.5 mb-0.5">Week {d.week}, {d.year}</span>
-                     <div className="flex justify-between"><span className={leftColorText.replace('fill-', 'text-')}>{leftKey.toUpperCase()}:</span> <span>{isLeftCurrency ? formatC(d[leftKey]) : d3.format(",.2f")(d[leftKey])}</span></div>
-                     <div className="flex justify-between"><span className={rightColorText.replace('fill-', 'text-')}>{rightKey.toUpperCase()}:</span> <span>{isRightCurrency ? formatC(d[rightKey]) : d3.format(",.2f")(d[rightKey])}</span></div>
-                   </div>
-                 </foreignObject>
-               </g>
-            ))}
-            {chartData.map((d, i) => ((i % skipCount === 0 || i === chartData.length - 1) && (
-              <g key={`x-${i}`} transform={`translate(${x(`W${d.week}`)}, ${ih})`}>
-                <text y="24" textAnchor="middle" className="text-[10px] fill-slate-500 font-black">W{d.week}</text>
-              </g>
-            )))}
-          </g>
-        </svg>
-      </div>
-    );
-  };
-
   const renderLeaderboard = () => {
     const topInstalls = [...channelBreakdown].sort((a,b)=>b.installs - a.installs)[0];
     const topCPP = [...channelBreakdown].filter(c=>c.purchases > 0 && c.cost > 0).sort((a,b)=>a.cpp - b.cpp)[0];
@@ -461,6 +454,72 @@ export default function App() {
             <div className="flex-1"><p className="text-[10px] uppercase tracking-widest text-slate-400 flex justify-between">Most Efficient Paid <ArrowRight className="w-3 h-3 opacity-0 group-hover:opacity-100 text-amber-400"/></p><p className="font-black text-white">{topCPP?.name || 'N/A'} <span className="text-amber-400 text-xs font-bold">({formatC(topCPP?.cpp, 2)} CPP)</span></p></div>
          </div>
       </div>
+    );
+  };
+
+  const renderKpiTracker = () => {
+    const canSetKpi = dateRange.start && dateRange.end && trafficFilter === 'Paid';
+
+    if (!canSetKpi) {
+      return (
+        <div className="mb-8 w-full border border-dashed border-white/10 rounded-2xl p-6 text-slate-500 flex items-center justify-center gap-3 font-bold text-sm bg-[#131A2A]/50 cursor-not-allowed">
+          <Target className="w-5 h-5 opacity-50" /> KPI Tracker (Requires custom Date Range & 'Paid' Traffic filter to activate)
+        </div>
+      );
+    }
+
+    if (kpi.isOpen && !kpi.isSet) {
+      return (
+        <div className="mb-8 bg-[#131A2A] p-8 rounded-[2rem] border border-purple-500/30 shadow-xl relative overflow-hidden animate-in fade-in slide-in-from-top-4">
+           <div className="absolute top-0 right-0 w-32 h-32 bg-purple-500/10 rounded-full blur-3xl"></div>
+           <div className="flex justify-between items-center mb-6 relative z-10">
+             <h4 className="text-sm font-black text-white uppercase tracking-widest flex items-center gap-2"><Target className="w-4 h-4 text-purple-400" /> Configure KPI Targets ({dateRange.start} to {dateRange.end})</h4>
+             <button onClick={() => setKpi({...kpi, isOpen: false})} className="text-slate-400 hover:text-white"><Zap className="w-4 h-4 rotate-45"/></button>
+           </div>
+           <div className="grid grid-cols-1 md:grid-cols-3 gap-4 relative z-10">
+              <input type="number" placeholder={`Budget (${currency})`} value={kpi.budget} onChange={e=>setKpi({...kpi, budget: e.target.value})} className="w-full text-xs font-bold text-white bg-[#0B0F19] border border-white/10 rounded-xl px-4 py-3 outline-none focus:border-purple-500" />
+              <input type="number" placeholder="Target Impressions" value={kpi.impressions} onChange={e=>setKpi({...kpi, impressions: e.target.value})} className="w-full text-xs font-bold text-white bg-[#0B0F19] border border-white/10 rounded-xl px-4 py-3 outline-none focus:border-purple-500" />
+              <input type="number" placeholder="Target Installs" value={kpi.installs} onChange={e=>setKpi({...kpi, installs: e.target.value})} className="w-full text-xs font-bold text-white bg-[#0B0F19] border border-white/10 rounded-xl px-4 py-3 outline-none focus:border-purple-500" />
+           </div>
+           <button onClick={() => setKpi({...kpi, isSet: true, isOpen: false})} className="mt-6 w-full bg-gradient-to-r from-purple-600 to-rose-500 text-white rounded-xl py-3 font-black text-sm shadow-lg shadow-purple-500/25 transition-all hover:scale-[1.01] relative z-10">Track Pacing Against Live Data</button>
+        </div>
+      );
+    }
+
+    if (kpi.isSet) {
+      const actuals = metrics; 
+      const bPct = Math.min((actuals.cost / (parseFloat(kpi.budget) / exRate || 1)) * 100, 100);
+      const impPct = Math.min((actuals.impressions / (parseFloat(kpi.impressions) || 1)) * 100, 100);
+      const instPct = Math.min((actuals.installs / (parseFloat(kpi.installs) || 1)) * 100, 100);
+
+      return (
+        <div className="mb-8 bg-[#131A2A] p-8 rounded-[2rem] border border-white/5 shadow-xl animate-in fade-in">
+           <div className="flex justify-between items-center mb-6">
+             <h4 className="text-sm font-black text-white uppercase tracking-widest flex items-center gap-2"><Target className="w-4 h-4 text-purple-400" /> Goal Pacing ({dateRange.start} to {dateRange.end})</h4>
+             <button onClick={() => setKpi({...kpi, isSet: false, isOpen: true})} className="text-xs font-black uppercase tracking-widest text-purple-400 hover:text-purple-300">Edit Goals</button>
+           </div>
+           <div className="space-y-6">
+              <div>
+                 <div className="flex justify-between text-xs font-bold text-slate-300 mb-2"><span>Budget Delivery</span><span>{formatC(actuals.cost)} / {formatC(parseFloat(kpi.budget) / exRate || 0)}</span></div>
+                 <div className="h-2 bg-[#0B0F19] rounded-full overflow-hidden border border-white/5"><div className="h-full bg-blue-500 rounded-full relative" style={{ width: `${bPct}%` }}><div className="absolute inset-0 bg-white/20 w-full animate-[shimmer_2s_infinite]"></div></div></div>
+              </div>
+              <div>
+                 <div className="flex justify-between text-xs font-bold text-slate-300 mb-2"><span>Impressions Generated</span><span>{d3.format(",.0f")(actuals.impressions)} / {d3.format(",.0f")(parseFloat(kpi.impressions) || 0)}</span></div>
+                 <div className="h-2 bg-[#0B0F19] rounded-full overflow-hidden border border-white/5"><div className="h-full bg-cyan-500 rounded-full relative" style={{ width: `${impPct}%` }}><div className="absolute inset-0 bg-white/20 w-full animate-[shimmer_2s_infinite]"></div></div></div>
+              </div>
+              <div>
+                 <div className="flex justify-between text-xs font-bold text-slate-300 mb-2"><span>Installs Acquired</span><span>{d3.format(",.0f")(actuals.installs)} / {d3.format(",.0f")(parseFloat(kpi.installs) || 0)}</span></div>
+                 <div className="h-2 bg-[#0B0F19] rounded-full overflow-hidden border border-white/5"><div className="h-full bg-emerald-500 rounded-full relative" style={{ width: `${instPct}%` }}><div className="absolute inset-0 bg-white/20 w-full animate-[shimmer_2s_infinite]"></div></div></div>
+              </div>
+           </div>
+        </div>
+      );
+    }
+
+    return (
+      <button onClick={() => setKpi({...kpi, isOpen: true})} className="mb-8 w-full border border-dashed border-white/10 rounded-2xl p-6 text-slate-400 hover:text-white hover:border-purple-500/50 hover:bg-purple-500/5 transition-all flex items-center justify-center gap-3 font-bold text-sm">
+        <Target className="w-5 h-5 text-purple-400" /> Set Campaign Goal & KPI Pacing Tracker
+      </button>
     );
   };
 
@@ -506,12 +565,12 @@ export default function App() {
               </div>
             </div>
             <div className="flex-1 min-h-[340px] relative z-10">
-               <DualAxisLineChart chartData={weeklyTimeline} leftKey="cost" rightKey="installs" leftColorText="fill-purple-400" rightColorText="fill-emerald-400" leftColorHex="#a855f7" rightColorHex="#34d399" isLeftCurrency={true} isRightCurrency={false} />
+               <DualAxisLineChart chartData={weeklyTimeline} leftKey="cost" rightKey="installs" leftColorText="fill-purple-400" rightColorText="fill-emerald-400" leftColorHex="#a855f7" rightColorHex="#34d399" isLeftCurrency={true} isRightCurrency={false} exSym={exSym} exRate={exRate} />
             </div>
           </div>
           <div className="bg-[#131A2A] p-8 rounded-[2.5rem] border border-white/5 shadow-xl">
             <h4 className="text-sm font-black text-white mb-6 uppercase tracking-widest flex items-center gap-2"><ShoppingCart className="w-4 h-4 text-rose-400" /> Top Market Purchases</h4>
-            <BarChart chartData={[...marketBreakdown].sort((a,b)=>b.purchases-a.purchases)} valueKey="purchases" color="bg-rose-500" onClickItem={(name) => handleDrillDown('market', name)} />
+            <BarChart chartData={[...marketBreakdown].sort((a,b)=>b.purchases-a.purchases)} valueKey="purchases" color="bg-rose-500" onClickItem={(name) => handleDrillDown('market', name)} exSym={exSym} exRate={exRate} />
           </div>
         </div>
 
@@ -557,10 +616,10 @@ export default function App() {
 
         {selectedMarketView === 'All' ? (
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
-            <EntityBarChartCard title="Total Installs" icon={Download} data={sortedByInstalls} dataKey="installs" color="bg-emerald-500" insight={`${sortedByInstalls[0]?.name || 'Top market'} leads acquisition volume.`} drillDownType="market" />
-            <EntityBarChartCard title="Total Purchases" icon={ShoppingCart} data={sortedByPurchases} dataKey="purchases" color="bg-rose-500" insight={`${sortedByPurchases[0]?.name || 'Top market'} drives highest bottom-funnel intent.`} drillDownType="market" />
-            <EntityBarChartCard title="Cost Per Install (CPI)" icon={Activity} data={validCPI.slice(0, 8)} dataKey="cpi" color="bg-amber-500" isCurrency={true} insight={`${validCPI[0]?.name || 'Top market'} offers most cost-effective top-funnel acquisition.`} drillDownType="market" />
-            <EntityBarChartCard title="Cost Per Purchase (CPP)" icon={Target} data={validCPP.slice(0, 8)} dataKey="cpp" color="bg-red-500" isCurrency={true} insight={`${validCPP[0]?.name || 'Top market'} delivers best conversion ROI.`} drillDownType="market" />
+            <EntityBarChartCard title="Total Installs" icon={Download} data={sortedByInstalls} dataKey="installs" color="bg-emerald-500" insight={`${sortedByInstalls[0]?.name || 'Top market'} leads acquisition volume.`} drillDownType="market" onDrillDown={handleDrillDown} exSym={exSym} exRate={exRate} />
+            <EntityBarChartCard title="Total Purchases" icon={ShoppingCart} data={sortedByPurchases} dataKey="purchases" color="bg-rose-500" insight={`${sortedByPurchases[0]?.name || 'Top market'} drives highest bottom-funnel intent.`} drillDownType="market" onDrillDown={handleDrillDown} exSym={exSym} exRate={exRate} />
+            <EntityBarChartCard title="Cost Per Install (CPI)" icon={Activity} data={validCPI.slice(0, 8)} dataKey="cpi" color="bg-amber-500" isCurrency={true} insight={`${validCPI[0]?.name || 'Top market'} offers most cost-effective top-funnel acquisition.`} drillDownType="market" onDrillDown={handleDrillDown} exSym={exSym} exRate={exRate} />
+            <EntityBarChartCard title="Cost Per Purchase (CPP)" icon={Target} data={validCPP.slice(0, 8)} dataKey="cpp" color="bg-red-500" isCurrency={true} insight={`${validCPP[0]?.name || 'Top market'} delivers best conversion ROI.`} drillDownType="market" onDrillDown={handleDrillDown} exSym={exSym} exRate={exRate} />
           </div>
         ) : (
           <div className="animate-in fade-in zoom-in-95 duration-500">
@@ -578,7 +637,7 @@ export default function App() {
                    <h4 className="text-sm font-black text-white uppercase tracking-widest flex items-center gap-2"><Layers className="w-4 h-4 text-emerald-400" /> Volume: Installs & Purchases</h4>
                  </div>
                  <div className="flex-1 min-h-[300px]">
-                    <DualAxisLineChart chartData={activeMarketData} leftKey="installs" rightKey="purchases" leftColorText="fill-emerald-400" rightColorText="fill-rose-400" leftColorHex="#34d399" rightColorHex="#fb7185" isLeftCurrency={false} isRightCurrency={false} />
+                    <DualAxisLineChart chartData={activeMarketData} leftKey="installs" rightKey="purchases" leftColorText="fill-emerald-400" rightColorText="fill-rose-400" leftColorHex="#34d399" rightColorHex="#fb7185" isLeftCurrency={false} isRightCurrency={false} exSym={exSym} exRate={exRate} />
                  </div>
                </div>
 
@@ -587,7 +646,7 @@ export default function App() {
                    <h4 className="text-sm font-black text-white uppercase tracking-widest flex items-center gap-2"><Activity className="w-4 h-4 text-amber-400" /> Efficiency: CPI & CPP</h4>
                  </div>
                  <div className="flex-1 min-h-[300px]">
-                    <DualAxisLineChart chartData={activeMarketData} leftKey="cpi" rightKey="cpp" leftColorText="fill-amber-400" rightColorText="fill-red-400" leftColorHex="#fbbf24" rightColorHex="#f87171" isLeftCurrency={true} isRightCurrency={true} />
+                    <DualAxisLineChart chartData={activeMarketData} leftKey="cpi" rightKey="cpp" leftColorText="fill-amber-400" rightColorText="fill-red-400" leftColorHex="#fbbf24" rightColorHex="#f87171" isLeftCurrency={true} isRightCurrency={true} exSym={exSym} exRate={exRate} />
                  </div>
                </div>
             </div>
@@ -632,10 +691,10 @@ export default function App() {
 
         {selectedChannelView === 'All' ? (
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
-            <EntityBarChartCard title="Total Installs" icon={Download} data={sortedByInstalls} dataKey="installs" color="bg-emerald-500" insight={`${sortedByInstalls[0]?.name || 'Top channel'} drives highest top-funnel acquisition.`} drillDownType="channel" />
-            <EntityBarChartCard title="Total Purchases" icon={ShoppingCart} data={sortedByPurchases} dataKey="purchases" color="bg-rose-500" insight={`${sortedByPurchases[0]?.name || 'Top channel'} brings in highest volume of paying users.`} drillDownType="channel" />
-            <EntityBarChartCard title="Cost Per Install (CPI)" icon={Activity} data={validCPI.slice(0, 8)} dataKey="cpi" color="bg-amber-500" isCurrency={true} insight={`${validCPI[0]?.name || 'Top channel'} provides cheapest initial user acquisition.`} drillDownType="channel" />
-            <EntityBarChartCard title="Cost Per Purchase (CPP)" icon={Target} data={validCPP.slice(0, 8)} dataKey="cpp" color="bg-red-500" isCurrency={true} insight={`${validCPP[0]?.name || 'Top channel'} is your most efficient conversion engine.`} drillDownType="channel" />
+            <EntityBarChartCard title="Total Installs" icon={Download} data={sortedByInstalls} dataKey="installs" color="bg-emerald-500" insight={`${sortedByInstalls[0]?.name || 'Top channel'} drives highest top-funnel acquisition.`} drillDownType="channel" onDrillDown={handleDrillDown} exSym={exSym} exRate={exRate} />
+            <EntityBarChartCard title="Total Purchases" icon={ShoppingCart} data={sortedByPurchases} dataKey="purchases" color="bg-rose-500" insight={`${sortedByPurchases[0]?.name || 'Top channel'} brings in highest volume of paying users.`} drillDownType="channel" onDrillDown={handleDrillDown} exSym={exSym} exRate={exRate} />
+            <EntityBarChartCard title="Cost Per Install (CPI)" icon={Activity} data={validCPI.slice(0, 8)} dataKey="cpi" color="bg-amber-500" isCurrency={true} insight={`${validCPI[0]?.name || 'Top channel'} provides cheapest initial user acquisition.`} drillDownType="channel" onDrillDown={handleDrillDown} exSym={exSym} exRate={exRate} />
+            <EntityBarChartCard title="Cost Per Purchase (CPP)" icon={Target} data={validCPP.slice(0, 8)} dataKey="cpp" color="bg-red-500" isCurrency={true} insight={`${validCPP[0]?.name || 'Top channel'} is your most efficient conversion engine.`} drillDownType="channel" onDrillDown={handleDrillDown} exSym={exSym} exRate={exRate} />
           </div>
         ) : (
           <div className="animate-in fade-in zoom-in-95 duration-500">
@@ -655,7 +714,7 @@ export default function App() {
                    <h4 className="text-sm font-black text-white uppercase tracking-widest flex items-center gap-2"><Layers className="w-4 h-4 text-emerald-400" /> Volume: Installs & Purchases</h4>
                  </div>
                  <div className="flex-1 min-h-[300px]">
-                    <DualAxisLineChart chartData={activeChannelData} leftKey="installs" rightKey="purchases" leftColorText="fill-emerald-400" rightColorText="fill-rose-400" leftColorHex="#34d399" rightColorHex="#fb7185" isLeftCurrency={false} isRightCurrency={false} />
+                    <DualAxisLineChart chartData={activeChannelData} leftKey="installs" rightKey="purchases" leftColorText="fill-emerald-400" rightColorText="fill-rose-400" leftColorHex="#34d399" rightColorHex="#fb7185" isLeftCurrency={false} isRightCurrency={false} exSym={exSym} exRate={exRate} />
                  </div>
                </div>
                <div className="bg-[#131A2A] p-8 rounded-[2.5rem] border border-white/5 shadow-xl flex flex-col">
@@ -663,7 +722,7 @@ export default function App() {
                    <h4 className="text-sm font-black text-white uppercase tracking-widest flex items-center gap-2"><Activity className="w-4 h-4 text-red-400" /> Efficiency: CPI & CPP</h4>
                  </div>
                  <div className="flex-1 min-h-[300px]">
-                    <DualAxisLineChart chartData={activeChannelData} leftKey="cpi" rightKey="cpp" leftColorText="fill-amber-400" rightColorText="fill-red-400" leftColorHex="#fbbf24" rightColorHex="#f87171" isLeftCurrency={true} isRightCurrency={true} />
+                    <DualAxisLineChart chartData={activeChannelData} leftKey="cpi" rightKey="cpp" leftColorText="fill-amber-400" rightColorText="fill-red-400" leftColorHex="#fbbf24" rightColorHex="#f87171" isLeftCurrency={true} isRightCurrency={true} exSym={exSym} exRate={exRate} />
                  </div>
                </div>
             </div>
@@ -674,7 +733,7 @@ export default function App() {
                    <h4 className="text-sm font-black text-white uppercase tracking-widest flex items-center gap-2"><Eye className="w-4 h-4 text-cyan-400" /> Awareness: Impressions & CPM</h4>
                  </div>
                  <div className="flex-1 min-h-[300px]">
-                    <DualAxisLineChart chartData={activeChannelData} leftKey="impressions" rightKey="cpm" leftColorText="fill-cyan-400" rightColorText="fill-purple-400" leftColorHex="#22d3ee" rightColorHex="#c084fc" isLeftCurrency={false} isRightCurrency={true} />
+                    <DualAxisLineChart chartData={activeChannelData} leftKey="impressions" rightKey="cpm" leftColorText="fill-cyan-400" rightColorText="fill-purple-400" leftColorHex="#22d3ee" rightColorHex="#c084fc" isLeftCurrency={false} isRightCurrency={true} exSym={exSym} exRate={exRate} />
                  </div>
                </div>
                <div className="bg-[#131A2A] p-8 rounded-[2.5rem] border border-white/5 shadow-xl flex flex-col">
@@ -682,7 +741,7 @@ export default function App() {
                    <h4 className="text-sm font-black text-white uppercase tracking-widest flex items-center gap-2"><MousePointer2 className="w-4 h-4 text-blue-400" /> Engagement: Clicks & CPC</h4>
                  </div>
                  <div className="flex-1 min-h-[300px]">
-                    <DualAxisLineChart chartData={activeChannelData} leftKey="clicks" rightKey="cpc" leftColorText="fill-blue-400" rightColorText="fill-orange-400" leftColorHex="#60a5fa" rightColorHex="#fb923c" isLeftCurrency={false} isRightCurrency={true} />
+                    <DualAxisLineChart chartData={activeChannelData} leftKey="clicks" rightKey="cpc" leftColorText="fill-blue-400" rightColorText="fill-orange-400" leftColorHex="#60a5fa" rightColorHex="#fb923c" isLeftCurrency={false} isRightCurrency={true} exSym={exSym} exRate={exRate} />
                  </div>
                </div>
             </div>
@@ -726,14 +785,14 @@ export default function App() {
 
         <div className="flex flex-col md:flex-row gap-4 mb-8 border-b border-white/5 pb-4">
            <div className="flex-1">
-             <span className="text-[10px] font-black uppercase text-slate-400 mb-1 tracking-widest block">Market</span>
+             <span className="text-[10px] font-black uppercase text-slate-400 mb-1 tracking-widest block">Market Filter</span>
              <select value={selectedMarketView} onChange={(e) => setSelectedMarketView(e.target.value)} className="w-full px-4 py-2.5 bg-[#131A2A] border border-white/10 rounded-xl text-sm font-black text-purple-400 shadow-sm outline-none focus:border-purple-500 cursor-pointer">
                <option value="All">Global (All Markets)</option>
                {marketBreakdown.map(m => (<option key={m.name} value={m.name}>{m.name}</option>))}
              </select>
            </div>
            <div className="flex-1">
-             <span className="text-[10px] font-black uppercase text-slate-400 mb-1 tracking-widest block">Channel</span>
+             <span className="text-[10px] font-black uppercase text-slate-400 mb-1 tracking-widest block">Channel Filter</span>
              <select value={selectedDetailedChannel} onChange={(e) => setSelectedDetailedChannel(e.target.value)} className="w-full px-4 py-2.5 bg-[#131A2A] border border-white/10 rounded-xl text-sm font-black text-purple-400 shadow-sm outline-none focus:border-purple-500 cursor-pointer">
                <option value="All">All Channels</option>
                {channelBreakdown.map(c => (<option key={c.name} value={c.name}>{c.name}</option>))}
@@ -764,7 +823,7 @@ export default function App() {
                  <h4 className="text-sm font-black text-white uppercase tracking-widest flex items-center gap-2"><Layers className="w-4 h-4 text-emerald-400" /> Volume: Installs vs Purchases</h4>
                </div>
                <div className="flex-1 min-h-[300px]">
-                  <DualAxisLineChart chartData={activeTableData} leftKey="installs" rightKey="purchases" leftColorText="fill-emerald-400" rightColorText="fill-rose-400" leftColorHex="#34d399" rightColorHex="#fb7185" isLeftCurrency={false} isRightCurrency={false} />
+                  <DualAxisLineChart chartData={activeTableData} leftKey="installs" rightKey="purchases" leftColorText="fill-emerald-400" rightColorText="fill-rose-400" leftColorHex="#34d399" rightColorHex="#fb7185" isLeftCurrency={false} isRightCurrency={false} exSym={exSym} exRate={exRate} />
                </div>
              </div>
              <div className="bg-[#131A2A] p-8 rounded-[2.5rem] border border-white/5 shadow-xl flex flex-col">
@@ -772,7 +831,7 @@ export default function App() {
                  <h4 className="text-sm font-black text-white uppercase tracking-widest flex items-center gap-2"><Activity className="w-4 h-4 text-red-400" /> Efficiency: CPI vs CPP</h4>
                </div>
                <div className="flex-1 min-h-[300px]">
-                  <DualAxisLineChart chartData={activeTableData} leftKey="cpi" rightKey="cpp" leftColorText="fill-amber-400" rightColorText="fill-red-400" leftColorHex="#fbbf24" rightColorHex="#f87171" isLeftCurrency={true} isRightCurrency={true} />
+                  <DualAxisLineChart chartData={activeTableData} leftKey="cpi" rightKey="cpp" leftColorText="fill-amber-400" rightColorText="fill-red-400" leftColorHex="#fbbf24" rightColorHex="#f87171" isLeftCurrency={true} isRightCurrency={true} exSym={exSym} exRate={exRate} />
                </div>
              </div>
           </div>
@@ -829,7 +888,7 @@ export default function App() {
        let passM = reportModal.market === 'All' ? true : d.market === reportModal.market;
        let passC = reportModal.channel === 'All' ? true : d.channel === reportModal.channel;
        let passTime = true;
-       if (reportModal.start) passTime = passTime && d.date >= new Date(reportModal.start);
+       if (reportModal.start) { const sd = new Date(reportModal.start); sd.setHours(0,0,0,0); passTime = passTime && d.date >= sd; }
        if (reportModal.end) { const ed = new Date(reportModal.end); ed.setHours(23,59,59,999); passTime = passTime && d.date <= ed; }
        return passT && passM && passC && passTime;
     });
@@ -841,7 +900,7 @@ export default function App() {
     const ltp = reportMetrics.logins > 0 ? ((reportMetrics.purchases / reportMetrics.logins) * 100).toFixed(1) : 0;
 
     return (
-      <div className="bg-white text-slate-900 min-h-screen p-10 w-[1000px] mx-auto print-only relative z-[99999]">
+      <div className="bg-white text-slate-900 min-h-screen p-10 w-[1000px] mx-auto">
          <div className="flex justify-between items-end border-b-2 border-slate-200 pb-6 mb-8">
             <div>
                <h1 className="text-4xl font-black tracking-tighter text-slate-900">ROVA PERFORMANCE</h1>
@@ -860,19 +919,19 @@ export default function App() {
 
          <div className="grid grid-cols-4 gap-4 mb-8">
             <div className="p-4 border border-slate-200 rounded-2xl"><p className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-1">Ad Spend</p><h3 className="text-xl font-black text-slate-900">{formatC(reportMetrics.cost)}</h3></div>
-            <div className="p-4 border border-slate-200 rounded-2xl"><p className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-1">Installs</p><h3 className="text-xl font-black text-slate-900">{formatShort(reportMetrics.installs)}</h3></div>
-            <div className="p-4 border border-slate-200 rounded-2xl"><p className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-1">Purchases</p><h3 className="text-xl font-black text-slate-900">{formatShort(reportMetrics.purchases)}</h3></div>
+            <div className="p-4 border border-slate-200 rounded-2xl"><p className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-1">Installs</p><h3 className="text-xl font-black text-slate-900">{d3.format(",.0f")(reportMetrics.installs)}</h3></div>
+            <div className="p-4 border border-slate-200 rounded-2xl"><p className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-1">Purchases</p><h3 className="text-xl font-black text-slate-900">{d3.format(",.0f")(reportMetrics.purchases)}</h3></div>
             <div className="p-4 border border-slate-200 rounded-2xl"><p className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-1">CPP</p><h3 className="text-xl font-black text-red-500">{formatC(reportMetrics.cpp, 2)}</h3></div>
          </div>
 
          <div className="mb-8">
             <h4 className="text-sm font-black text-slate-800 uppercase tracking-widest mb-4 border-b border-slate-100 pb-2">Volume Trend (Installs vs Purchases)</h4>
-            <div className="h-[250px]"><DualAxisLineChart chartData={reportTimeline} leftKey="installs" rightKey="purchases" leftColorText="fill-emerald-600" rightColorText="fill-rose-600" leftColorHex="#10b981" rightColorHex="#f43f5e" isLeftCurrency={false} isRightCurrency={false} /></div>
+            <div className="h-[250px]"><DualAxisLineChart chartData={reportTimeline} leftKey="installs" rightKey="purchases" leftColorText="fill-emerald-600" rightColorText="fill-rose-600" leftColorHex="#10b981" rightColorHex="#f43f5e" isLeftCurrency={false} isRightCurrency={false} exSym={exSym} exRate={exRate} /></div>
          </div>
 
          <div className="mb-8">
             <h4 className="text-sm font-black text-slate-800 uppercase tracking-widest mb-4 border-b border-slate-100 pb-2">Efficiency Trend (CPI vs CPP)</h4>
-            <div className="h-[250px]"><DualAxisLineChart chartData={reportTimeline} leftKey="cpi" rightKey="cpp" leftColorText="fill-amber-600" rightColorText="fill-red-600" leftColorHex="#f59e0b" rightColorHex="#ef4444" isLeftCurrency={true} isRightCurrency={true} /></div>
+            <div className="h-[250px]"><DualAxisLineChart chartData={reportTimeline} leftKey="cpi" rightKey="cpp" leftColorText="fill-amber-600" rightColorText="fill-red-600" leftColorHex="#f59e0b" rightColorHex="#ef4444" isLeftCurrency={true} isRightCurrency={true} exSym={exSym} exRate={exRate} /></div>
          </div>
 
          <div className="bg-slate-50 p-6 rounded-2xl border border-slate-200 break-inside-avoid">
@@ -887,57 +946,12 @@ export default function App() {
     );
   };
 
-  if (loading) {
-    return (
-      <div className="min-h-screen bg-[#0B0F19] flex items-center justify-center">
-        <div className="flex flex-col items-center gap-4">
-          <div className="w-8 h-8 border-4 border-purple-500/30 border-t-purple-500 rounded-full animate-spin" />
-          <p className="text-sm font-bold text-purple-400 tracking-widest uppercase">Syncing Rova Pipeline...</p>
-        </div>
-      </div>
-    );
-  }
-
-  if (error) {
-    return (
-      <div className="min-h-screen bg-[#0B0F19] flex items-center justify-center">
-        <div className="bg-red-500/10 p-6 rounded-2xl border border-red-500/20 text-center">
-          <p className="text-red-400 font-bold mb-2">Connection Error</p>
-          <p className="text-sm text-red-300">{error}</p>
-        </div>
-      </div>
-    );
-  }
-
-  if (isGeneratingPdf) {
-     return (
-        <>
-          <div className="fixed inset-0 bg-[#0B0F19] z-[99998] flex items-center justify-center no-print">
-             <div className="flex flex-col items-center gap-4">
-               <div className="w-8 h-8 border-4 border-emerald-500/30 border-t-emerald-500 rounded-full animate-spin" />
-               <p className="text-sm font-bold text-emerald-400 tracking-widest uppercase">Compiling PDF Report...</p>
-             </div>
-          </div>
-          {renderPrintableReport()}
-          <style dangerouslySetInnerHTML={{__html: `
-            @media print { 
-              @page { size: A4; margin: 0; } 
-              body { background: white !important; -webkit-print-color-adjust: exact; print-color-adjust: exact; } 
-              .no-print { display: none !important; } 
-              .print-only { display: block !important; } 
-            } 
-            @media screen { .print-only { display: none !important; } }
-          `}} />
-        </>
-     );
-  }
-
   return (
     <div className="min-h-screen bg-[#0B0F19] text-slate-200 font-sans selection:bg-purple-500/30 selection:text-purple-100">
       
       {/* REPORT CONFIGURATION MODAL */}
       {reportModal.isOpen && (
-        <div className="fixed inset-0 z-[9999] flex items-center justify-center px-4">
+        <div className="fixed inset-0 z-[9999] flex items-center justify-center px-4 no-print">
            <div className="absolute inset-0 bg-[#0B0F19]/80 backdrop-blur-sm" onClick={() => setReportModal({...reportModal, isOpen: false})}></div>
            <div className="bg-[#131A2A] w-full max-w-lg rounded-[2.5rem] border border-white/10 shadow-[0_20px_50px_rgba(0,0,0,0.5)] p-8 relative z-10 animate-in zoom-in-95">
               <div className="flex justify-between items-center mb-8">
@@ -948,8 +962,8 @@ export default function App() {
                  <div>
                     <label className="text-[10px] font-black uppercase text-slate-400 mb-1.5 block tracking-widest">Date Range</label>
                     <div className="flex gap-3">
-                       <input type="date" value={reportModal.start} onChange={e=>setReportModal({...reportModal, start: e.target.value})} style={{colorScheme:'dark'}} className="w-full text-sm font-bold text-white bg-[#0B0F19] border border-white/10 rounded-xl px-4 py-3 outline-none focus:border-purple-500 cursor-pointer" />
-                       <input type="date" value={reportModal.end} onChange={e=>setReportModal({...reportModal, end: e.target.value})} style={{colorScheme:'dark'}} className="w-full text-sm font-bold text-white bg-[#0B0F19] border border-white/10 rounded-xl px-4 py-3 outline-none focus:border-purple-500 cursor-pointer" />
+                       <input type="date" value={reportModal.start} onChange={e=>setReportModal({...reportModal, start: e.target.value})} className="w-full text-sm font-bold text-white bg-[#0B0F19] border border-white/10 rounded-xl px-4 py-3 outline-none focus:border-purple-500 cursor-pointer" />
+                       <input type="date" value={reportModal.end} onChange={e=>setReportModal({...reportModal, end: e.target.value})} className="w-full text-sm font-bold text-white bg-[#0B0F19] border border-white/10 rounded-xl px-4 py-3 outline-none focus:border-purple-500 cursor-pointer" />
                     </div>
                  </div>
                  <div>
@@ -985,136 +999,162 @@ export default function App() {
         </div>
       )}
 
-      <header className="sticky top-0 z-[100] bg-[#0B0F19]/80 backdrop-blur-2xl border-b border-white/5 px-6 py-4 shadow-xl">
-        <div className="max-w-7xl mx-auto flex flex-col lg:flex-row justify-between items-center gap-6">
-          <div className="flex items-center gap-4">
-            <div className="bg-white px-3 py-2 rounded-xl flex items-center justify-center shadow-[0_0_20px_rgba(168,85,247,0.3)]">
-              <span className="text-xl font-black text-[#0B0F19] tracking-tighter">stc</span>
+      {/* PDF OVERLAY & HIDDEN RENDER */}
+      {isGeneratingPdf && (
+        <div className="fixed inset-0 bg-[#0B0F19] z-[99998] flex items-center justify-center no-print">
+           <div className="flex flex-col items-center gap-4">
+             <div className="w-8 h-8 border-4 border-emerald-500/30 border-t-emerald-500 rounded-full animate-spin" />
+             <p className="text-sm font-bold text-emerald-400 tracking-widest uppercase">Compiling PDF Report...</p>
+           </div>
+        </div>
+      )}
+
+      <div className="print-only">
+         {renderPrintableReport()}
+      </div>
+
+      <style dangerouslySetInnerHTML={{__html: `
+        @media print { 
+          @page { size: A4; margin: 0; } 
+          body { background: white !important; -webkit-print-color-adjust: exact; print-color-adjust: exact; } 
+          .no-print { display: none !important; } 
+          .print-only { display: block !important; } 
+        } 
+        @media screen { .print-only { display: none !important; } }
+      `}} />
+
+      <div className="no-print">
+        <header className="sticky top-0 z-[100] bg-[#0B0F19]/80 backdrop-blur-2xl border-b border-white/5 px-6 py-4 shadow-xl">
+          <div className="max-w-7xl mx-auto flex flex-col lg:flex-row justify-between items-center gap-6">
+            <div className="flex items-center gap-4">
+              <div className="bg-white px-3 py-2 rounded-xl flex items-center justify-center shadow-[0_0_20px_rgba(168,85,247,0.3)]">
+                <span className="text-xl font-black text-[#0B0F19] tracking-tighter">stc</span>
+              </div>
+              <div>
+                <h1 className="text-xl font-black tracking-tighter text-white leading-none">ROVA PERFORMANCE</h1>
+                <p className="text-[10px] font-black text-purple-400 uppercase tracking-[0.25em] mt-1.5">Intelligence Dashboard</p>
+              </div>
             </div>
-            <div>
-              <h1 className="text-xl font-black tracking-tighter text-white leading-none">ROVA PERFORMANCE</h1>
-              <p className="text-[10px] font-black text-purple-400 uppercase tracking-[0.25em] mt-1.5">Intelligence Dashboard</p>
-            </div>
-          </div>
 
-          <nav className="flex items-center gap-2 bg-[#131A2A] p-1.5 rounded-2xl border border-white/5 overflow-x-auto hide-scrollbar">
-            {[
-              { id: 'summary', label: 'Summary', icon: LayoutDashboard },
-              { id: 'market', label: 'Markets', icon: Globe },
-              { id: 'channel', label: 'Channels', icon: Layers },
-              { id: 'detailed', label: 'Detailed Data', icon: TableProperties },
-            ].map(tab => (
-              <button
-                key={tab.id}
-                onClick={() => { setActiveTab(tab.id); window.scrollTo({ top: 0, behavior: 'smooth' }); }}
-                className={`flex items-center gap-2 px-5 py-2.5 rounded-xl text-sm font-black transition-all ${
-                  activeTab === tab.id 
-                  ? 'bg-gradient-to-r from-purple-600 to-rose-500 text-white shadow-lg shadow-purple-500/25 border-none' 
-                  : 'text-slate-400 hover:text-white hover:bg-white/5'
-                }`}
-              >
-                <tab.icon className="w-4 h-4" />
-                <span className="hidden sm:inline">{tab.label}</span>
-              </button>
-            ))}
-          </nav>
+            <nav className="flex items-center gap-2 bg-[#131A2A] p-1.5 rounded-2xl border border-white/5 overflow-x-auto hide-scrollbar">
+              {[
+                { id: 'summary', label: 'Summary', icon: LayoutDashboard },
+                { id: 'market', label: 'Markets', icon: Globe },
+                { id: 'channel', label: 'Channels', icon: Layers },
+                { id: 'detailed', label: 'Detailed Data', icon: TableProperties },
+              ].map(tab => (
+                <button
+                  key={tab.id}
+                  onClick={() => { setActiveTab(tab.id); window.scrollTo({ top: 0, behavior: 'smooth' }); }}
+                  className={`flex items-center gap-2 px-5 py-2.5 rounded-xl text-sm font-black transition-all ${
+                    activeTab === tab.id 
+                    ? 'bg-gradient-to-r from-purple-600 to-rose-500 text-white shadow-lg shadow-purple-500/25 border-none' 
+                    : 'text-slate-400 hover:text-white hover:bg-white/5'
+                  }`}
+                >
+                  <tab.icon className="w-4 h-4" />
+                  <span className="hidden sm:inline">{tab.label}</span>
+                </button>
+              ))}
+            </nav>
 
-          <div className="flex items-center gap-3">
-            <button 
-               onClick={() => setCurrency(c => c === 'USD' ? 'BHD' : 'USD')}
-               className="flex items-center gap-2 px-4 py-2.5 rounded-2xl border transition-all font-black text-xs tracking-widest uppercase bg-[#131A2A] border-white/5 text-slate-300 hover:border-purple-500/50 hover:text-white"
-            >
-               <DollarSign className="w-4 h-4 text-emerald-400" /> {currency}
-            </button>
-
-            <div className="relative">
+            <div className="flex items-center gap-3">
               <button 
-                onClick={() => setIsFilterOpen(!isFilterOpen)}
-                className={`flex items-center gap-3 px-5 py-2.5 rounded-2xl border transition-all font-bold text-sm ${
-                  (dateRange.start || compareWeeks.length > 0 || trafficFilter !== 'All')
-                  ? 'bg-purple-500/10 border-purple-500/50 text-purple-300' 
-                  : 'bg-[#131A2A] border-white/5 text-slate-300 hover:border-purple-500/50'
-                }`}
+                 onClick={() => setCurrency(c => c === 'USD' ? 'BHD' : 'USD')}
+                 className="flex items-center gap-2 px-4 py-2.5 rounded-2xl border transition-all font-black text-xs tracking-widest uppercase bg-[#131A2A] border-white/5 text-slate-300 hover:border-purple-500/50 hover:text-white"
               >
-                <Filter className="w-4 h-4" />
-                {(dateRange.start || compareWeeks.length > 0 || trafficFilter !== 'All') ? 'Filters Active' : 'Filter Data'}
-                <ChevronDown className={`w-4 h-4 transition-transform ${isFilterOpen ? 'rotate-180' : ''}`} />
+                 <DollarSign className="w-4 h-4 text-emerald-400" /> {currency}
               </button>
 
-              {isFilterOpen && (
-                <>
-                  <div className="fixed inset-0 z-40" onClick={() => setIsFilterOpen(false)} />
-                  <div className="absolute right-0 mt-3 w-96 bg-[#131A2A] rounded-[2.5rem] border border-white/10 shadow-[0_20px_50px_rgba(0,0,0,0.5)] z-50 p-6 animate-in zoom-in-95 duration-200">
-                    <div className="flex justify-between items-center mb-6 px-1 border-b border-white/5 pb-4">
-                      <span className="text-[10px] font-black uppercase tracking-widest text-slate-400">Master Filters</span>
-                      <button onClick={() => { setDateRange({start:'', end:''}); setCompareWeeks([]); setTrafficFilter('All'); }} className="text-[10px] font-black uppercase tracking-widest text-purple-400 hover:text-purple-300">
-                        Reset All
-                      </button>
+              <div className="relative">
+                <button 
+                  onClick={() => setIsFilterOpen(!isFilterOpen)}
+                  className={`flex items-center gap-3 px-5 py-2.5 rounded-2xl border transition-all font-bold text-sm ${
+                    (dateRange.start || compareWeeks.length > 0 || trafficFilter !== 'All')
+                    ? 'bg-purple-500/10 border-purple-500/50 text-purple-300' 
+                    : 'bg-[#131A2A] border-white/5 text-slate-300 hover:border-purple-500/50'
+                  }`}
+                >
+                  <Filter className="w-4 h-4" />
+                  {(dateRange.start || compareWeeks.length > 0 || trafficFilter !== 'All') ? 'Filters Active' : 'Filter Data'}
+                  <ChevronDown className={`w-4 h-4 transition-transform ${isFilterOpen ? 'rotate-180' : ''}`} />
+                </button>
+
+                {isFilterOpen && (
+                  <>
+                    <div className="fixed inset-0 z-40" onClick={() => setIsFilterOpen(false)} />
+                    <div className="absolute right-0 mt-3 w-96 bg-[#131A2A] rounded-[2.5rem] border border-white/10 shadow-[0_20px_50px_rgba(0,0,0,0.5)] z-50 p-6 animate-in zoom-in-95 duration-200">
+                      <div className="flex justify-between items-center mb-6 px-1 border-b border-white/5 pb-4">
+                        <span className="text-[10px] font-black uppercase tracking-widest text-slate-400">Master Filters</span>
+                        <button onClick={() => { setDateRange({start:'', end:''}); setCompareWeeks([]); setTrafficFilter('All'); }} className="text-[10px] font-black uppercase tracking-widest text-purple-400 hover:text-purple-300">
+                          Reset All
+                        </button>
+                      </div>
+                      
+                      <div className="space-y-6">
+                        <div>
+                          <h4 className="text-[10px] font-black uppercase tracking-widest text-slate-400 mb-3 flex items-center gap-2"><Users className="w-3 h-3" /> Traffic Segment</h4>
+                          <div className="flex bg-[#0B0F19] p-1 rounded-xl border border-white/5">
+                            {['All', 'Paid', 'Organic'].map(type => (
+                               <button key={type} onClick={() => setTrafficFilter(type)} className={`flex-1 text-xs font-bold py-2 rounded-lg transition-all ${trafficFilter === type ? 'bg-gradient-to-r from-purple-600 to-rose-500 text-white shadow-md' : 'text-slate-400 hover:text-white'}`}>
+                                 {type}
+                               </button>
+                            ))}
+                          </div>
+                        </div>
+                        <div className={compareWeeks.length > 0 ? 'opacity-30 pointer-events-none' : ''}>
+                          <h4 className="text-[10px] font-black uppercase tracking-widest text-slate-400 mb-3 flex items-center gap-2"><CalendarDays className="w-3 h-3" /> Custom Date Range</h4>
+                          <div className="flex gap-2">
+                             <input type="date" value={dateRange.start} onChange={e => setDateRange(prev => ({...prev, start: e.target.value}))} className="w-full text-xs font-bold text-slate-200 bg-[#0B0F19] border border-white/10 rounded-xl px-3 py-2 outline-none focus:border-purple-500 cursor-pointer" />
+                             <input type="date" value={dateRange.end} onChange={e => setDateRange(prev => ({...prev, end: e.target.value}))} className="w-full text-xs font-bold text-slate-200 bg-[#0B0F19] border border-white/10 rounded-xl px-3 py-2 outline-none focus:border-purple-500 cursor-pointer" />
+                          </div>
+                        </div>
+                        <div className={dateRange.start || dateRange.end ? 'opacity-30 pointer-events-none' : ''}>
+                          <h4 className="text-[10px] font-black uppercase tracking-widest text-slate-400 mb-3 flex items-center gap-2"><Layers className="w-3 h-3" /> Compare Specific Weeks</h4>
+                          <div className="max-h-40 overflow-y-auto pr-2 grid grid-cols-2 gap-2 custom-scrollbar">
+                             {allTimeKeys.map(key => {
+                                const year = Math.floor(key / 100);
+                                const week = key % 100;
+                                const isSelected = compareWeeks.includes(key);
+                                return (
+                                   <button key={key} onClick={() => setCompareWeeks(prev => isSelected ? prev.filter(k => k !== key) : [...prev, key])} className={`flex items-center justify-between px-3 py-2 rounded-xl border text-xs font-bold transition-all ${isSelected ? 'bg-purple-500/20 border-purple-500/50 text-purple-300' : 'border-white/5 hover:bg-white/5 text-slate-400 hover:text-white'}`}>
+                                     W{week} '{year.toString().slice(2)}
+                                     {isSelected && <Check className="w-3 h-3 text-purple-400" />}
+                                   </button>
+                                );
+                             })}
+                          </div>
+                        </div>
+                      </div>
                     </div>
-                    
-                    <div className="space-y-6">
-                      <div>
-                        <h4 className="text-[10px] font-black uppercase tracking-widest text-slate-400 mb-3 flex items-center gap-2"><Users className="w-3 h-3" /> Traffic Segment</h4>
-                        <div className="flex bg-[#0B0F19] p-1 rounded-xl border border-white/5">
-                          {['All', 'Paid', 'Organic'].map(type => (
-                             <button key={type} onClick={() => setTrafficFilter(type)} className={`flex-1 text-xs font-bold py-2 rounded-lg transition-all ${trafficFilter === type ? 'bg-gradient-to-r from-purple-600 to-rose-500 text-white shadow-md' : 'text-slate-400 hover:text-white'}`}>
-                               {type}
-                             </button>
-                          ))}
-                        </div>
-                      </div>
-                      <div className={compareWeeks.length > 0 ? 'opacity-30 pointer-events-none' : ''}>
-                        <h4 className="text-[10px] font-black uppercase tracking-widest text-slate-400 mb-3 flex items-center gap-2"><CalendarDays className="w-3 h-3" /> Custom Date Range</h4>
-                        <div className="flex gap-2">
-                           <input type="date" value={dateRange.start} onChange={e => setDateRange(prev => ({...prev, start: e.target.value}))} onClick={(e) => e.target.showPicker && e.target.showPicker()} style={{ colorScheme: 'dark' }} className="w-full text-xs font-bold text-slate-200 bg-[#0B0F19] border border-white/10 rounded-xl px-3 py-2 outline-none focus:border-purple-500 cursor-pointer" />
-                           <input type="date" value={dateRange.end} onChange={e => setDateRange(prev => ({...prev, end: e.target.value}))} onClick={(e) => e.target.showPicker && e.target.showPicker()} style={{ colorScheme: 'dark' }} className="w-full text-xs font-bold text-slate-200 bg-[#0B0F19] border border-white/10 rounded-xl px-3 py-2 outline-none focus:border-purple-500 cursor-pointer" />
-                        </div>
-                      </div>
-                      <div className={dateRange.start || dateRange.end ? 'opacity-30 pointer-events-none' : ''}>
-                        <h4 className="text-[10px] font-black uppercase tracking-widest text-slate-400 mb-3 flex items-center gap-2"><Layers className="w-3 h-3" /> Compare Specific Weeks</h4>
-                        <div className="max-h-40 overflow-y-auto pr-2 grid grid-cols-2 gap-2 custom-scrollbar">
-                           {allTimeKeys.map(key => {
-                              const year = Math.floor(key / 100);
-                              const week = key % 100;
-                              const isSelected = compareWeeks.includes(key);
-                              return (
-                                 <button key={key} onClick={() => setCompareWeeks(prev => isSelected ? prev.filter(k => k !== key) : [...prev, key])} className={`flex items-center justify-between px-3 py-2 rounded-xl border text-xs font-bold transition-all ${isSelected ? 'bg-purple-500/20 border-purple-500/50 text-purple-300' : 'border-white/5 hover:bg-white/5 text-slate-400 hover:text-white'}`}>
-                                   W{week} '{year.toString().slice(2)}
-                                   {isSelected && <Check className="w-3 h-3 text-purple-400" />}
-                                 </button>
-                              );
-                           })}
-                        </div>
-                      </div>
-                    </div>
-                  </div>
-                </>
-              )}
+                  </>
+                )}
+              </div>
             </div>
           </div>
-        </div>
-      </header>
+        </header>
 
-      <main className="max-w-7xl mx-auto px-6 py-12 relative">
-        <div className="absolute top-0 left-1/2 -translate-x-1/2 w-full h-[600px] bg-gradient-to-b from-purple-900/10 via-transparent to-transparent pointer-events-none rounded-full blur-[100px]"></div>
-        <div className="relative z-10">
-          {activeTab === 'summary' && renderSummary()}
-          {activeTab === 'market' && renderMarket()}
-          {activeTab === 'channel' && renderChannel()}
-          {activeTab === 'detailed' && renderDetailed()}
-        </div>
-      </main>
+        <main className="max-w-7xl mx-auto px-6 py-12 relative">
+          <div className="absolute top-0 left-1/2 -translate-x-1/2 w-full h-[600px] bg-gradient-to-b from-purple-900/10 via-transparent to-transparent pointer-events-none rounded-full blur-[100px]"></div>
+          <div className="relative z-10">
+            {activeTab === 'summary' && renderSummary()}
+            {activeTab === 'market' && renderMarket()}
+            {activeTab === 'channel' && renderChannel()}
+            {activeTab === 'detailed' && renderDetailed()}
+          </div>
+        </main>
 
-      <footer className="max-w-7xl mx-auto px-6 pb-12 border-t border-white/5 mt-12 pt-8 flex flex-col md:flex-row justify-between items-center gap-6 opacity-60 hover:opacity-100 transition-opacity">
-        <div className="flex items-center gap-4">
-          <Info className="w-4 h-4 text-slate-400" />
-          <span className="text-[10px] font-black uppercase tracking-widest text-slate-500">MMP Cross-Engine v4.8 | PDF Report Generation & Drill-Downs Active</span>
-        </div>
-        <div className="flex gap-4 items-center bg-[#131A2A] px-4 py-2 rounded-full border border-white/5">
-          <div className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse shadow-[0_0_8px_rgba(52,211,153,0.8)]" />
-          <span className="text-[10px] font-black uppercase tracking-widest text-emerald-400">Live Secure Connect</span>
-        </div>
-      </footer>
+        <footer className="max-w-7xl mx-auto px-6 pb-12 border-t border-white/5 mt-12 pt-8 flex flex-col md:flex-row justify-between items-center gap-6 opacity-60 hover:opacity-100 transition-opacity">
+          <div className="flex items-center gap-4">
+            <Info className="w-4 h-4 text-slate-400" />
+            <span className="text-[10px] font-black uppercase tracking-widest text-slate-500">MMP Cross-Engine v4.9 | PDF Report Engine & Stable Component Architecture Active</span>
+          </div>
+          <div className="flex gap-4 items-center bg-[#131A2A] px-4 py-2 rounded-full border border-white/5">
+            <div className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse shadow-[0_0_8px_rgba(52,211,153,0.8)]" />
+            <span className="text-[10px] font-black uppercase tracking-widest text-emerald-400">Live Secure Connect</span>
+          </div>
+        </footer>
+      </div>
     </div>
   );
 }
