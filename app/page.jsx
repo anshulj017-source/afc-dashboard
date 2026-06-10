@@ -52,6 +52,14 @@ const normalizeChannel = (channelName) => {
   return cleanName;
 };
 
+const parseWeekType = (val) => {
+  if (!val || val === 'BLANK' || val === 'Unknown') return 'BAU';
+  const clean = val.toString().toLowerCase().trim();
+  if (clean.includes('salary')) return 'Salary Weeks';
+  if (clean.includes('bau')) return 'BAU';
+  return val.toString().trim() || 'BAU';
+};
+
 const parseMetric = (val) => {
   if (!val) return 0;
   if (typeof val === 'number') return val;
@@ -65,6 +73,8 @@ export default function App() {
   const [activeTab, setActiveTab] = useState('summary');
   const [selectedMarketView, setSelectedMarketView] = useState('All');
   const [selectedChannelView, setSelectedChannelView] = useState('All');
+  const [selectedWeekTypeView, setSelectedWeekTypeView] = useState('All Weeks');
+  
   const [isFilterOpen, setIsFilterOpen] = useState(false);
   const [dateRange, setDateRange] = useState({ start: '', end: '' });
   const [compareWeeks, setCompareWeeks] = useState([]); 
@@ -80,6 +90,8 @@ export default function App() {
           const week = parseInt(row['Week'] || row['week']) || 0;
           const year = parseInt(row['Year'] || row['year']) || 2024;
           const rawS1Channel = Object.values(row)[7] || row['Channel'];
+          const rawWeekTypeS1 = Object.values(row)[12] || row['Week Type'];
+          
           return {
             cost: parseMetric(row['Cost'] || row['Spend'] || row['cost']),
             impressions: parseMetric(row['Impression'] || row['Impressions']),
@@ -88,6 +100,7 @@ export default function App() {
             week, year, date: getDateFromWeek(week, year),
             market: normalizeMarket(row['Country'] || row['Channel Country']),
             channel: (!rawS1Channel || rawS1Channel === 'BLANK') ? 'Other' : normalizeChannel(rawS1Channel),
+            weekType: parseWeekType(rawWeekTypeS1),
             source: 'AdNetwork', trafficType: 'Paid' 
           };
         });
@@ -100,6 +113,7 @@ export default function App() {
           const purchases = parseMetric(Object.values(row)[7] || row['Purchases'] || row['Total Purchases']);
           const logins = parseMetric(Object.values(row)[8] || row['login_success'] || row['Logins']);
           const rawS2Channel = Object.values(row)[3] || row['Network'] || row['Source'];
+          const rawWeekTypeS2 = Object.values(row)[17] || row['Week Type'];
 
           return {
             cost: 0, impressions: 0, clicks: 0,
@@ -107,6 +121,7 @@ export default function App() {
             logins, purchases, week, year, date: getDateFromWeek(week, year),
             market: normalizeMarket(row['Country'] || row['Geo']),
             channel: (!rawS2Channel || rawS2Channel === 'BLANK' || rawS2Channel === 'Organic') ? 'Other' : normalizeChannel(rawS2Channel),
+            weekType: parseWeekType(rawWeekTypeS2),
             source: 'Adjust', trafficType
           };
         });
@@ -189,7 +204,7 @@ export default function App() {
         }
         return string;
       }
-      return "Analyzing single week data. Add more weeks to see CPI & CPP progression trends over time.";
+      return "Analyzing single week data. Select a broader date range or market view to see progression trends over time.";
     }
     return "";
   };
@@ -572,9 +587,15 @@ export default function App() {
   };
 
   const renderDetailed = () => {
-    const activeTableData = selectedMarketView === 'All' 
-      ? weeklyTimeline 
-      : d3.groups(filteredData.filter(d => d.market === selectedMarketView), d => d.timeKey).map(([key, values]) => ({ week: values[0].week, year: values[0].year, ...aggregate(values) })).sort((a,b) => a.week - b.week);
+    // Determine the subset of data based on BOTH Market and WeekType selectors
+    const baseDetailedData = filteredData.filter(d => 
+       (selectedMarketView === 'All' || d.market === selectedMarketView) &&
+       (selectedWeekTypeView === 'All Weeks' || d.weekType === selectedWeekTypeView)
+    );
+
+    const activeTableData = d3.groups(baseDetailedData, d => d.timeKey)
+      .map(([key, values]) => ({ week: values[0].week, year: values[0].year, ...aggregate(values) }))
+      .sort((a,b) => a.week - b.week);
 
     return (
       <div className="animate-in fade-in duration-500">
@@ -583,8 +604,22 @@ export default function App() {
           <p className="text-slate-400 font-medium italic">Granular timeline combining upper-funnel ad data with bottom-funnel adjust conversions.</p>
         </div>
 
+        {/* Existing Market Navigator */}
         <NavigationBar items={marketBreakdown} selected={selectedMarketView} setSelected={setSelectedMarketView} defaultLabel="Global Overview" />
         
+        {/* NEW: Week Type Selector */}
+        <div className="flex gap-3 overflow-x-auto pb-4 mb-8 border-b border-white/5 hide-scrollbar">
+          {['All Weeks', 'Salary Weeks', 'BAU'].map(type => (
+            <button 
+              key={type} 
+              onClick={() => setSelectedWeekTypeView(type)} 
+              className={`whitespace-nowrap px-6 py-2.5 rounded-xl text-sm font-black transition-all ${selectedWeekTypeView === type ? 'bg-gradient-to-r from-purple-600 to-rose-500 text-white shadow-lg shadow-purple-500/25 border-none' : 'bg-[#131A2A] text-slate-400 border border-white/5 hover:bg-white/5 hover:text-white'}`}
+            >
+              {type}
+            </button>
+          ))}
+        </div>
+
         <InsightBox text={getAIInsight('detailed', activeTableData)} />
         
         <div className="bg-[#131A2A] rounded-[2rem] border border-white/5 shadow-xl overflow-hidden mb-8">
@@ -629,11 +664,11 @@ export default function App() {
           </div>
         </div>
 
-        {compareWeeks.length > 0 && activeTableData.length > 0 && (
+        {activeTableData.length > 0 && (
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-8 mt-8 animate-in fade-in zoom-in-95 duration-500">
              <div className="bg-[#131A2A] p-8 rounded-[2.5rem] border border-white/5 shadow-xl flex flex-col">
                <div className="flex justify-between items-center mb-8">
-                 <h4 className="text-sm font-black text-white uppercase tracking-widest flex items-center gap-2"><Layers className="w-4 h-4 text-emerald-400" /> Comparison: Installs vs Purchases</h4>
+                 <h4 className="text-sm font-black text-white uppercase tracking-widest flex items-center gap-2"><Layers className="w-4 h-4 text-emerald-400" /> Volume: Installs vs Purchases</h4>
                </div>
                <div className="flex-1 min-h-[300px]">
                   <DualAxisLineChart chartData={activeTableData} leftKey="installs" rightKey="purchases" leftColorText="fill-emerald-400" rightColorText="fill-rose-400" leftColorHex="#34d399" rightColorHex="#fb7185" isLeftCurrency={false} isRightCurrency={false} />
@@ -641,7 +676,7 @@ export default function App() {
              </div>
              <div className="bg-[#131A2A] p-8 rounded-[2.5rem] border border-white/5 shadow-xl flex flex-col">
                <div className="flex justify-between items-center mb-8">
-                 <h4 className="text-sm font-black text-white uppercase tracking-widest flex items-center gap-2"><Activity className="w-4 h-4 text-red-400" /> Comparison: CPI vs CPP</h4>
+                 <h4 className="text-sm font-black text-white uppercase tracking-widest flex items-center gap-2"><Activity className="w-4 h-4 text-red-400" /> Efficiency: CPI vs CPP</h4>
                </div>
                <div className="flex-1 min-h-[300px]">
                   <DualAxisLineChart chartData={activeTableData} leftKey="cpi" rightKey="cpp" leftColorText="fill-amber-400" rightColorText="fill-red-400" leftColorHex="#fbbf24" rightColorHex="#f87171" isLeftCurrency={true} isRightCurrency={true} />
