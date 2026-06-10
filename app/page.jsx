@@ -1,11 +1,12 @@
 "use client";
 import React, { useState, useMemo, useEffect } from 'react';
 import * as d3 from 'd3';
-import { UserButton } from "@clerk/nextjs"; // <-- CLERK IMPORT
+// --- CLERK SECURITY IMPORTS ADDED HERE ---
+import { UserButton, SignedIn, SignedOut, RedirectToSignIn } from "@clerk/nextjs"; 
 import { 
   TrendingUp, Globe, Layers, Filter, Activity, DollarSign, MousePointer2, 
   Eye, Zap, LayoutDashboard, CalendarDays, ChevronDown, Info, Check, 
-  BarChart3, Download, Target, ShoppingCart, Users, TableProperties, Trophy, ArrowRight, FileText
+  Download, Target, ShoppingCart, Users, TableProperties, Trophy, ArrowRight, FileText
 } from 'lucide-react';
 
 const COMBINED_COUNTRY_CSV_URL = "https://docs.google.com/spreadsheets/d/e/2PACX-1vSt_K4Y6h2g2iVm2CDrc33rQGDToGd41a805URte2UEDqMYB_K8V4YKLIJ9rCMoLdmwvbco7uyevE9U/pub?gid=1273221446&single=true&output=csv";
@@ -160,6 +161,7 @@ const DualAxisLineChart = ({ chartData, leftKey, rightKey, leftColorText, rightC
   const lineLeft = d3.line().x(d => x(`W${d.week}`)).y(d => yLeft(d[leftKey])).curve(d3.curveMonotoneX);
   const lineRight = d3.line().x(d => x(`W${d.week}`)).y(d => yRight(d[rightKey])).curve(d3.curveMonotoneX);
   const skipCount = Math.ceil(chartData.length / 10);
+
   const fmtT = (t, isC) => isC ? `${exSym}${d3.format(".1s")(t * exRate)}` : d3.format(".1s")(t);
 
   return (
@@ -265,7 +267,7 @@ export default function App() {
 
         const s2 = mmpData.map(row => {
           const week = parseInt(row['Week'] || row['week'] || row['Wk']) || 0;
-          const year = parseInt(row['Year'] || row['year'] || row['Yr']) || 2024;
+          const year = parseInt(row['Year'] || row['year']) || 2024;
           const rawClass = Object.values(row)[11] || row['Classification'] || row['Network classification'] || '';
           const trafficType = rawClass.toString().toLowerCase().includes('organic') ? 'Organic' : 'Paid';
           const purchases = parseMetric(Object.values(row)[7] || row['Purchases'] || row['Total Purchases']);
@@ -984,219 +986,234 @@ export default function App() {
     );
   }
 
+  // --- COMPONENT LEVEL SECURITY RENDER ---
   return (
     <div className="min-h-screen bg-[#0B0F19] text-slate-200 font-sans selection:bg-purple-500/30 selection:text-purple-100">
       
-      {/* REPORT CONFIGURATION MODAL */}
-      {reportModal.isOpen && (
-        <div className="fixed inset-0 z-[9999] flex items-center justify-center px-4 no-print">
-           <div className="absolute inset-0 bg-[#0B0F19]/80 backdrop-blur-sm" onClick={() => setReportModal({...reportModal, isOpen: false})}></div>
-           <div className="bg-[#131A2A] w-full max-w-lg rounded-[2.5rem] border border-white/10 shadow-[0_20px_50px_rgba(0,0,0,0.5)] p-8 relative z-10 animate-in zoom-in-95">
-              <div className="flex justify-between items-center mb-8">
-                 <h3 className="text-xl font-black text-white flex items-center gap-3"><FileText className="text-purple-400 w-6 h-6"/> Report Configuration</h3>
-                 <button onClick={() => setReportModal({...reportModal, isOpen: false})} className="text-slate-500 hover:text-white"><Zap className="w-5 h-5 rotate-45"/></button>
-              </div>
-              <div className="space-y-5">
-                 <div>
-                    <label className="text-[10px] font-black uppercase text-slate-400 mb-1.5 block tracking-widest">Date Range</label>
-                    <div className="flex gap-3">
-                       <input type="date" value={reportModal.start} onChange={e=>setReportModal({...reportModal, start: e.target.value})} className="w-full text-sm font-bold text-white bg-[#0B0F19] border border-white/10 rounded-xl px-4 py-3 outline-none focus:border-purple-500 cursor-pointer" />
-                       <input type="date" value={reportModal.end} onChange={e=>setReportModal({...reportModal, end: e.target.value})} className="w-full text-sm font-bold text-white bg-[#0B0F19] border border-white/10 rounded-xl px-4 py-3 outline-none focus:border-purple-500 cursor-pointer" />
-                    </div>
-                 </div>
-                 <div>
-                    <label className="text-[10px] font-black uppercase text-slate-400 mb-1.5 block tracking-widest">Market Filter</label>
-                    <select value={reportModal.market} onChange={e=>setReportModal({...reportModal, market: e.target.value})} className="w-full px-4 py-3 bg-[#0B0F19] border border-white/10 rounded-xl text-sm font-bold text-white outline-none focus:border-purple-500 cursor-pointer">
-                       <option value="All">Global (All Markets)</option>
-                       {marketBreakdown.map(m => <option key={m.name} value={m.name}>{m.name}</option>)}
-                    </select>
-                 </div>
-                 <div>
-                    <label className="text-[10px] font-black uppercase text-slate-400 mb-1.5 block tracking-widest">Channel Filter</label>
-                    <select value={reportModal.channel} onChange={e=>setReportModal({...reportModal, channel: e.target.value})} className="w-full px-4 py-3 bg-[#0B0F19] border border-white/10 rounded-xl text-sm font-bold text-white outline-none focus:border-purple-500 cursor-pointer">
-                       <option value="All">All Channels</option>
-                       {channelBreakdown.map(c => <option key={c.name} value={c.name}>{c.name}</option>)}
-                    </select>
-                 </div>
-                 <div>
-                    <label className="text-[10px] font-black uppercase text-slate-400 mb-1.5 block tracking-widest">Traffic Segment</label>
-                    <select value={reportModal.traffic} onChange={e=>setReportModal({...reportModal, traffic: e.target.value})} className="w-full px-4 py-3 bg-[#0B0F19] border border-white/10 rounded-xl text-sm font-bold text-white outline-none focus:border-purple-500 cursor-pointer">
-                       <option value="All">Combined (Paid & Organic)</option>
-                       <option value="Paid">Paid Only</option>
-                       <option value="Organic">Organic Only</option>
-                    </select>
-                 </div>
-              </div>
-              <button 
-                onClick={() => { setReportModal({...reportModal, isOpen: false}); setIsGeneratingPdf(true); }} 
-                className="mt-8 w-full bg-gradient-to-r from-purple-600 to-rose-500 text-white rounded-xl py-4 font-black text-sm shadow-lg shadow-purple-500/25 transition-all hover:scale-[1.02]"
-              >
-                Compile & Download PDF
-              </button>
-           </div>
+      {/* SECURITY LOCK: ONLY SHOW THIS TO UNAUTHENTICATED USERS */}
+      <SignedOut>
+        <div className="flex flex-col items-center justify-center min-h-screen gap-5">
+           <div className="w-10 h-10 border-4 border-purple-500/30 border-t-purple-500 rounded-full animate-spin" />
+           <p className="text-sm font-black text-purple-400 tracking-[0.2em] uppercase shadow-purple-500/50 drop-shadow-md">Authenticating Secure Connection</p>
+           {/* This handles the actual redirect safely on the client side */}
+           <RedirectToSignIn />
         </div>
-      )}
+      </SignedOut>
 
-      {/* PDF OVERLAY & HIDDEN RENDER */}
-      {isGeneratingPdf && (
-        <div className="fixed inset-0 bg-[#0B0F19] z-[99998] flex items-center justify-center no-print">
-           <div className="flex flex-col items-center gap-4">
-             <div className="w-8 h-8 border-4 border-emerald-500/30 border-t-emerald-500 rounded-full animate-spin" />
-             <p className="text-sm font-bold text-emerald-400 tracking-widest uppercase">Compiling PDF Report...</p>
-           </div>
-        </div>
-      )}
-
-      <div className="print-only">
-         {renderPrintableReport()}
-      </div>
-
-      <style dangerouslySetInnerHTML={{__html: `
-        @media print { 
-          @page { size: A4; margin: 0; } 
-          body { background: white !important; -webkit-print-color-adjust: exact; print-color-adjust: exact; } 
-          .no-print { display: none !important; } 
-          .print-only { display: block !important; } 
-        } 
-        @media screen { .print-only { display: none !important; } }
-      `}} />
-
-      <div className="no-print">
-        <header className="sticky top-0 z-[100] bg-[#0B0F19]/80 backdrop-blur-2xl border-b border-white/5 px-6 py-4 shadow-xl">
-          <div className="max-w-7xl mx-auto flex flex-col lg:flex-row justify-between items-center gap-6">
-            <div className="flex items-center gap-4">
-              <div className="bg-white px-3 py-2 rounded-xl flex items-center justify-center shadow-[0_0_20px_rgba(168,85,247,0.3)]">
-                <span className="text-xl font-black text-[#0B0F19] tracking-tighter">stc</span>
-              </div>
-              <div>
-                <h1 className="text-xl font-black tracking-tighter text-white leading-none">ROVA PERFORMANCE</h1>
-                <p className="text-[10px] font-black text-purple-400 uppercase tracking-[0.25em] mt-1.5">Intelligence Dashboard</p>
-              </div>
-            </div>
-
-            <nav className="flex items-center gap-2 bg-[#131A2A] p-1.5 rounded-2xl border border-white/5 overflow-x-auto hide-scrollbar">
-              {[
-                { id: 'summary', label: 'Summary', icon: LayoutDashboard },
-                { id: 'market', label: 'Markets', icon: Globe },
-                { id: 'channel', label: 'Channels', icon: Layers },
-                { id: 'detailed', label: 'Detailed Data', icon: TableProperties },
-              ].map(tab => (
-                <button
-                  key={tab.id}
-                  onClick={() => { setActiveTab(tab.id); window.scrollTo({ top: 0, behavior: 'smooth' }); }}
-                  className={`flex items-center gap-2 px-5 py-2.5 rounded-xl text-sm font-black transition-all ${
-                    activeTab === tab.id 
-                    ? 'bg-gradient-to-r from-purple-600 to-rose-500 text-white shadow-lg shadow-purple-500/25 border-none' 
-                    : 'text-slate-400 hover:text-white hover:bg-white/5'
-                  }`}
-                >
-                  <tab.icon className="w-4 h-4" />
-                  <span className="hidden sm:inline">{tab.label}</span>
-                </button>
-              ))}
-            </nav>
-
-            <div className="flex items-center gap-4">
-              <button 
-                 onClick={() => setCurrency(c => c === 'USD' ? 'BHD' : 'USD')}
-                 className="flex items-center gap-2 px-4 py-2.5 rounded-2xl border transition-all font-black text-xs tracking-widest uppercase bg-[#131A2A] border-white/5 text-slate-300 hover:border-purple-500/50 hover:text-white"
-              >
-                 <DollarSign className="w-4 h-4 text-emerald-400" /> {currency}
-              </button>
-
-              <div className="bg-[#131A2A] border border-white/10 rounded-full p-1 shadow-lg shadow-purple-500/10 hover:border-purple-500/50 transition-colors">
-                <UserButton afterSignOutUrl="/" />
-              </div>
-
-              <div className="relative">
+      {/* SECURE AREA: ONLY SHOW THIS TO FULLY AUTHENTICATED USERS */}
+      <SignedIn>
+        {/* REPORT CONFIGURATION MODAL */}
+        {reportModal.isOpen && (
+          <div className="fixed inset-0 z-[9999] flex items-center justify-center px-4 no-print">
+             <div className="absolute inset-0 bg-[#0B0F19]/80 backdrop-blur-sm" onClick={() => setReportModal({...reportModal, isOpen: false})}></div>
+             <div className="bg-[#131A2A] w-full max-w-lg rounded-[2.5rem] border border-white/10 shadow-[0_20px_50px_rgba(0,0,0,0.5)] p-8 relative z-10 animate-in zoom-in-95">
+                <div className="flex justify-between items-center mb-8">
+                   <h3 className="text-xl font-black text-white flex items-center gap-3"><FileText className="text-purple-400 w-6 h-6"/> Report Configuration</h3>
+                   <button onClick={() => setReportModal({...reportModal, isOpen: false})} className="text-slate-500 hover:text-white"><Zap className="w-5 h-5 rotate-45"/></button>
+                </div>
+                <div className="space-y-5">
+                   <div>
+                      <label className="text-[10px] font-black uppercase text-slate-400 mb-1.5 block tracking-widest">Date Range</label>
+                      <div className="flex gap-3">
+                         <input type="date" value={reportModal.start} onChange={e=>setReportModal({...reportModal, start: e.target.value})} className="w-full text-sm font-bold text-white bg-[#0B0F19] border border-white/10 rounded-xl px-4 py-3 outline-none focus:border-purple-500 cursor-pointer" />
+                         <input type="date" value={reportModal.end} onChange={e=>setReportModal({...reportModal, end: e.target.value})} className="w-full text-sm font-bold text-white bg-[#0B0F19] border border-white/10 rounded-xl px-4 py-3 outline-none focus:border-purple-500 cursor-pointer" />
+                      </div>
+                   </div>
+                   <div>
+                      <label className="text-[10px] font-black uppercase text-slate-400 mb-1.5 block tracking-widest">Market Filter</label>
+                      <select value={reportModal.market} onChange={e=>setReportModal({...reportModal, market: e.target.value})} className="w-full px-4 py-3 bg-[#0B0F19] border border-white/10 rounded-xl text-sm font-bold text-white outline-none focus:border-purple-500 cursor-pointer">
+                         <option value="All">Global (All Markets)</option>
+                         {marketBreakdown.map(m => <option key={m.name} value={m.name}>{m.name}</option>)}
+                      </select>
+                   </div>
+                   <div>
+                      <label className="text-[10px] font-black uppercase text-slate-400 mb-1.5 block tracking-widest">Channel Filter</label>
+                      <select value={reportModal.channel} onChange={e=>setReportModal({...reportModal, channel: e.target.value})} className="w-full px-4 py-3 bg-[#0B0F19] border border-white/10 rounded-xl text-sm font-bold text-white outline-none focus:border-purple-500 cursor-pointer">
+                         <option value="All">All Channels</option>
+                         {channelBreakdown.map(c => <option key={c.name} value={c.name}>{c.name}</option>)}
+                      </select>
+                   </div>
+                   <div>
+                      <label className="text-[10px] font-black uppercase text-slate-400 mb-1.5 block tracking-widest">Traffic Segment</label>
+                      <select value={reportModal.traffic} onChange={e=>setReportModal({...reportModal, traffic: e.target.value})} className="w-full px-4 py-3 bg-[#0B0F19] border border-white/10 rounded-xl text-sm font-bold text-white outline-none focus:border-purple-500 cursor-pointer">
+                         <option value="All">Combined (Paid & Organic)</option>
+                         <option value="Paid">Paid Only</option>
+                         <option value="Organic">Organic Only</option>
+                      </select>
+                   </div>
+                </div>
                 <button 
-                  onClick={() => setIsFilterOpen(!isFilterOpen)}
-                  className={`flex items-center gap-3 px-5 py-2.5 rounded-2xl border transition-all font-bold text-sm ${
-                    (dateRange.start || compareWeeks.length > 0 || trafficFilter !== 'All')
-                    ? 'bg-purple-500/10 border-purple-500/50 text-purple-300' 
-                    : 'bg-[#131A2A] border-white/5 text-slate-300 hover:border-purple-500/50'
-                  }`}
+                  onClick={() => { setReportModal({...reportModal, isOpen: false}); setIsGeneratingPdf(true); }} 
+                  className="mt-8 w-full bg-gradient-to-r from-purple-600 to-rose-500 text-white rounded-xl py-4 font-black text-sm shadow-lg shadow-purple-500/25 transition-all hover:scale-[1.02]"
                 >
-                  <Filter className="w-4 h-4" />
-                  {(dateRange.start || compareWeeks.length > 0 || trafficFilter !== 'All') ? 'Filters Active' : 'Filter Data'}
-                  <ChevronDown className={`w-4 h-4 transition-transform ${isFilterOpen ? 'rotate-180' : ''}`} />
+                  Compile & Download PDF
+                </button>
+             </div>
+          </div>
+        )}
+
+        {/* PDF OVERLAY & HIDDEN RENDER */}
+        {isGeneratingPdf && (
+          <div className="fixed inset-0 bg-[#0B0F19] z-[99998] flex items-center justify-center no-print">
+             <div className="flex flex-col items-center gap-4">
+               <div className="w-8 h-8 border-4 border-emerald-500/30 border-t-emerald-500 rounded-full animate-spin" />
+               <p className="text-sm font-bold text-emerald-400 tracking-widest uppercase">Compiling PDF Report...</p>
+             </div>
+          </div>
+        )}
+
+        <div className="print-only">
+           {renderPrintableReport()}
+        </div>
+
+        <style dangerouslySetInnerHTML={{__html: `
+          @media print { 
+            @page { size: A4; margin: 0; } 
+            body { background: white !important; -webkit-print-color-adjust: exact; print-color-adjust: exact; } 
+            .no-print { display: none !important; } 
+            .print-only { display: block !important; } 
+          } 
+          @media screen { .print-only { display: none !important; } }
+        `}} />
+
+        <div className="no-print">
+          <header className="sticky top-0 z-[100] bg-[#0B0F19]/80 backdrop-blur-2xl border-b border-white/5 px-6 py-4 shadow-xl">
+            <div className="max-w-7xl mx-auto flex flex-col lg:flex-row justify-between items-center gap-6">
+              <div className="flex items-center gap-4">
+                <div className="bg-white px-3 py-2 rounded-xl flex items-center justify-center shadow-[0_0_20px_rgba(168,85,247,0.3)]">
+                  <span className="text-xl font-black text-[#0B0F19] tracking-tighter">stc</span>
+                </div>
+                <div>
+                  <h1 className="text-xl font-black tracking-tighter text-white leading-none">ROVA PERFORMANCE</h1>
+                  <p className="text-[10px] font-black text-purple-400 uppercase tracking-[0.25em] mt-1.5">Intelligence Dashboard</p>
+                </div>
+              </div>
+
+              <nav className="flex items-center gap-2 bg-[#131A2A] p-1.5 rounded-2xl border border-white/5 overflow-x-auto hide-scrollbar">
+                {[
+                  { id: 'summary', label: 'Summary', icon: LayoutDashboard },
+                  { id: 'market', label: 'Markets', icon: Globe },
+                  { id: 'channel', label: 'Channels', icon: Layers },
+                  { id: 'detailed', label: 'Detailed Data', icon: TableProperties },
+                ].map(tab => (
+                  <button
+                    key={tab.id}
+                    onClick={() => { setActiveTab(tab.id); window.scrollTo({ top: 0, behavior: 'smooth' }); }}
+                    className={`flex items-center gap-2 px-5 py-2.5 rounded-xl text-sm font-black transition-all ${
+                      activeTab === tab.id 
+                      ? 'bg-gradient-to-r from-purple-600 to-rose-500 text-white shadow-lg shadow-purple-500/25 border-none' 
+                      : 'text-slate-400 hover:text-white hover:bg-white/5'
+                    }`}
+                  >
+                    <tab.icon className="w-4 h-4" />
+                    <span className="hidden sm:inline">{tab.label}</span>
+                  </button>
+                ))}
+              </nav>
+
+              <div className="flex items-center gap-4">
+                <button 
+                   onClick={() => setCurrency(c => c === 'USD' ? 'BHD' : 'USD')}
+                   className="flex items-center gap-2 px-4 py-2.5 rounded-2xl border transition-all font-black text-xs tracking-widest uppercase bg-[#131A2A] border-white/5 text-slate-300 hover:border-purple-500/50 hover:text-white"
+                >
+                   <DollarSign className="w-4 h-4 text-emerald-400" /> {currency}
                 </button>
 
-                {isFilterOpen && (
-                  <>
-                    <div className="fixed inset-0 z-40" onClick={() => setIsFilterOpen(false)} />
-                    <div className="absolute right-0 mt-3 w-96 bg-[#131A2A] rounded-[2.5rem] border border-white/10 shadow-[0_20px_50px_rgba(0,0,0,0.5)] z-50 p-6 animate-in zoom-in-95 duration-200">
-                      <div className="flex justify-between items-center mb-6 px-1 border-b border-white/5 pb-4">
-                        <span className="text-[10px] font-black uppercase tracking-widest text-slate-400">Master Filters</span>
-                        <button onClick={() => { setDateRange({start:'', end:''}); setCompareWeeks([]); setTrafficFilter('All'); }} className="text-[10px] font-black uppercase tracking-widest text-purple-400 hover:text-purple-300">
-                          Reset All
-                        </button>
+                {/* THE USER LOGOUT BUTTON */}
+                <div className="bg-[#131A2A] border border-white/10 rounded-full p-1 shadow-lg shadow-purple-500/10 hover:border-purple-500/50 transition-colors">
+                  <UserButton afterSignOutUrl="/" />
+                </div>
+
+                <div className="relative">
+                  <button 
+                    onClick={() => setIsFilterOpen(!isFilterOpen)}
+                    className={`flex items-center gap-3 px-5 py-2.5 rounded-2xl border transition-all font-bold text-sm ${
+                      (dateRange.start || compareWeeks.length > 0 || trafficFilter !== 'All')
+                      ? 'bg-purple-500/10 border-purple-500/50 text-purple-300' 
+                      : 'bg-[#131A2A] border-white/5 text-slate-300 hover:border-purple-500/50'
+                    }`}
+                  >
+                    <Filter className="w-4 h-4" />
+                    {(dateRange.start || compareWeeks.length > 0 || trafficFilter !== 'All') ? 'Filters Active' : 'Filter Data'}
+                    <ChevronDown className={`w-4 h-4 transition-transform ${isFilterOpen ? 'rotate-180' : ''}`} />
+                  </button>
+
+                  {isFilterOpen && (
+                    <>
+                      <div className="fixed inset-0 z-40" onClick={() => setIsFilterOpen(false)} />
+                      <div className="absolute right-0 mt-3 w-96 bg-[#131A2A] rounded-[2.5rem] border border-white/10 shadow-[0_20px_50px_rgba(0,0,0,0.5)] z-50 p-6 animate-in zoom-in-95 duration-200">
+                        <div className="flex justify-between items-center mb-6 px-1 border-b border-white/5 pb-4">
+                          <span className="text-[10px] font-black uppercase tracking-widest text-slate-400">Master Filters</span>
+                          <button onClick={() => { setDateRange({start:'', end:''}); setCompareWeeks([]); setTrafficFilter('All'); }} className="text-[10px] font-black uppercase tracking-widest text-purple-400 hover:text-purple-300">
+                            Reset All
+                          </button>
+                        </div>
+                        
+                        <div className="space-y-6">
+                          <div>
+                            <h4 className="text-[10px] font-black uppercase tracking-widest text-slate-400 mb-3 flex items-center gap-2"><Users className="w-3 h-3" /> Traffic Segment</h4>
+                            <div className="flex bg-[#0B0F19] p-1 rounded-xl border border-white/5">
+                              {['All', 'Paid', 'Organic'].map(type => (
+                                 <button key={type} onClick={() => setTrafficFilter(type)} className={`flex-1 text-xs font-bold py-2 rounded-lg transition-all ${trafficFilter === type ? 'bg-gradient-to-r from-purple-600 to-rose-500 text-white shadow-md' : 'text-slate-400 hover:text-white'}`}>
+                                   {type}
+                                 </button>
+                              ))}
+                            </div>
+                          </div>
+                          <div className={compareWeeks.length > 0 ? 'opacity-30 pointer-events-none' : ''}>
+                            <h4 className="text-[10px] font-black uppercase tracking-widest text-slate-400 mb-3 flex items-center gap-2"><CalendarDays className="w-3 h-3" /> Custom Date Range</h4>
+                            <div className="flex gap-2">
+                               <input type="date" value={dateRange.start} onChange={e => setDateRange(prev => ({...prev, start: e.target.value}))} className="w-full text-xs font-bold text-slate-200 bg-[#0B0F19] border border-white/10 rounded-xl px-3 py-2 outline-none focus:border-purple-500 cursor-pointer" />
+                               <input type="date" value={dateRange.end} onChange={e => setDateRange(prev => ({...prev, end: e.target.value}))} className="w-full text-xs font-bold text-slate-200 bg-[#0B0F19] border border-white/10 rounded-xl px-3 py-2 outline-none focus:border-purple-500 cursor-pointer" />
+                            </div>
+                          </div>
+                          <div className={dateRange.start || dateRange.end ? 'opacity-30 pointer-events-none' : ''}>
+                            <h4 className="text-[10px] font-black uppercase tracking-widest text-slate-400 mb-3 flex items-center gap-2"><Layers className="w-3 h-3" /> Compare Specific Weeks</h4>
+                            <div className="max-h-40 overflow-y-auto pr-2 grid grid-cols-2 gap-2 custom-scrollbar">
+                               {allTimeKeys.map(key => {
+                                  const year = Math.floor(key / 100);
+                                  const week = key % 100;
+                                  const isSelected = compareWeeks.includes(key);
+                                  return (
+                                     <button key={key} onClick={() => setCompareWeeks(prev => isSelected ? prev.filter(k => k !== key) : [...prev, key])} className={`flex items-center justify-between px-3 py-2 rounded-xl border text-xs font-bold transition-all ${isSelected ? 'bg-purple-500/20 border-purple-500/50 text-purple-300' : 'border-white/5 hover:bg-white/5 text-slate-400 hover:text-white'}`}>
+                                       W{week} '{year.toString().slice(2)}
+                                       {isSelected && <Check className="w-3 h-3 text-purple-400" />}
+                                     </button>
+                                  );
+                               })}
+                            </div>
+                          </div>
+                        </div>
                       </div>
-                      
-                      <div className="space-y-6">
-                        <div>
-                          <h4 className="text-[10px] font-black uppercase tracking-widest text-slate-400 mb-3 flex items-center gap-2"><Users className="w-3 h-3" /> Traffic Segment</h4>
-                          <div className="flex bg-[#0B0F19] p-1 rounded-xl border border-white/5">
-                            {['All', 'Paid', 'Organic'].map(type => (
-                               <button key={type} onClick={() => setTrafficFilter(type)} className={`flex-1 text-xs font-bold py-2 rounded-lg transition-all ${trafficFilter === type ? 'bg-gradient-to-r from-purple-600 to-rose-500 text-white shadow-md' : 'text-slate-400 hover:text-white'}`}>
-                                 {type}
-                               </button>
-                            ))}
-                          </div>
-                        </div>
-                        <div className={compareWeeks.length > 0 ? 'opacity-30 pointer-events-none' : ''}>
-                          <h4 className="text-[10px] font-black uppercase tracking-widest text-slate-400 mb-3 flex items-center gap-2"><CalendarDays className="w-3 h-3" /> Custom Date Range</h4>
-                          <div className="flex gap-2">
-                             <input type="date" value={dateRange.start} onChange={e => setDateRange(prev => ({...prev, start: e.target.value}))} className="w-full text-xs font-bold text-slate-200 bg-[#0B0F19] border border-white/10 rounded-xl px-3 py-2 outline-none focus:border-purple-500 cursor-pointer" />
-                             <input type="date" value={dateRange.end} onChange={e => setDateRange(prev => ({...prev, end: e.target.value}))} className="w-full text-xs font-bold text-slate-200 bg-[#0B0F19] border border-white/10 rounded-xl px-3 py-2 outline-none focus:border-purple-500 cursor-pointer" />
-                          </div>
-                        </div>
-                        <div className={dateRange.start || dateRange.end ? 'opacity-30 pointer-events-none' : ''}>
-                          <h4 className="text-[10px] font-black uppercase tracking-widest text-slate-400 mb-3 flex items-center gap-2"><Layers className="w-3 h-3" /> Compare Specific Weeks</h4>
-                          <div className="max-h-40 overflow-y-auto pr-2 grid grid-cols-2 gap-2 custom-scrollbar">
-                             {allTimeKeys.map(key => {
-                                const year = Math.floor(key / 100);
-                                const week = key % 100;
-                                const isSelected = compareWeeks.includes(key);
-                                return (
-                                   <button key={key} onClick={() => setCompareWeeks(prev => isSelected ? prev.filter(k => k !== key) : [...prev, key])} className={`flex items-center justify-between px-3 py-2 rounded-xl border text-xs font-bold transition-all ${isSelected ? 'bg-purple-500/20 border-purple-500/50 text-purple-300' : 'border-white/5 hover:bg-white/5 text-slate-400 hover:text-white'}`}>
-                                     W{week} '{year.toString().slice(2)}
-                                     {isSelected && <Check className="w-3 h-3 text-purple-400" />}
-                                   </button>
-                                );
-                             })}
-                          </div>
-                        </div>
-                      </div>
-                    </div>
-                  </>
-                )}
+                    </>
+                  )}
+                </div>
               </div>
             </div>
-          </div>
-        </header>
+          </header>
 
-        <main className="max-w-7xl mx-auto px-6 py-12 relative">
-          <div className="absolute top-0 left-1/2 -translate-x-1/2 w-full h-[600px] bg-gradient-to-b from-purple-900/10 via-transparent to-transparent pointer-events-none rounded-full blur-[100px]"></div>
-          <div className="relative z-10">
-            {activeTab === 'summary' && renderSummary()}
-            {activeTab === 'market' && renderMarket()}
-            {activeTab === 'channel' && renderChannel()}
-            {activeTab === 'detailed' && renderDetailed()}
-          </div>
-        </main>
+          <main className="max-w-7xl mx-auto px-6 py-12 relative">
+            <div className="absolute top-0 left-1/2 -translate-x-1/2 w-full h-[600px] bg-gradient-to-b from-purple-900/10 via-transparent to-transparent pointer-events-none rounded-full blur-[100px]"></div>
+            <div className="relative z-10">
+              {activeTab === 'summary' && renderSummary()}
+              {activeTab === 'market' && renderMarket()}
+              {activeTab === 'channel' && renderChannel()}
+              {activeTab === 'detailed' && renderDetailed()}
+            </div>
+          </main>
 
-        <footer className="max-w-7xl mx-auto px-6 pb-12 border-t border-white/5 mt-12 pt-8 flex flex-col md:flex-row justify-between items-center gap-6 opacity-60 hover:opacity-100 transition-opacity">
-          <div className="flex items-center gap-4">
-            <Info className="w-4 h-4 text-slate-400" />
-            <span className="text-[10px] font-black uppercase tracking-widest text-slate-500">MMP Cross-Engine v5.0 | PDF Report Engine & Stable Component Architecture Active</span>
-          </div>
-          <div className="flex gap-4 items-center bg-[#131A2A] px-4 py-2 rounded-full border border-white/5">
-            <div className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse shadow-[0_0_8px_rgba(52,211,153,0.8)]" />
-            <span className="text-[10px] font-black uppercase tracking-widest text-emerald-400">Live Secure Connect</span>
-          </div>
-        </footer>
-      </div>
+          <footer className="max-w-7xl mx-auto px-6 pb-12 border-t border-white/5 mt-12 pt-8 flex flex-col md:flex-row justify-between items-center gap-6 opacity-60 hover:opacity-100 transition-opacity">
+            <div className="flex items-center gap-4">
+              <Info className="w-4 h-4 text-slate-400" />
+              <span className="text-[10px] font-black uppercase tracking-widest text-slate-500">MMP Cross-Engine v5.0 | Secure Component Security Active</span>
+            </div>
+            <div className="flex gap-4 items-center bg-[#131A2A] px-4 py-2 rounded-full border border-white/5">
+              <div className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse shadow-[0_0_8px_rgba(52,211,153,0.8)]" />
+              <span className="text-[10px] font-black uppercase tracking-widest text-emerald-400">Live Secure Connect</span>
+            </div>
+          </footer>
+        </div>
+      </SignedIn>
     </div>
   );
 }
