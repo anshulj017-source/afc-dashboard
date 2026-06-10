@@ -74,18 +74,18 @@ export default function App() {
   const [activeTab, setActiveTab] = useState('summary');
   const [selectedMarketView, setSelectedMarketView] = useState('All');
   const [selectedChannelView, setSelectedChannelView] = useState('All');
-  const [selectedWeekTypeView, setSelectedWeekTypeView] = useState('All Weeks');
+  
+  // Week Type Defaults to unselected ('')
+  const [selectedWeekTypeView, setSelectedWeekTypeView] = useState('');
   
   const [isFilterOpen, setIsFilterOpen] = useState(false);
   const [dateRange, setDateRange] = useState({ start: '', end: '' });
   const [compareWeeks, setCompareWeeks] = useState([]); 
   const [trafficFilter, setTrafficFilter] = useState('All'); 
 
-  // State: Currency & KPI Goals
   const [currency, setCurrency] = useState('USD');
-  const [kpi, setKpi] = useState({ isOpen: false, isSet: false, start: '', end: '', budget: '', impressions: '', installs: '' });
+  const [kpi, setKpi] = useState({ isOpen: false, isSet: false, budget: '', impressions: '', installs: '' });
 
-  // Currency Helpers
   const exRate = currency === 'BHD' ? 0.377 : 1;
   const exSym = currency === 'BHD' ? 'BD ' : '$';
   const formatC = (val, dec = 0) => `${exSym}${d3.format(`,.${dec}f`)(val * exRate)}`;
@@ -203,6 +203,7 @@ export default function App() {
     if (filteredData.length === 0) return "No data available for the current selection.";
     
     if (context === 'detailed') {
+      if (!selectedType) return ""; // Fallback
       if (!activeData || activeData.length === 0) return "Analyzing single week data. Select a broader date range or market view to see progression trends over time.";
       
       const computeStats = (dataArray) => {
@@ -426,11 +427,13 @@ export default function App() {
   };
 
   const renderKpiTracker = () => {
-    if (!kpi.isOpen && !kpi.isSet) {
+    const canSetKpi = dateRange.start && dateRange.end && trafficFilter === 'Paid';
+
+    if (!canSetKpi) {
       return (
-        <button onClick={() => setKpi({...kpi, isOpen: true})} className="mb-8 w-full border border-dashed border-white/10 rounded-2xl p-6 text-slate-400 hover:text-white hover:border-purple-500/50 hover:bg-purple-500/5 transition-all flex items-center justify-center gap-3 font-bold text-sm">
-          <Target className="w-5 h-5 text-purple-400" /> Set Campaign Goal & KPI Pacing Tracker
-        </button>
+        <div className="mb-8 w-full border border-dashed border-white/10 rounded-2xl p-6 text-slate-500 flex items-center justify-center gap-3 font-bold text-sm bg-[#131A2A]/50 cursor-not-allowed">
+          <Target className="w-5 h-5 opacity-50" /> KPI Tracker (Requires custom Date Range & 'Paid' Traffic filter to activate)
+        </div>
       );
     }
 
@@ -439,26 +442,22 @@ export default function App() {
         <div className="mb-8 bg-[#131A2A] p-8 rounded-[2rem] border border-purple-500/30 shadow-xl relative overflow-hidden animate-in fade-in slide-in-from-top-4">
            <div className="absolute top-0 right-0 w-32 h-32 bg-purple-500/10 rounded-full blur-3xl"></div>
            <div className="flex justify-between items-center mb-6 relative z-10">
-             <h4 className="text-sm font-black text-white uppercase tracking-widest flex items-center gap-2"><Target className="w-4 h-4 text-purple-400" /> Configure KPI Targets</h4>
+             <h4 className="text-sm font-black text-white uppercase tracking-widest flex items-center gap-2"><Target className="w-4 h-4 text-purple-400" /> Configure KPI Targets ({dateRange.start} to {dateRange.end})</h4>
              <button onClick={() => setKpi({...kpi, isOpen: false})} className="text-slate-400 hover:text-white"><Zap className="w-4 h-4 rotate-45"/></button>
            </div>
-           <div className="grid grid-cols-2 md:grid-cols-5 gap-4 relative z-10">
-              <input type="date" value={kpi.start} onChange={e=>setKpi({...kpi, start: e.target.value})} style={{colorScheme:'dark'}} className="w-full text-xs font-bold text-white bg-[#0B0F19] border border-white/10 rounded-xl px-4 py-3 outline-none focus:border-purple-500 cursor-pointer" />
-              <input type="date" value={kpi.end} onChange={e=>setKpi({...kpi, end: e.target.value})} style={{colorScheme:'dark'}} className="w-full text-xs font-bold text-white bg-[#0B0F19] border border-white/10 rounded-xl px-4 py-3 outline-none focus:border-purple-500 cursor-pointer" />
+           <div className="grid grid-cols-1 md:grid-cols-3 gap-4 relative z-10">
               <input type="number" placeholder={`Budget (${currency})`} value={kpi.budget} onChange={e=>setKpi({...kpi, budget: e.target.value})} className="w-full text-xs font-bold text-white bg-[#0B0F19] border border-white/10 rounded-xl px-4 py-3 outline-none focus:border-purple-500" />
               <input type="number" placeholder="Target Impressions" value={kpi.impressions} onChange={e=>setKpi({...kpi, impressions: e.target.value})} className="w-full text-xs font-bold text-white bg-[#0B0F19] border border-white/10 rounded-xl px-4 py-3 outline-none focus:border-purple-500" />
               <input type="number" placeholder="Target Installs" value={kpi.installs} onChange={e=>setKpi({...kpi, installs: e.target.value})} className="w-full text-xs font-bold text-white bg-[#0B0F19] border border-white/10 rounded-xl px-4 py-3 outline-none focus:border-purple-500" />
            </div>
-           <button onClick={() => setKpi({...kpi, isSet: true, isOpen: false})} className="mt-6 w-full bg-gradient-to-r from-purple-600 to-rose-500 text-white rounded-xl py-3 font-black text-sm shadow-lg shadow-purple-500/25 transition-all hover:scale-[1.01] relative z-10">Track Pacing</button>
+           <button onClick={() => setKpi({...kpi, isSet: true, isOpen: false})} className="mt-6 w-full bg-gradient-to-r from-purple-600 to-rose-500 text-white rounded-xl py-3 font-black text-sm shadow-lg shadow-purple-500/25 transition-all hover:scale-[1.01] relative z-10">Track Pacing Against Live Data</button>
         </div>
       );
     }
 
     if (kpi.isSet) {
-      const start = new Date(kpi.start); start.setHours(0,0,0,0);
-      const end = new Date(kpi.end); end.setHours(23,59,59,999);
-      const relevant = processedData.filter(d => d.date >= start && d.date <= end);
-      const actuals = aggregate(relevant);
+      // The filteredData is already perfectly subset by the dateRange and Paid traffic condition.
+      const actuals = metrics; 
 
       const bPct = Math.min((actuals.cost / (parseFloat(kpi.budget) / exRate || 1)) * 100, 100);
       const impPct = Math.min((actuals.impressions / (parseFloat(kpi.impressions) || 1)) * 100, 100);
@@ -481,7 +480,7 @@ export default function App() {
       return (
         <div className="mb-8 bg-[#131A2A] p-8 rounded-[2rem] border border-white/5 shadow-xl animate-in fade-in">
            <div className="flex justify-between items-center mb-6">
-             <h4 className="text-sm font-black text-white uppercase tracking-widest flex items-center gap-2"><Target className="w-4 h-4 text-purple-400" /> Goal Pacing ({kpi.start} to {kpi.end})</h4>
+             <h4 className="text-sm font-black text-white uppercase tracking-widest flex items-center gap-2"><Target className="w-4 h-4 text-purple-400" /> Goal Pacing ({dateRange.start} to {dateRange.end})</h4>
              <button onClick={() => setKpi({...kpi, isSet: false, isOpen: true})} className="text-xs font-black uppercase tracking-widest text-purple-400 hover:text-purple-300">Edit Goals</button>
            </div>
            <div className="space-y-6">
@@ -492,6 +491,12 @@ export default function App() {
         </div>
       );
     }
+
+    return (
+      <button onClick={() => setKpi({...kpi, isOpen: true})} className="mb-8 w-full border border-dashed border-white/10 rounded-2xl p-6 text-slate-400 hover:text-white hover:border-purple-500/50 hover:bg-purple-500/5 transition-all flex items-center justify-center gap-3 font-bold text-sm">
+        <Target className="w-5 h-5 text-purple-400" /> Set Campaign Goal & KPI Pacing Tracker
+      </button>
+    );
   };
 
   // --- RENDERS ---
@@ -728,7 +733,7 @@ export default function App() {
       ? filteredData 
       : filteredData.filter(d => d.market === selectedMarketView);
 
-    const activeDetailedData = selectedWeekTypeView === 'All Weeks'
+    const activeDetailedData = (selectedWeekTypeView === '' || selectedWeekTypeView === 'All Weeks')
       ? marketFilteredData
       : marketFilteredData.filter(d => d.weekType === selectedWeekTypeView);
 
@@ -738,6 +743,9 @@ export default function App() {
 
     return (
       <div className="animate-in fade-in duration-500">
+        
+        {renderKpiTracker()}
+
         <div className="mb-6 flex items-center justify-between">
           <div>
             <h2 className="text-3xl font-black text-white tracking-tight">Detailed Data Hub</h2>
@@ -759,7 +767,30 @@ export default function App() {
           ))}
         </div>
 
-        <InsightBox text={getAIInsight('detailed', activeTableData, marketFilteredData, selectedWeekTypeView)} />
+        {selectedWeekTypeView !== '' && (
+          <InsightBox text={getAIInsight('detailed', activeTableData, marketFilteredData, selectedWeekTypeView)} />
+        )}
+
+        {selectedWeekTypeView !== '' && activeTableData.length > 0 && (
+          <div className="grid grid-cols-1 lg:grid-cols-2 gap-8 mb-8 animate-in fade-in zoom-in-95 duration-500">
+             <div className="bg-[#131A2A] p-8 rounded-[2.5rem] border border-white/5 shadow-xl flex flex-col">
+               <div className="flex justify-between items-center mb-8">
+                 <h4 className="text-sm font-black text-white uppercase tracking-widest flex items-center gap-2"><Layers className="w-4 h-4 text-emerald-400" /> Volume: Installs vs Purchases</h4>
+               </div>
+               <div className="flex-1 min-h-[300px]">
+                  <DualAxisLineChart chartData={activeTableData} leftKey="installs" rightKey="purchases" leftColorText="fill-emerald-400" rightColorText="fill-rose-400" leftColorHex="#34d399" rightColorHex="#fb7185" isLeftCurrency={false} isRightCurrency={false} />
+               </div>
+             </div>
+             <div className="bg-[#131A2A] p-8 rounded-[2.5rem] border border-white/5 shadow-xl flex flex-col">
+               <div className="flex justify-between items-center mb-8">
+                 <h4 className="text-sm font-black text-white uppercase tracking-widest flex items-center gap-2"><Activity className="w-4 h-4 text-red-400" /> Efficiency: CPI vs CPP</h4>
+               </div>
+               <div className="flex-1 min-h-[300px]">
+                  <DualAxisLineChart chartData={activeTableData} leftKey="cpi" rightKey="cpp" leftColorText="fill-amber-400" rightColorText="fill-red-400" leftColorHex="#fbbf24" rightColorHex="#f87171" isLeftCurrency={true} isRightCurrency={true} />
+               </div>
+             </div>
+          </div>
+        )}
         
         <div className="bg-[#131A2A] rounded-[2rem] border border-white/5 shadow-xl overflow-hidden mb-8">
           <div className="overflow-x-auto">
@@ -802,27 +833,6 @@ export default function App() {
             </table>
           </div>
         </div>
-
-        {activeTableData.length > 0 && (
-          <div className="grid grid-cols-1 lg:grid-cols-2 gap-8 mt-8 animate-in fade-in zoom-in-95 duration-500">
-             <div className="bg-[#131A2A] p-8 rounded-[2.5rem] border border-white/5 shadow-xl flex flex-col">
-               <div className="flex justify-between items-center mb-8">
-                 <h4 className="text-sm font-black text-white uppercase tracking-widest flex items-center gap-2"><Layers className="w-4 h-4 text-emerald-400" /> Volume: Installs vs Purchases</h4>
-               </div>
-               <div className="flex-1 min-h-[300px]">
-                  <DualAxisLineChart chartData={activeTableData} leftKey="installs" rightKey="purchases" leftColorText="fill-emerald-400" rightColorText="fill-rose-400" leftColorHex="#34d399" rightColorHex="#fb7185" isLeftCurrency={false} isRightCurrency={false} />
-               </div>
-             </div>
-             <div className="bg-[#131A2A] p-8 rounded-[2.5rem] border border-white/5 shadow-xl flex flex-col">
-               <div className="flex justify-between items-center mb-8">
-                 <h4 className="text-sm font-black text-white uppercase tracking-widest flex items-center gap-2"><Activity className="w-4 h-4 text-red-400" /> Efficiency: CPI vs CPP</h4>
-               </div>
-               <div className="flex-1 min-h-[300px]">
-                  <DualAxisLineChart chartData={activeTableData} leftKey="cpi" rightKey="cpp" leftColorText="fill-amber-400" rightColorText="fill-red-400" leftColorHex="#fbbf24" rightColorHex="#f87171" isLeftCurrency={true} isRightCurrency={true} />
-               </div>
-             </div>
-          </div>
-        )}
       </div>
     );
   };
@@ -964,7 +974,6 @@ export default function App() {
       <main className="max-w-7xl mx-auto px-6 py-12 relative">
         <div className="absolute top-0 left-1/2 -translate-x-1/2 w-full h-[600px] bg-gradient-to-b from-purple-900/10 via-transparent to-transparent pointer-events-none rounded-full blur-[100px]"></div>
         <div className="relative z-10">
-          {renderKpiTracker()}
           {activeTab === 'summary' && renderSummary()}
           {activeTab === 'market' && renderMarket()}
           {activeTab === 'channel' && renderChannel()}
@@ -975,7 +984,7 @@ export default function App() {
       <footer className="max-w-7xl mx-auto px-6 pb-12 border-t border-white/5 mt-12 pt-8 flex flex-col md:flex-row justify-between items-center gap-6 opacity-60 hover:opacity-100 transition-opacity">
         <div className="flex items-center gap-4">
           <Info className="w-4 h-4 text-slate-400" />
-          <span className="text-[10px] font-black uppercase tracking-widest text-slate-500">MMP Cross-Engine v4.6 | Currency & KPI Engine Active</span>
+          <span className="text-[10px] font-black uppercase tracking-widest text-slate-500">MMP Cross-Engine v4.7 | Strict Pacing Protocol Active</span>
         </div>
         <div className="flex gap-4 items-center bg-[#131A2A] px-4 py-2 rounded-full border border-white/5">
           <div className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse shadow-[0_0_8px_rgba(52,211,153,0.8)]" />
