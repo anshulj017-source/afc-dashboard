@@ -111,7 +111,7 @@ const BarChart = ({ chartData, valueKey, labelKey = 'name', color = 'bg-purple-5
   return (
     <div className="space-y-4">
       {chartData.slice(0, 8).map((item, i) => {
-        const valStr = isPercent ? `${item[valueKey].toFixed(2)}%` : isCurrency ? `${exSym}${d3.format(",.2f")(item[valueKey] * exRate)}` : formatShort(item[valueKey]);
+        const valStr = isPercent ? `${item[valueKey].toFixed(2)}%` : isCurrency ? `${exSym}${d3.format(",.0f")(item[valueKey] * exRate)}` : formatShort(item[valueKey]);
         return (
           <div key={i} onClick={() => onClickItem && onClickItem(item[labelKey])} className={`group relative ${onClickItem ? 'cursor-pointer' : ''}`}>
             <div className="flex justify-between items-end mb-1.5">
@@ -189,6 +189,87 @@ const DualAxisLineChart = ({ chartData, leftKey, rightKey, leftColorText, rightC
                    <span className="font-black text-slate-300 border-b border-white/10 pb-1.5 mb-0.5">Week {d.week}, {d.year}</span>
                    <div className="flex justify-between"><span className={leftColorText.replace('fill-', 'text-')}>{leftKey.toUpperCase()}:</span> <span>{isLeftCurrency ? `${exSym}${d3.format(",.2f")(d[leftKey] * exRate)}` : d3.format(",.2f")(d[leftKey])}</span></div>
                    <div className="flex justify-between"><span className={rightColorText.replace('fill-', 'text-')}>{rightKey.toUpperCase()}:</span> <span>{isRightCurrency ? `${exSym}${d3.format(",.2f")(d[rightKey] * exRate)}` : d3.format(",.2f")(d[rightKey])}</span></div>
+                 </div>
+               </foreignObject>
+             </g>
+          ))}
+          {chartData.map((d, i) => ((i % skipCount === 0 || i === chartData.length - 1) && (
+            <g key={`x-${i}`} transform={`translate(${x(`W${d.week}`)}, ${ih})`}>
+              <text y="24" textAnchor="middle" className="text-[10px] fill-slate-500 font-black">W{d.week}</text>
+            </g>
+          )))}
+        </g>
+      </svg>
+    </div>
+  );
+};
+
+// --- NEW COMPONENT: SINGLE METRIC LINE COMPARISON (SW vs BAU) ---
+const ComparisonLineChart = ({ rawData, metric, colorSW, colorBAU, isCurrency, exSym = '$', exRate = 1, aggregateFn, width = 800, height = 250 }) => {
+  if (!rawData || rawData.length === 0) return (
+    <div className="h-full w-full min-h-[250px] flex items-center justify-center bg-white/5 rounded-3xl border border-dashed border-white/10 text-[10px] font-black text-slate-500 uppercase tracking-widest">Insufficient Data</div>
+  );
+  
+  const margin = { top: 20, right: 30, bottom: 40, left: 50 };
+  const iw = width - margin.left - margin.right;
+  const ih = height - margin.top - margin.bottom;
+
+  // Group by TimeKey, then evaluate SW and BAU metrics per week
+  const grouped = d3.groups(rawData, d => d.timeKey).sort((a,b) => a[0] - b[0]);
+  const chartData = grouped.map(([key, values]) => {
+     const swRows = values.filter(v => v.weekType === 'Salary Weeks');
+     const bauRows = values.filter(v => v.weekType === 'BAU');
+     const swAgg = swRows.length > 0 ? aggregateFn(swRows) : null;
+     const bauAgg = bauRows.length > 0 ? aggregateFn(bauRows) : null;
+     return {
+        timeKey: key,
+        week: values[0].week,
+        year: values[0].year,
+        sw: swAgg ? swAgg[metric] : null,
+        bau: bauAgg ? bauAgg[metric] : null
+     };
+  });
+
+  const x = d3.scalePoint().domain(chartData.map(d => `W${d.week}`)).range([0, iw]);
+  const maxVal = d3.max(chartData, d => Math.max(d.sw || 0, d.bau || 0)) * 1.1 || 1;
+  const y = d3.scaleLinear().domain([0, maxVal]).range([ih, 0]);
+
+  // Defined prevents drawing lines to zero when data is null for that week
+  const lineSW = d3.line().defined(d => d.sw !== null).x(d => x(`W${d.week}`)).y(d => y(d.sw)).curve(d3.curveMonotoneX);
+  const lineBAU = d3.line().defined(d => d.bau !== null).x(d => x(`W${d.week}`)).y(d => y(d.bau)).curve(d3.curveMonotoneX);
+  
+  const skipCount = Math.ceil(chartData.length / 10);
+  const fmtT = (t, isC) => isC ? `${exSym}${d3.format(".1s")(t * exRate)}` : d3.format(".1s")(t);
+
+  return (
+    <div className="flex flex-col h-full w-full relative">
+      <svg width="100%" height="100%" viewBox={`0 0 ${width} ${height}`} preserveAspectRatio="xMidYMid meet" className="overflow-visible min-h-[200px] flex-1">
+        <g transform={`translate(${margin.left},${margin.top})`}>
+          {y.ticks(5).map(t => (
+            <g key={`t-${t}`} transform={`translate(0, ${y(t)})`}>
+              <line x2={iw} stroke="#1e293b" strokeWidth="1" strokeDasharray="2,2" />
+              <text x="-10" dy="0.32em" textAnchor="end" className="text-[9px] fill-slate-400 font-bold">{fmtT(t, isCurrency)}</text>
+            </g>
+          ))}
+          <path d={lineSW(chartData)} fill="none" stroke={colorSW} strokeWidth="3" strokeLinecap="round" style={{ filter: `drop-shadow(0 0 6px ${colorSW}60)` }} />
+          <path d={lineBAU(chartData)} fill="none" stroke={colorBAU} strokeWidth="3" strokeLinecap="round" style={{ filter: `drop-shadow(0 0 6px ${colorBAU}60)` }} />
+          
+          {chartData.map((d, i) => (
+             <g key={`pts-${i}`}>
+               {d.sw !== null && <circle cx={x(`W${d.week}`)} cy={y(d.sw)} r="4" fill="#0f172a" stroke={colorSW} strokeWidth="2" />}
+               {d.bau !== null && <circle cx={x(`W${d.week}`)} cy={y(d.bau)} r="4" fill="#0f172a" stroke={colorBAU} strokeWidth="2" />}
+             </g>
+          ))}
+
+          {chartData.map((d, i) => (
+             <g key={`hover-${i}`} className="group cursor-pointer">
+               <rect x={x(`W${d.week}`) - 15} y={0} width={30} height={ih} fill="transparent" />
+               <line x1={x(`W${d.week}`)} x2={x(`W${d.week}`)} y1={0} y2={ih} stroke="#475569" strokeWidth="1" strokeDasharray="4,4" className="opacity-0 group-hover:opacity-100" />
+               <foreignObject x={x(`W${d.week}`) > iw / 2 ? x(`W${d.week}`) - 130 : x(`W${d.week}`) + 10} y={10} width="120" height="90" className="opacity-0 group-hover:opacity-100 pointer-events-none transition-opacity z-50">
+                 <div className="bg-[#0f172a]/90 backdrop-blur-md text-white text-[10px] p-3 rounded-xl shadow-2xl flex flex-col gap-1.5 border border-white/10">
+                   <span className="font-black text-slate-300 border-b border-white/10 pb-1.5 mb-0.5">Week {d.week}, {d.year}</span>
+                   {d.sw !== null && <div className="flex justify-between"><span style={{color: colorSW}}>Salary Week:</span> <span>{isCurrency ? `${exSym}${d3.format(",.2f")(d.sw * exRate)}` : d3.format(",.2f")(d.sw)}</span></div>}
+                   {d.bau !== null && <div className="flex justify-between"><span style={{color: colorBAU}}>BAU:</span> <span>{isCurrency ? `${exSym}${d3.format(",.2f")(d.bau * exRate)}` : d3.format(",.2f")(d.bau)}</span></div>}
                  </div>
                </foreignObject>
              </g>
@@ -354,7 +435,7 @@ export default function App() {
   const metrics = useMemo(() => aggregate(filteredData), [filteredData]);
   const weeklyTimeline = useMemo(() => d3.groups(filteredData, d => d.timeKey).map(([key, values]) => ({ timeKey: key, week: values[0].week, year: values[0].year, ...aggregate(values) })).sort((a, b) => a.timeKey - b.timeKey), [filteredData]);
   
-  // Enhancement: Dynamic ghost market filtering based on traffic segment
+  // Strict Paid Filtering for Market and Channel Navigation bars
   const marketBreakdown = useMemo(() => d3.groups(filteredData, d => d.market)
     .map(([name, values]) => ({ name, ...aggregate(values) }))
     .filter(m => trafficFilter === 'Paid' ? m.cost >= 1 : (m.cost >= 1 || m.purchases >= 1 || m.installs >= 1))
@@ -417,7 +498,7 @@ export default function App() {
 
         return (
           <div className="space-y-4 text-sm text-purple-50">
-             <strong className="text-white text-base">Comparison Analysis (Salary vs BAU):</strong>
+             <strong className="text-white text-base">Trend Analysis (Salary vs BAU):</strong>
              <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mt-3">
                 <div className="bg-white/5 p-5 rounded-xl border border-white/10">
                    <p className="font-bold text-white mb-3 border-b border-white/10 pb-2">Salary Weeks</p>
@@ -443,7 +524,7 @@ export default function App() {
                 </div>
              </div>
              <p className="mt-4"><strong className="text-white">Observation:</strong> Salary week CPP is {cppDiff > 0 ? `${cppDiff.toFixed(1)}% higher` : `${Math.abs(cppDiff).toFixed(1)}% lower`} than BAU periods, with purchase volume shifting by {volDiff > 0 ? '+' : ''}{volDiff.toFixed(1)}%.</p>
-             <p><strong className="text-white">Action Plan:</strong> Implement a pulsing budget strategy. Allocate ~65% of monthly budgets to Salary Weeks to capture high-intent users, while pacing BAU spend to focus on low-cost installs and audience building.</p>
+             <p><strong className="text-white">Action Plan:</strong> The trend lines map directly to behavioral purchasing cycles. Use the visual comparison above to establish aggressive budget pulsing rules during Salary Week windows while maintaining a consistent baseline throughout BAU.</p>
           </div>
         );
       }
@@ -632,7 +713,7 @@ export default function App() {
       <div className="animate-in fade-in duration-500">
         <div className="mb-6">
           <h2 className="text-3xl font-black text-white tracking-tight">Market Intelligence</h2>
-          <p className="text-slate-400 font-medium italic">Geographical footprint filtered for active ad spend &gt; $1.</p>
+          <p className="text-slate-400 font-medium italic">Geographical footprint filtered dynamically by traffic segment parameters.</p>
         </div>
 
         <NavigationBar items={marketBreakdown} selected={selectedMarketView} setSelected={setSelectedMarketView} />
@@ -681,7 +762,8 @@ export default function App() {
 
   function renderChannel() {
     const localFilteredData = selectedMarketView === 'All' ? filteredData : filteredData.filter(d => d.market === selectedMarketView);
-    const localChannelBreakdown = d3.groups(localFilteredData, d => d.channel).map(([name, values]) => ({ name, ...aggregate(values) })).filter(c => c.cost > 0 || c.purchases > 0).sort((a, b) => b.cost - a.cost);
+    const localChannelBreakdown = d3.groups(localFilteredData, d => d.channel).map(([name, values]) => ({ name, ...aggregate(values) }))
+      .filter(c => trafficFilter === 'Paid' ? c.cost >= 1 : (c.cost >= 1 || c.purchases >= 1 || c.installs >= 1)).sort((a, b) => b.cost - a.cost);
 
     const sortedByInstalls = [...localChannelBreakdown].sort((a, b) => b.installs - a.installs);
     const sortedByPurchases = [...localChannelBreakdown].sort((a, b) => b.purchases - a.purchases);
@@ -699,7 +781,7 @@ export default function App() {
         <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 mb-6">
           <div>
             <h2 className="text-3xl font-black text-white tracking-tight">Channel Attribution</h2>
-            <p className="text-slate-400 font-medium italic">Marketing platform performance across the funnel.</p>
+            <p className="text-slate-400 font-medium italic">Marketing platform performance filtered dynamically by traffic segment.</p>
           </div>
           <div className="flex flex-col items-end">
              <span className="text-[10px] font-black uppercase text-slate-400 mb-1 tracking-widest">Filter by Market</span>
@@ -791,22 +873,9 @@ export default function App() {
         .map(([key, values]) => ({ week: values[0].week, year: values[0].year, ...aggregate(values) }))
         .sort((a,b) => a.week - b.week);
 
-    // --- ENHANCEMENT: SALARY VS BAU COMPARISON GRAPHS ---
     const isAllWeeks = selectedWeekTypeView === 'All Weeks';
     const isSpecificWeek = selectedWeekTypeView === 'Salary Weeks' || selectedWeekTypeView === 'BAU';
     const isAnySelected = selectedWeekTypeView !== '';
-
-    const swData = marketFilteredData.filter(d => d.weekType === 'Salary Weeks');
-    const bauData = marketFilteredData.filter(d => d.weekType === 'BAU');
-    const swAgg = aggregate(swData);
-    const bauAgg = aggregate(bauData);
-
-    const compData = {
-      installs: [{ name: 'Salary Weeks', value: swAgg.installs }, { name: 'BAU Periods', value: bauAgg.installs }],
-      purchases: [{ name: 'Salary Weeks', value: swAgg.purchases }, { name: 'BAU Periods', value: bauAgg.purchases }],
-      cpi: [{ name: 'Salary Weeks', value: swAgg.cpi }, { name: 'BAU Periods', value: bauAgg.cpi }],
-      cpp: [{ name: 'Salary Weeks', value: swAgg.cpp }, { name: 'BAU Periods', value: bauAgg.cpp }]
-    };
 
     return (
       <div className="animate-in fade-in duration-500">
@@ -857,22 +926,57 @@ export default function App() {
         )}
 
         {isAllWeeks && activeTableData.length > 0 && (
-          <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-4 gap-6 mb-8 animate-in fade-in zoom-in-95 duration-500">
+          <div className="grid grid-cols-1 lg:grid-cols-2 gap-8 mb-8 animate-in fade-in zoom-in-95 duration-500">
              <div className="bg-[#131A2A] p-6 rounded-[2rem] border border-white/5 shadow-xl flex flex-col">
-               <h4 className="text-xs font-black text-white uppercase tracking-widest mb-6 flex items-center gap-2"><Layers className="w-4 h-4 text-emerald-400" /> Installs</h4>
-               <div className="flex-1"><BarChart chartData={compData.installs} valueKey="value" color="bg-emerald-500" exSym={exSym} exRate={exRate} /></div>
+               <div className="flex justify-between items-center mb-6">
+                 <h4 className="text-sm font-black text-white uppercase tracking-widest flex items-center gap-2"><Layers className="w-4 h-4 text-emerald-400" /> Installs (SW vs BAU)</h4>
+                 <div className="flex gap-4 text-[10px] font-black uppercase text-slate-400">
+                    <span className="flex items-center gap-1"><div className="w-2 h-2 rounded-full bg-emerald-400"/> SW</span>
+                    <span className="flex items-center gap-1"><div className="w-2 h-2 rounded-full bg-emerald-700"/> BAU</span>
+                 </div>
+               </div>
+               <div className="flex-1 min-h-[250px]">
+                 <ComparisonLineChart rawData={marketFilteredData} metric="installs" colorSW="#34d399" colorBAU="#047857" isCurrency={false} exSym={exSym} exRate={exRate} aggregateFn={aggregate} />
+               </div>
              </div>
+             
              <div className="bg-[#131A2A] p-6 rounded-[2rem] border border-white/5 shadow-xl flex flex-col">
-               <h4 className="text-xs font-black text-white uppercase tracking-widest mb-6 flex items-center gap-2"><ShoppingCart className="w-4 h-4 text-rose-400" /> Purchases</h4>
-               <div className="flex-1"><BarChart chartData={compData.purchases} valueKey="value" color="bg-rose-500" exSym={exSym} exRate={exRate} /></div>
+               <div className="flex justify-between items-center mb-6">
+                 <h4 className="text-sm font-black text-white uppercase tracking-widest flex items-center gap-2"><ShoppingCart className="w-4 h-4 text-rose-400" /> Purchases (SW vs BAU)</h4>
+                 <div className="flex gap-4 text-[10px] font-black uppercase text-slate-400">
+                    <span className="flex items-center gap-1"><div className="w-2 h-2 rounded-full bg-rose-400"/> SW</span>
+                    <span className="flex items-center gap-1"><div className="w-2 h-2 rounded-full bg-rose-700"/> BAU</span>
+                 </div>
+               </div>
+               <div className="flex-1 min-h-[250px]">
+                 <ComparisonLineChart rawData={marketFilteredData} metric="purchases" colorSW="#fb7185" colorBAU="#be123c" isCurrency={false} exSym={exSym} exRate={exRate} aggregateFn={aggregate} />
+               </div>
              </div>
+
              <div className="bg-[#131A2A] p-6 rounded-[2rem] border border-white/5 shadow-xl flex flex-col">
-               <h4 className="text-xs font-black text-white uppercase tracking-widest mb-6 flex items-center gap-2"><Activity className="w-4 h-4 text-amber-400" /> CPI Efficiency</h4>
-               <div className="flex-1"><BarChart chartData={compData.cpi} valueKey="value" color="bg-amber-500" isCurrency={true} exSym={exSym} exRate={exRate} /></div>
+               <div className="flex justify-between items-center mb-6">
+                 <h4 className="text-sm font-black text-white uppercase tracking-widest flex items-center gap-2"><Activity className="w-4 h-4 text-amber-400" /> CPI (SW vs BAU)</h4>
+                 <div className="flex gap-4 text-[10px] font-black uppercase text-slate-400">
+                    <span className="flex items-center gap-1"><div className="w-2 h-2 rounded-full bg-amber-400"/> SW</span>
+                    <span className="flex items-center gap-1"><div className="w-2 h-2 rounded-full bg-amber-700"/> BAU</span>
+                 </div>
+               </div>
+               <div className="flex-1 min-h-[250px]">
+                 <ComparisonLineChart rawData={marketFilteredData} metric="cpi" colorSW="#fbbf24" colorBAU="#b45309" isCurrency={true} exSym={exSym} exRate={exRate} aggregateFn={aggregate} />
+               </div>
              </div>
+
              <div className="bg-[#131A2A] p-6 rounded-[2rem] border border-white/5 shadow-xl flex flex-col">
-               <h4 className="text-xs font-black text-white uppercase tracking-widest mb-6 flex items-center gap-2"><Target className="w-4 h-4 text-red-400" /> CPP Efficiency</h4>
-               <div className="flex-1"><BarChart chartData={compData.cpp} valueKey="value" color="bg-red-500" isCurrency={true} exSym={exSym} exRate={exRate} /></div>
+               <div className="flex justify-between items-center mb-6">
+                 <h4 className="text-sm font-black text-white uppercase tracking-widest flex items-center gap-2"><Target className="w-4 h-4 text-red-400" /> CPP (SW vs BAU)</h4>
+                 <div className="flex gap-4 text-[10px] font-black uppercase text-slate-400">
+                    <span className="flex items-center gap-1"><div className="w-2 h-2 rounded-full bg-red-400"/> SW</span>
+                    <span className="flex items-center gap-1"><div className="w-2 h-2 rounded-full bg-red-800"/> BAU</span>
+                 </div>
+               </div>
+               <div className="flex-1 min-h-[250px]">
+                 <ComparisonLineChart rawData={marketFilteredData} metric="cpp" colorSW="#f87171" colorBAU="#991b1b" isCurrency={true} exSym={exSym} exRate={exRate} aggregateFn={aggregate} />
+               </div>
              </div>
           </div>
         )}
@@ -1267,7 +1371,7 @@ export default function App() {
           <footer className="max-w-7xl mx-auto px-6 pb-12 border-t border-white/5 mt-12 pt-8 flex flex-col md:flex-row justify-between items-center gap-6 opacity-60 hover:opacity-100 transition-opacity">
             <div className="flex items-center gap-4">
               <Info className="w-4 h-4 text-slate-400" />
-              <span className="text-[10px] font-black uppercase tracking-widest text-slate-500">MMP Cross-Engine v5.0 | Secure Component Security Active</span>
+              <span className="text-[10px] font-black uppercase tracking-widest text-slate-500">MMP Cross-Engine v5.1 | Single Metric Tracking & True Paid Filtering Active</span>
             </div>
             <div className="flex gap-4 items-center bg-[#131A2A] px-4 py-2 rounded-full border border-white/5">
               <div className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse shadow-[0_0_8px_rgba(52,211,153,0.8)]" />
