@@ -11,7 +11,7 @@ import {
 const COMBINED_COUNTRY_CSV_URL = "https://docs.google.com/spreadsheets/d/e/2PACX-1vSt_K4Y6h2g2iVm2CDrc33rQGDToGd41a805URte2UEDqMYB_K8V4YKLIJ9rCMoLdmwvbco7uyevE9U/pub?gid=1273221446&single=true&output=csv";
 const RAW_ADJUST_CSV_URL = "https://docs.google.com/spreadsheets/d/e/2PACX-1vSt_K4Y6h2g2iVm2CDrc33rQGDToGd41a805URte2UEDqMYB_K8V4YKLIJ9rCMoLdmwvbco7uyevE9U/pub?gid=588241351&single=true&output=csv";
 
-// --- CORE HELPERS ---
+// --- SSR-SAFE CORE HELPERS ---
 const MONTHS = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
 const getDateFromWeek = (week, year = 2024) => {
   const d = new Date(year, 0, 1 + (week - 1) * 7);
@@ -111,7 +111,7 @@ const BarChart = ({ chartData, valueKey, labelKey = 'name', color = 'bg-purple-5
   return (
     <div className="space-y-4">
       {chartData.slice(0, 8).map((item, i) => {
-        const valStr = isPercent ? `${item[valueKey].toFixed(2)}%` : isCurrency ? `${exSym}${d3.format(",.0f")(item[valueKey] * exRate)}` : formatShort(item[valueKey]);
+        const valStr = isPercent ? `${item[valueKey].toFixed(2)}%` : isCurrency ? `${exSym}${d3.format(",.2f")(item[valueKey] * exRate)}` : formatShort(item[valueKey]);
         return (
           <div key={i} onClick={() => onClickItem && onClickItem(item[labelKey])} className={`group relative ${onClickItem ? 'cursor-pointer' : ''}`}>
             <div className="flex justify-between items-end mb-1.5">
@@ -207,7 +207,6 @@ const DualAxisLineChart = ({ chartData, leftKey, rightKey, leftColorText, rightC
 
 // === MAIN APPLICATION ===
 export default function App() {
-  // --- STRICT HYDRATION BAILOUT ---
   const [isMounted, setIsMounted] = useState(false);
 
   const [data, setData] = useState([]);
@@ -237,7 +236,6 @@ export default function App() {
   const formatC = (val, dec = 0) => `${exSym}${d3.format(`,.${dec}f`)(val * exRate)}`;
 
   useEffect(() => {
-    // Tells Next.js the component is now safely inside the browser
     setIsMounted(true);
     setClientDate(new Date().toLocaleDateString());
   }, []);
@@ -355,8 +353,17 @@ export default function App() {
 
   const metrics = useMemo(() => aggregate(filteredData), [filteredData]);
   const weeklyTimeline = useMemo(() => d3.groups(filteredData, d => d.timeKey).map(([key, values]) => ({ timeKey: key, week: values[0].week, year: values[0].year, ...aggregate(values) })).sort((a, b) => a.timeKey - b.timeKey), [filteredData]);
-  const marketBreakdown = useMemo(() => d3.groups(filteredData, d => d.market).map(([name, values]) => ({ name, ...aggregate(values) })).filter(m => m.cost >= 1 || m.purchases >= 1).sort((a, b) => b.cost - a.cost), [filteredData]);
-  const channelBreakdown = useMemo(() => d3.groups(filteredData, d => d.channel).map(([name, values]) => ({ name, ...aggregate(values) })).filter(m => m.cost >= 1 || m.purchases >= 1).sort((a, b) => b.cost - a.cost), [filteredData]);
+  
+  // Enhancement: Dynamic ghost market filtering based on traffic segment
+  const marketBreakdown = useMemo(() => d3.groups(filteredData, d => d.market)
+    .map(([name, values]) => ({ name, ...aggregate(values) }))
+    .filter(m => trafficFilter === 'Paid' ? m.cost >= 1 : (m.cost >= 1 || m.purchases >= 1 || m.installs >= 1))
+    .sort((a, b) => b.cost - a.cost), [filteredData, trafficFilter]);
+    
+  const channelBreakdown = useMemo(() => d3.groups(filteredData, d => d.channel)
+    .map(([name, values]) => ({ name, ...aggregate(values) }))
+    .filter(c => trafficFilter === 'Paid' ? c.cost >= 1 : (c.cost >= 1 || c.purchases >= 1 || c.installs >= 1))
+    .sort((a, b) => b.cost - a.cost), [filteredData, trafficFilter]);
 
   const handleDrillDown = (type, value) => {
     setActiveTab('detailed');
@@ -444,6 +451,7 @@ export default function App() {
     return "";
   }
 
+  // --- RENDERS ---
   function renderLeaderboard() {
     const topInstalls = [...channelBreakdown].sort((a,b)=>b.installs - a.installs)[0];
     const topCPP = [...channelBreakdown].filter(c=>c.purchases > 0 && c.cost > 0).sort((a,b)=>a.cpp - b.cpp)[0];
@@ -783,6 +791,23 @@ export default function App() {
         .map(([key, values]) => ({ week: values[0].week, year: values[0].year, ...aggregate(values) }))
         .sort((a,b) => a.week - b.week);
 
+    // --- ENHANCEMENT: SALARY VS BAU COMPARISON GRAPHS ---
+    const isAllWeeks = selectedWeekTypeView === 'All Weeks';
+    const isSpecificWeek = selectedWeekTypeView === 'Salary Weeks' || selectedWeekTypeView === 'BAU';
+    const isAnySelected = selectedWeekTypeView !== '';
+
+    const swData = marketFilteredData.filter(d => d.weekType === 'Salary Weeks');
+    const bauData = marketFilteredData.filter(d => d.weekType === 'BAU');
+    const swAgg = aggregate(swData);
+    const bauAgg = aggregate(bauData);
+
+    const compData = {
+      installs: [{ name: 'Salary Weeks', value: swAgg.installs }, { name: 'BAU Periods', value: bauAgg.installs }],
+      purchases: [{ name: 'Salary Weeks', value: swAgg.purchases }, { name: 'BAU Periods', value: bauAgg.purchases }],
+      cpi: [{ name: 'Salary Weeks', value: swAgg.cpi }, { name: 'BAU Periods', value: bauAgg.cpi }],
+      cpp: [{ name: 'Salary Weeks', value: swAgg.cpp }, { name: 'BAU Periods', value: bauAgg.cpp }]
+    };
+
     return (
       <div className="animate-in fade-in duration-500">
         
@@ -827,11 +852,32 @@ export default function App() {
           ))}
         </div>
 
-        {selectedWeekTypeView !== '' && (
+        {isAnySelected && (
           <InsightBox text={getAIInsight('detailed', activeTableData, marketFilteredData, selectedWeekTypeView)} />
         )}
 
-        {selectedWeekTypeView !== '' && activeTableData.length > 0 && (
+        {isAllWeeks && activeTableData.length > 0 && (
+          <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-4 gap-6 mb-8 animate-in fade-in zoom-in-95 duration-500">
+             <div className="bg-[#131A2A] p-6 rounded-[2rem] border border-white/5 shadow-xl flex flex-col">
+               <h4 className="text-xs font-black text-white uppercase tracking-widest mb-6 flex items-center gap-2"><Layers className="w-4 h-4 text-emerald-400" /> Installs</h4>
+               <div className="flex-1"><BarChart chartData={compData.installs} valueKey="value" color="bg-emerald-500" exSym={exSym} exRate={exRate} /></div>
+             </div>
+             <div className="bg-[#131A2A] p-6 rounded-[2rem] border border-white/5 shadow-xl flex flex-col">
+               <h4 className="text-xs font-black text-white uppercase tracking-widest mb-6 flex items-center gap-2"><ShoppingCart className="w-4 h-4 text-rose-400" /> Purchases</h4>
+               <div className="flex-1"><BarChart chartData={compData.purchases} valueKey="value" color="bg-rose-500" exSym={exSym} exRate={exRate} /></div>
+             </div>
+             <div className="bg-[#131A2A] p-6 rounded-[2rem] border border-white/5 shadow-xl flex flex-col">
+               <h4 className="text-xs font-black text-white uppercase tracking-widest mb-6 flex items-center gap-2"><Activity className="w-4 h-4 text-amber-400" /> CPI Efficiency</h4>
+               <div className="flex-1"><BarChart chartData={compData.cpi} valueKey="value" color="bg-amber-500" isCurrency={true} exSym={exSym} exRate={exRate} /></div>
+             </div>
+             <div className="bg-[#131A2A] p-6 rounded-[2rem] border border-white/5 shadow-xl flex flex-col">
+               <h4 className="text-xs font-black text-white uppercase tracking-widest mb-6 flex items-center gap-2"><Target className="w-4 h-4 text-red-400" /> CPP Efficiency</h4>
+               <div className="flex-1"><BarChart chartData={compData.cpp} valueKey="value" color="bg-red-500" isCurrency={true} exSym={exSym} exRate={exRate} /></div>
+             </div>
+          </div>
+        )}
+
+        {isSpecificWeek && activeTableData.length > 0 && (
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-8 mb-8 animate-in fade-in zoom-in-95 duration-500">
              <div className="bg-[#131A2A] p-8 rounded-[2.5rem] border border-white/5 shadow-xl flex flex-col">
                <div className="flex justify-between items-center mb-8">
