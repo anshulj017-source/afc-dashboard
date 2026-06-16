@@ -350,7 +350,7 @@ export default function App() {
             cost: parseMetric(row['Cost'] || row['Spend'] || row['cost']),
             impressions: parseMetric(row['Impression'] || row['Impressions']),
             clicks: parseMetric(row['Clicks'] || row['clicks']),
-            installs: 0, logins: 0, purchases: 0,
+            installs: 0, logins: 0, purchases: 0, sessions: 0,
             week, year, date: getDateFromWeek(week, year),
             market: normalizeMarket(row['Country'] || row['Channel Country']),
             channel: (!rawS1Channel || rawS1Channel === 'BLANK') ? 'Other' : normalizeChannel(rawS1Channel),
@@ -367,6 +367,7 @@ export default function App() {
           const trafficType = rawClass.toString().toLowerCase().includes('organic') ? 'Organic' : 'Paid';
           const purchases = parseMetric(Object.values(row)[7] || row['Purchases'] || row['Total Purchases']);
           const logins = parseMetric(Object.values(row)[8] || row['login_success'] || row['Logins']);
+          const sessions = parseMetric(row['Sessions'] || row['sessions'] || Object.values(row)[9] || 0);
           const rawS2Channel = Object.values(row)[3] || row['Network'] || row['Source'];
           const rawWeekTypeS2 = Object.values(row)[17] || row['Week Type'];
           const rawCampTypeS2 = row['Campaign Objective'] || row['campaign objective'] || Object.values(row)[18] || 'Unknown';
@@ -374,7 +375,7 @@ export default function App() {
           return {
             cost: 0, impressions: 0, clicks: 0,
             installs: parseMetric(row['Installs'] || row['Install'] || row['Total Installs'] || row['Network Installs']),
-            logins, purchases, week, year, date: getDateFromWeek(week, year),
+            logins, purchases, sessions, week, year, date: getDateFromWeek(week, year),
             market: normalizeMarket(row['Country'] || row['Geo']),
             channel: (!rawS2Channel || rawS2Channel === 'BLANK' || rawS2Channel === 'Organic') ? 'Other' : normalizeChannel(rawS2Channel),
             weekType: parseWeekType(rawWeekTypeS2),
@@ -428,8 +429,9 @@ export default function App() {
     const cost = d3.sum(rows, d => d.cost), impressions = d3.sum(rows, d => d.impressions);
     const clicks = d3.sum(rows, d => d.clicks), installs = d3.sum(rows, d => d.installs);
     const logins = d3.sum(rows, d => d.logins), purchases = d3.sum(rows, d => d.purchases);
+    const sessions = d3.sum(rows, d => d.sessions || 0);
     return {
-      cost, impressions, clicks, installs, logins, purchases,
+      cost, impressions, clicks, installs, logins, purchases, sessions,
       ctr: impressions > 0 ? (clicks / impressions) * 100 : 0,
       cpc: clicks > 0 ? cost / clicks : 0,
       cpm: impressions > 0 ? (cost / impressions) * 1000 : 0,
@@ -437,7 +439,8 @@ export default function App() {
       cpp: purchases > 0 ? cost / purchases : 0,
       cvr: clicks > 0 ? (installs / clicks) * 100 : 0,
       ltr: installs > 0 ? (logins / installs) * 100 : 0,
-      ltp: logins > 0 ? (purchases / logins) * 100 : 0
+      ltp: logins > 0 ? (purchases / logins) * 100 : 0,
+      ipr: installs > 0 ? (purchases / installs) * 100 : 0
     };
   };
 
@@ -468,7 +471,6 @@ export default function App() {
       setSelectedDetailedChannel([value]);
       setSelectedMarketView('All');
     } else if (type === 'campaign') {
-      // Re-route appropriately if drilling down from campaigns
       setActiveTab('campaign');
       setSelectedCampaignType(value);
     }
@@ -1211,31 +1213,31 @@ export default function App() {
         )}
 
         {isAllWeeks && activeTableData.length > 0 && (
-          <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-4 gap-6 mb-8 animate-in fade-in zoom-in-95 duration-500">
+          <div className="grid grid-cols-1 lg:grid-cols-2 gap-8 mb-8 animate-in fade-in zoom-in-95 duration-500">
              <div className="bg-[#131A2A] p-6 rounded-[2rem] border border-white/5 shadow-xl flex flex-col">
                <h4 className="text-xs font-black text-white uppercase tracking-widest mb-6 flex items-center gap-2"><Layers className="w-4 h-4 text-emerald-400" /> Installs (SW vs BAU)</h4>
-               <div className="flex-1 min-h-[250px]">
+               <div className="flex-1 min-h-[300px]">
                  <ComparisonLineChart rawData={marketFilteredData} metric="installs" colorSW="#34d399" colorBAU="#047857" isCurrency={false} exSym={exSym} exRate={exRate} aggregateFn={aggregate} />
                </div>
              </div>
              
              <div className="bg-[#131A2A] p-6 rounded-[2rem] border border-white/5 shadow-xl flex flex-col">
                <h4 className="text-xs font-black text-white uppercase tracking-widest mb-6 flex items-center gap-2"><ShoppingCart className="w-4 h-4 text-rose-400" /> Purchases (SW vs BAU)</h4>
-               <div className="flex-1 min-h-[250px]">
+               <div className="flex-1 min-h-[300px]">
                  <ComparisonLineChart rawData={marketFilteredData} metric="purchases" colorSW="#fb7185" colorBAU="#be123c" isCurrency={false} exSym={exSym} exRate={exRate} aggregateFn={aggregate} />
                </div>
              </div>
 
              <div className="bg-[#131A2A] p-6 rounded-[2rem] border border-white/5 shadow-xl flex flex-col">
                <h4 className="text-xs font-black text-white uppercase tracking-widest mb-6 flex items-center gap-2"><Activity className="w-4 h-4 text-amber-400" /> CPI (SW vs BAU)</h4>
-               <div className="flex-1 min-h-[250px]">
+               <div className="flex-1 min-h-[300px]">
                  <ComparisonLineChart rawData={marketFilteredData} metric="cpi" colorSW="#fbbf24" colorBAU="#b45309" isCurrency={true} exSym={exSym} exRate={exRate} aggregateFn={aggregate} />
                </div>
              </div>
 
              <div className="bg-[#131A2A] p-6 rounded-[2rem] border border-white/5 shadow-xl flex flex-col">
                <h4 className="text-xs font-black text-white uppercase tracking-widest mb-6 flex items-center gap-2"><Target className="w-4 h-4 text-red-400" /> CPP (SW vs BAU)</h4>
-               <div className="flex-1 min-h-[250px]">
+               <div className="flex-1 min-h-[300px]">
                  <ComparisonLineChart rawData={marketFilteredData} metric="cpp" colorSW="#f87171" colorBAU="#991b1b" isCurrency={true} exSym={exSym} exRate={exRate} aggregateFn={aggregate} />
                </div>
              </div>
@@ -1244,17 +1246,16 @@ export default function App() {
         
         <div className="bg-[#131A2A] rounded-[2rem] border border-white/5 shadow-xl overflow-hidden mb-8">
           <div className="overflow-x-auto">
-            <table className="w-full text-left min-w-[900px]">
+            <table className="w-full text-left min-w-[1000px]">
               <thead className="bg-[#1A2235] border-b border-white/5">
                 <tr className="text-[10px] font-black uppercase tracking-widest text-slate-400">
                   <th className="px-6 py-5">Fiscal Window</th>
                   <th className="px-6 py-5 text-right text-purple-400">Cost</th>
-                  <th className="px-6 py-5 text-right">Clicks</th>
                   <th className="px-6 py-5 text-right text-emerald-400">Installs</th>
+                  <th className="px-6 py-5 text-right text-indigo-400">Sessions</th>
                   <th className="px-6 py-5 text-right text-cyan-400">Logins</th>
-                  <th className="px-6 py-5 text-right text-slate-500">Ins-Log %</th>
                   <th className="px-6 py-5 text-right text-rose-400">Purchases</th>
-                  <th className="px-6 py-5 text-right text-slate-500">Log-Pur %</th>
+                  <th className="px-6 py-5 text-right text-slate-500">Ins-Pur %</th>
                   <th className="px-6 py-5 text-right text-amber-400">CPI</th>
                   <th className="px-6 py-5 text-right text-red-400">CPP</th>
                 </tr>
@@ -1269,12 +1270,11 @@ export default function App() {
                       </div>
                     </td>
                     <td className="px-6 py-5 text-right font-mono font-bold text-slate-300">{formatC(w.cost)}</td>
-                    <td className="px-6 py-5 text-right font-mono text-slate-400">{d3.format(",.0f")(w.clicks)}</td>
                     <td className="px-6 py-5 text-right font-mono font-bold text-emerald-400">{d3.format(",.0f")(w.installs)}</td>
+                    <td className="px-6 py-5 text-right font-mono font-bold text-indigo-400">{d3.format(",.0f")(w.sessions)}</td>
                     <td className="px-6 py-5 text-right font-mono font-bold text-cyan-400">{d3.format(",.0f")(w.logins)}</td>
-                    <td className="px-6 py-5 text-right font-mono font-bold text-slate-500">{w.ltr.toFixed(1)}%</td>
                     <td className="px-6 py-5 text-right font-mono font-bold text-rose-400">{d3.format(",.0f")(w.purchases)}</td>
-                    <td className="px-6 py-5 text-right font-mono font-bold text-slate-500">{w.ltp.toFixed(1)}%</td>
+                    <td className="px-6 py-5 text-right font-mono font-bold text-slate-500">{w.ipr.toFixed(1)}%</td>
                     <td className="px-6 py-5 text-right"><span className="bg-amber-500/10 text-amber-400 px-3 py-1 rounded-full text-[10px] font-black border border-amber-500/20">{formatC(w.cpi, 2)}</span></td>
                     <td className="px-6 py-5 text-right"><span className="bg-red-500/10 text-red-400 px-3 py-1 rounded-full text-[10px] font-black border border-red-500/20">{formatC(w.cpp, 2)}</span></td>
                   </tr>
@@ -1501,7 +1501,7 @@ export default function App() {
                   { id: 'market', label: 'Markets', icon: Globe },
                   { id: 'channel', label: 'Channels', icon: Layers },
                   { id: 'campaign', label: 'Campaigns', icon: Megaphone },
-                  { id: 'detailed', label: 'Detailed Data', icon: TableProperties },
+                  { id: 'detailed', label: 'Details', icon: TableProperties },
                 ].map(tab => (
                   <button
                     key={tab.id}
@@ -1613,7 +1613,7 @@ export default function App() {
           <footer className="max-w-7xl mx-auto px-6 pb-12 border-t border-white/5 mt-12 pt-8 flex flex-col md:flex-row justify-between items-center gap-6 opacity-60 hover:opacity-100 transition-opacity">
             <div className="flex items-center gap-4">
               <Info className="w-4 h-4 text-slate-400" />
-              <span className="text-[10px] font-black uppercase tracking-widest text-slate-500">MMP Cross-Engine v6.0 | Objective Tracking & Strict Logic Active</span>
+              <span className="text-[10px] font-black uppercase tracking-widest text-slate-500">MMP Cross-Engine v6.1 | Refined UI Layouts & Expanded Table Metrics Active</span>
             </div>
             <div className="flex gap-4 items-center bg-[#131A2A] px-4 py-2 rounded-full border border-white/5">
               <div className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse shadow-[0_0_8px_rgba(52,211,153,0.8)]" />
