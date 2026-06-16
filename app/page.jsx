@@ -5,7 +5,7 @@ import { UserButton, SignedIn, SignedOut, SignIn } from "@clerk/nextjs";
 import { 
   TrendingUp, Globe, Layers, Filter, Activity, DollarSign, MousePointer2, 
   Eye, Zap, LayoutDashboard, CalendarDays, ChevronDown, Info, Check, 
-  Download, Target, ShoppingCart, Users, TableProperties, Trophy, ArrowRight, FileText
+  Download, Target, ShoppingCart, Users, TableProperties, Trophy, ArrowRight, FileText, Megaphone
 } from 'lucide-react';
 
 const COMBINED_COUNTRY_CSV_URL = "https://docs.google.com/spreadsheets/d/e/2PACX-1vSt_K4Y6h2g2iVm2CDrc33rQGDToGd41a805URte2UEDqMYB_K8V4YKLIJ9rCMoLdmwvbco7uyevE9U/pub?gid=1273221446&single=true&output=csv";
@@ -296,18 +296,22 @@ export default function App() {
   const [selectedMarketView, setSelectedMarketView] = useState('All');
   const [selectedChannelView, setSelectedChannelView] = useState('All');
   
-  // --- UPDATED MULTI-SELECT STATE ---
   const [selectedDetailedChannel, setSelectedDetailedChannel] = useState(['All']);
   const [isDetailedChannelOpen, setIsDetailedChannelOpen] = useState(false);
-
   const [selectedWeekTypeView, setSelectedWeekTypeView] = useState('');
+  
+  // --- CAMPAIGN TYPE STATE ---
+  const [selectedCampaignType, setSelectedCampaignType] = useState('All');
+  const [selectedCampaignMarket, setSelectedCampaignMarket] = useState('All');
+  const [selectedCampaignChannel, setSelectedCampaignChannel] = useState(['All']);
+  const [isCampaignChannelOpen, setIsCampaignChannelOpen] = useState(false);
+
   const [isFilterOpen, setIsFilterOpen] = useState(false);
   const [dateRange, setDateRange] = useState({ start: '', end: '' });
   const [compareWeeks, setCompareWeeks] = useState([]); 
   const [trafficFilter, setTrafficFilter] = useState('All'); 
 
   const [currency, setCurrency] = useState('USD');
-  // --- UPDATED KPI TRACKER STATE ---
   const [kpi, setKpi] = useState({ isOpen: false, isSet: false, budget: '', impressions: '', installs: '', purchases: '' });
 
   const [reportModal, setReportModal] = useState({ isOpen: false, start: '', end: '', market: 'All', channel: 'All', traffic: 'All' });
@@ -340,6 +344,7 @@ export default function App() {
           const year = parseInt(row['Year'] || row['year']) || 2024;
           const rawS1Channel = Object.values(row)[7] || row['Channel'];
           const rawWeekTypeS1 = Object.values(row)[12] || row['Week Type'];
+          const rawCampTypeS1 = row['Campaign Objective'] || row['campaign objective'] || Object.values(row)[13] || 'Unknown';
 
           return {
             cost: parseMetric(row['Cost'] || row['Spend'] || row['cost']),
@@ -350,6 +355,7 @@ export default function App() {
             market: normalizeMarket(row['Country'] || row['Channel Country']),
             channel: (!rawS1Channel || rawS1Channel === 'BLANK') ? 'Other' : normalizeChannel(rawS1Channel),
             weekType: parseWeekType(rawWeekTypeS1),
+            campaignType: rawCampTypeS1.toString().trim(),
             source: 'AdNetwork', trafficType: 'Paid' 
           };
         });
@@ -363,6 +369,7 @@ export default function App() {
           const logins = parseMetric(Object.values(row)[8] || row['login_success'] || row['Logins']);
           const rawS2Channel = Object.values(row)[3] || row['Network'] || row['Source'];
           const rawWeekTypeS2 = Object.values(row)[17] || row['Week Type'];
+          const rawCampTypeS2 = row['Campaign Objective'] || row['campaign objective'] || Object.values(row)[18] || 'Unknown';
 
           return {
             cost: 0, impressions: 0, clicks: 0,
@@ -371,6 +378,7 @@ export default function App() {
             market: normalizeMarket(row['Country'] || row['Geo']),
             channel: (!rawS2Channel || rawS2Channel === 'BLANK' || rawS2Channel === 'Organic') ? 'Other' : normalizeChannel(rawS2Channel),
             weekType: parseWeekType(rawWeekTypeS2),
+            campaignType: rawCampTypeS2.toString().trim(),
             source: 'Adjust', trafficType
           };
         });
@@ -446,6 +454,11 @@ export default function App() {
     .filter(c => trafficFilter === 'Paid' ? c.cost >= 1 : (c.cost >= 1 || c.purchases >= 1 || c.installs >= 1))
     .sort((a, b) => b.cost - a.cost), [filteredData, trafficFilter]);
 
+  const campaignTypeBreakdown = useMemo(() => d3.groups(filteredData, d => d.campaignType)
+    .map(([name, values]) => ({ name, ...aggregate(values) }))
+    .filter(c => trafficFilter === 'Paid' ? c.cost >= 1 : (c.cost >= 1 || c.purchases >= 1 || c.installs >= 1))
+    .sort((a, b) => b.cost - a.cost), [filteredData, trafficFilter]);
+
   const handleDrillDown = (type, value) => {
     setActiveTab('detailed');
     if (type === 'market') {
@@ -454,6 +467,10 @@ export default function App() {
     } else if (type === 'channel') {
       setSelectedDetailedChannel([value]);
       setSelectedMarketView('All');
+    } else if (type === 'campaign') {
+      // Re-route appropriately if drilling down from campaigns
+      setActiveTab('campaign');
+      setSelectedCampaignType(value);
     }
     window.scrollTo({ top: 0, behavior: 'smooth' });
   };
@@ -528,6 +545,27 @@ export default function App() {
           </div>
         );
       }
+    }
+
+    if (context === 'campaign') {
+       const sortedBySpend = [...activeData].sort((a,b)=>b.cost - a.cost);
+       const sortedByPurchases = [...activeData].sort((a,b)=>b.purchases - a.purchases);
+       const validCPP = [...activeData].filter(d=>d.purchases>0).sort((a,b)=>a.cpp - b.cpp);
+       
+       const topSpend = sortedBySpend[0];
+       const topPurchases = sortedByPurchases[0];
+       const bestCPP = validCPP[0];
+
+       if (!topSpend) return "Insufficient campaign data based on current filters.";
+
+       return (
+          <div className="space-y-3 text-sm text-purple-50">
+             <p className="flex items-start gap-3"><span className="text-purple-400 mt-0.5">●</span> <strong>Investment Focus:</strong> '{topSpend?.name}' is currently the primary driver of ad spend, consuming {formatC(topSpend?.cost)} and generating {formatShort(topSpend?.impressions)} top-funnel impressions.</p>
+             <p className="flex items-start gap-3"><span className="text-rose-400 mt-0.5">●</span> <strong>Volume Leader:</strong> The '{topPurchases?.name}' objective completely dominates bottom-funnel activity, delivering {formatShort(topPurchases?.purchases)} verified purchases.</p>
+             <p className="flex items-start gap-3"><span className="text-amber-400 mt-0.5">●</span> <strong>Efficiency Champion:</strong> The most cost-effective conversion path is '{bestCPP?.name}', achieving a highly efficient CPP of {formatC(bestCPP?.cpp, 2)}.</p>
+             <p className="flex items-start gap-3 mt-4 pt-4 border-t border-white/10"><span className="text-emerald-400 font-bold">Action Plan:</span> Reallocating budget from lower-performing algorithmic segments into the '{bestCPP?.name}' framework could drastically improve overall return on ad spend (ROAS) while maintaining target purchase volume.</p>
+          </div>
+       );
     }
     return "";
   }
@@ -859,12 +897,190 @@ export default function App() {
     );
   }
 
+  // --- NEW CAMPAIGN TAB RENDER ---
+  function renderCampaign() {
+    let campaignFilteredData = selectedCampaignMarket === 'All' 
+      ? filteredData 
+      : filteredData.filter(d => d.market === selectedCampaignMarket);
+      
+    campaignFilteredData = selectedCampaignChannel.includes('All')
+      ? campaignFilteredData
+      : campaignFilteredData.filter(d => selectedCampaignChannel.includes(d.channel));
+
+    const localCampaignBreakdown = d3.groups(campaignFilteredData, d => d.campaignType)
+      .map(([name, values]) => ({ name, ...aggregate(values) }))
+      .filter(c => trafficFilter === 'Paid' ? c.cost >= 1 : (c.cost >= 1 || c.purchases >= 1 || c.installs >= 1))
+      .sort((a, b) => b.cost - a.cost);
+
+    const sortedBySpend = [...localCampaignBreakdown].sort((a, b) => b.cost - a.cost);
+    const sortedByInstalls = [...localCampaignBreakdown].sort((a, b) => b.installs - a.installs);
+    const sortedByPurchases = [...localCampaignBreakdown].sort((a, b) => b.purchases - a.purchases);
+    const validCPI = [...localCampaignBreakdown].filter(c => c.installs > 0 && c.cost > 0).sort((a, b) => a.cpi - b.cpi);
+    const validCPP = [...localChannelBreakdown].filter(c => c.purchases > 0 && c.cost > 0).sort((a, b) => a.cpp - b.cpp);
+
+    const activeCampaignData = selectedCampaignType === 'All' 
+      ? null 
+      : d3.groups(campaignFilteredData.filter(d => d.campaignType === selectedCampaignType), d => d.timeKey).map(([key, values]) => ({ week: values[0].week, year: values[0].year, ...aggregate(values) })).sort((a,b) => a.week - b.week);
+          
+    const activeCampaignSummary = selectedCampaignType === 'All' ? null : localCampaignBreakdown.find(c => c.name === selectedCampaignType);
+
+    return (
+      <div className="animate-in fade-in duration-500">
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 mb-6">
+          <div>
+            <h2 className="text-3xl font-black text-white tracking-tight">Campaign Objectives</h2>
+            <p className="text-slate-400 font-medium italic">Attribution and efficiency mapped by creative and strategic intent.</p>
+          </div>
+        </div>
+
+        {/* CAMPAIGN SUB-FILTERS */}
+        <div className="flex flex-col md:flex-row gap-4 mb-8 border-b border-white/5 pb-4">
+           <div className="flex-1">
+             <span className="text-[10px] font-black uppercase text-slate-400 mb-1 tracking-widest block">Market Filter</span>
+             <select value={selectedCampaignMarket} onChange={(e) => setSelectedCampaignMarket(e.target.value)} className="w-full px-4 py-2.5 bg-[#131A2A] border border-white/10 rounded-xl text-sm font-black text-purple-400 shadow-sm outline-none focus:border-purple-500 cursor-pointer">
+               <option value="All">Global (All Markets)</option>
+               {marketBreakdown.map(m => (<option key={m.name} value={m.name}>{m.name}</option>))}
+             </select>
+           </div>
+           
+           <div className="flex-1 relative">
+             <span className="text-[10px] font-black uppercase text-slate-400 mb-1 tracking-widest block">Channel Filter (Multi-Select)</span>
+             <div 
+               onClick={() => setIsCampaignChannelOpen(!isCampaignChannelOpen)}
+               className="w-full px-4 py-2.5 bg-[#131A2A] border border-white/10 rounded-xl text-sm font-black text-purple-400 shadow-sm cursor-pointer flex justify-between items-center"
+             >
+               <span className="truncate">{selectedCampaignChannel.includes('All') ? 'All Channels' : selectedCampaignChannel.join(', ')}</span>
+               <ChevronDown className={`w-4 h-4 transition-transform ${isCampaignChannelOpen ? 'rotate-180' : ''}`} />
+             </div>
+             {isCampaignChannelOpen && (
+               <>
+                 <div className="fixed inset-0 z-40" onClick={() => setIsCampaignChannelOpen(false)} />
+                 <div className="absolute top-full mt-2 w-full bg-[#131A2A] border border-white/10 rounded-xl shadow-2xl z-50 max-h-60 overflow-y-auto custom-scrollbar p-2">
+                   <div 
+                     onClick={() => setSelectedCampaignChannel(['All'])}
+                     className={`px-3 py-2 rounded-lg text-sm font-bold cursor-pointer flex items-center justify-between ${selectedCampaignChannel.includes('All') ? 'bg-purple-500/20 text-purple-300' : 'text-slate-300 hover:bg-white/5'}`}
+                   >
+                     All Channels {selectedCampaignChannel.includes('All') && <Check className="w-4 h-4" />}
+                   </div>
+                   {channelBreakdown.map(c => {
+                     const isSel = selectedCampaignChannel.includes(c.name);
+                     return (
+                       <div 
+                         key={c.name}
+                         onClick={() => {
+                           let next = [...selectedCampaignChannel];
+                           if (next.includes('All')) next = [];
+                           if (isSel) {
+                             next = next.filter(n => n !== c.name);
+                             if (next.length === 0) next = ['All'];
+                           } else {
+                             next.push(c.name);
+                           }
+                           setSelectedCampaignChannel(next);
+                         }}
+                         className={`px-3 py-2 rounded-lg text-sm font-bold cursor-pointer flex items-center justify-between mt-1 ${isSel ? 'bg-purple-500/20 text-purple-300' : 'text-slate-300 hover:bg-white/5'}`}
+                       >
+                         {c.name} {isSel && <Check className="w-4 h-4 text-purple-400" />}
+                       </div>
+                     )
+                   })}
+                 </div>
+               </>
+             )}
+           </div>
+        </div>
+
+        <InsightBox text={getAIInsight('campaign', localCampaignBreakdown)} />
+
+        <NavigationBar items={localCampaignBreakdown} selected={selectedCampaignType} setSelected={setSelectedCampaignType} defaultLabel="All Objectives" />
+
+        {selectedCampaignType === 'All' ? (
+          <>
+            <div className="grid grid-cols-1 lg:grid-cols-2 gap-8 mb-8">
+              <EntityBarChartCard title="Installs by Objective" icon={Download} data={sortedByInstalls} dataKey="installs" color="bg-emerald-500" insight={`${sortedByInstalls[0]?.name || 'Top objective'} leads top-funnel volume.`} drillDownType="campaign" onDrillDown={handleDrillDown} exSym={exSym} exRate={exRate} />
+              <EntityBarChartCard title="Purchases by Objective" icon={ShoppingCart} data={sortedByPurchases} dataKey="purchases" color="bg-rose-500" insight={`${sortedByPurchases[0]?.name || 'Top objective'} brings in the highest verified intent.`} drillDownType="campaign" onDrillDown={handleDrillDown} exSym={exSym} exRate={exRate} />
+              <EntityBarChartCard title="CPI by Objective" icon={Activity} data={validCPI.slice(0, 8)} dataKey="cpi" color="bg-amber-500" isCurrency={true} insight={`${validCPI[0]?.name || 'Top objective'} offers most cost-effective acquisition.`} drillDownType="campaign" onDrillDown={handleDrillDown} exSym={exSym} exRate={exRate} />
+              <EntityBarChartCard title="CPP by Objective" icon={Target} data={validCPP.slice(0, 8)} dataKey="cpp" color="bg-red-500" isCurrency={true} insight={`${validCPP[0]?.name || 'Top objective'} is your most efficient conversion type.`} drillDownType="campaign" onDrillDown={handleDrillDown} exSym={exSym} exRate={exRate} />
+            </div>
+
+            <div className="bg-[#131A2A] rounded-[2rem] border border-white/5 shadow-xl overflow-hidden mb-8">
+              <div className="overflow-x-auto">
+                <table className="w-full text-left min-w-[900px]">
+                  <thead className="bg-[#1A2235] border-b border-white/5">
+                    <tr className="text-[10px] font-black uppercase tracking-widest text-slate-400">
+                      <th className="px-6 py-5">Campaign Objective</th>
+                      <th className="px-6 py-5 text-right text-purple-400">Cost</th>
+                      <th className="px-6 py-5 text-right">Impressions</th>
+                      <th className="px-6 py-5 text-right text-emerald-400">Installs</th>
+                      <th className="px-6 py-5 text-right text-rose-400">Purchases</th>
+                      <th className="px-6 py-5 text-right text-amber-400">CPI</th>
+                      <th className="px-6 py-5 text-right text-red-400">CPP</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-white/5">
+                    {localCampaignBreakdown.map((row, i) => (
+                      <tr key={i} onClick={() => setSelectedCampaignType(row.name)} className="hover:bg-white/5 transition-colors group cursor-pointer">
+                        <td className="px-6 py-5">
+                          <div className="flex items-center gap-3">
+                            <div className="w-2 h-2 rounded-full bg-purple-500 shadow-[0_0_8px_rgba(168,85,247,0.8)]" />
+                            <span className="font-black text-white group-hover:text-purple-300 transition-colors">{row.name}</span>
+                          </div>
+                        </td>
+                        <td className="px-6 py-5 text-right font-mono font-bold text-slate-300">{formatC(row.cost)}</td>
+                        <td className="px-6 py-5 text-right font-mono text-slate-400">{d3.format(",.0f")(row.impressions)}</td>
+                        <td className="px-6 py-5 text-right font-mono font-bold text-emerald-400">{d3.format(",.0f")(row.installs)}</td>
+                        <td className="px-6 py-5 text-right font-mono font-bold text-rose-400">{d3.format(",.0f")(row.purchases)}</td>
+                        <td className="px-6 py-5 text-right"><span className="bg-amber-500/10 text-amber-400 px-3 py-1 rounded-full text-[10px] font-black border border-amber-500/20">{formatC(row.cpi, 2)}</span></td>
+                        <td className="px-6 py-5 text-right"><span className="bg-red-500/10 text-red-400 px-3 py-1 rounded-full text-[10px] font-black border border-red-500/20">{formatC(row.cpp, 2)}</span></td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            </div>
+          </>
+        ) : (
+          <div className="animate-in fade-in zoom-in-95 duration-500">
+            <div className="grid grid-cols-2 md:grid-cols-4 xl:grid-cols-7 gap-4 mb-8">
+               <MetricCard label="Ad Spend" value={formatC(activeCampaignSummary?.cost || 0)} color="text-purple-400" />
+               <MetricCard label="Impressions" value={formatShort(activeCampaignSummary?.impressions || 0)} color="text-cyan-400" />
+               <MetricCard label="Clicks" value={formatShort(activeCampaignSummary?.clicks || 0)} color="text-blue-400" />
+               <MetricCard label="Installs" value={formatShort(activeCampaignSummary?.installs || 0)} color="text-emerald-400" />
+               <MetricCard label="Purchases" value={formatShort(activeCampaignSummary?.purchases || 0)} color="text-rose-400" />
+               <MetricCard label="CPI" value={formatC(activeCampaignSummary?.cpi || 0, 2)} color="text-amber-400" />
+               <MetricCard label="CPP" value={formatC(activeCampaignSummary?.cpp || 0, 2)} color="text-red-400" />
+            </div>
+
+            <div className="grid grid-cols-1 lg:grid-cols-2 gap-8 mb-8">
+               <div className="bg-[#131A2A] p-8 rounded-[2.5rem] border border-white/5 shadow-xl flex flex-col">
+                 <div className="flex justify-between items-center mb-8">
+                   <h4 className="text-sm font-black text-white uppercase tracking-widest flex items-center gap-2"><Layers className="w-4 h-4 text-emerald-400" /> Volume: Installs & Purchases</h4>
+                 </div>
+                 <div className="flex-1 min-h-[300px]">
+                    <DualAxisLineChart chartData={activeCampaignData} leftKey="installs" rightKey="purchases" leftColorText="fill-emerald-400" rightColorText="fill-rose-400" leftColorHex="#34d399" rightColorHex="#fb7185" isLeftCurrency={false} isRightCurrency={false} exSym={exSym} exRate={exRate} />
+                 </div>
+               </div>
+               <div className="bg-[#131A2A] p-8 rounded-[2.5rem] border border-white/5 shadow-xl flex flex-col">
+                 <div className="flex justify-between items-center mb-8">
+                   <h4 className="text-sm font-black text-white uppercase tracking-widest flex items-center gap-2"><Activity className="w-4 h-4 text-red-400" /> Efficiency: CPI & CPP</h4>
+                 </div>
+                 <div className="flex-1 min-h-[300px]">
+                    <DualAxisLineChart chartData={activeCampaignData} leftKey="cpi" rightKey="cpp" leftColorText="fill-amber-400" rightColorText="fill-red-400" leftColorHex="#fbbf24" rightColorHex="#f87171" isLeftCurrency={true} isRightCurrency={true} exSym={exSym} exRate={exRate} />
+                 </div>
+               </div>
+            </div>
+          </div>
+        )}
+      </div>
+    );
+  }
+
   function renderDetailed() {
     let marketFilteredData = selectedMarketView === 'All' 
       ? filteredData 
       : filteredData.filter(d => d.market === selectedMarketView);
       
-    // --- UPDATED MULTI-CHANNEL FILTER LOGIC ---
+    // --- MULTI-CHANNEL FILTER LOGIC ---
     marketFilteredData = selectedDetailedChannel.includes('All')
       ? marketFilteredData
       : marketFilteredData.filter(d => selectedDetailedChannel.includes(d.channel));
@@ -879,8 +1095,10 @@ export default function App() {
 
     const isAllWeeks = selectedWeekTypeView === 'All Weeks';
     const isSpecificWeek = selectedWeekTypeView === 'Salary Weeks' || selectedWeekTypeView === 'BAU';
-    const isDefaultView = selectedWeekTypeView === '';
+    
+    // --- ALWAYS SHOW CHARTS IF DATE RANGE / MULTIPLE WEEKS OR NO SPECIFIC FILTER ---
     const isAnySelected = selectedWeekTypeView !== '';
+    const shouldShowDefaultCharts = (isSpecificWeek || selectedWeekTypeView === '' || compareWeeks.length > 0 || dateRange.start || dateRange.end);
 
     return (
       <div className="animate-in fade-in duration-500">
@@ -970,8 +1188,8 @@ export default function App() {
           <InsightBox text={getAIInsight('detailed', activeTableData, marketFilteredData, selectedWeekTypeView)} />
         )}
 
-        {/* DEFAULT VIEW CHARTS (Always visible when a week type isn't specifically selected) */}
-        {(isSpecificWeek || isDefaultView) && activeTableData.length > 0 && (
+        {/* DEFAULT VIEW CHARTS (Always visible dynamically for active timeline selection) */}
+        {shouldShowDefaultCharts && !isAllWeeks && activeTableData.length > 0 && (
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-8 mb-8 animate-in fade-in zoom-in-95 duration-500">
              <div className="bg-[#131A2A] p-8 rounded-[2.5rem] border border-white/5 shadow-xl flex flex-col">
                <div className="flex justify-between items-center mb-8">
@@ -1282,6 +1500,7 @@ export default function App() {
                   { id: 'summary', label: 'Summary', icon: LayoutDashboard },
                   { id: 'market', label: 'Markets', icon: Globe },
                   { id: 'channel', label: 'Channels', icon: Layers },
+                  { id: 'campaign', label: 'Campaigns', icon: Megaphone },
                   { id: 'detailed', label: 'Detailed Data', icon: TableProperties },
                 ].map(tab => (
                   <button
@@ -1386,6 +1605,7 @@ export default function App() {
               {activeTab === 'summary' && renderSummary()}
               {activeTab === 'market' && renderMarket()}
               {activeTab === 'channel' && renderChannel()}
+              {activeTab === 'campaign' && renderCampaign()}
               {activeTab === 'detailed' && renderDetailed()}
             </div>
           </main>
@@ -1393,7 +1613,7 @@ export default function App() {
           <footer className="max-w-7xl mx-auto px-6 pb-12 border-t border-white/5 mt-12 pt-8 flex flex-col md:flex-row justify-between items-center gap-6 opacity-60 hover:opacity-100 transition-opacity">
             <div className="flex items-center gap-4">
               <Info className="w-4 h-4 text-slate-400" />
-              <span className="text-[10px] font-black uppercase tracking-widest text-slate-500">MMP Cross-Engine v5.2 | Multi-Select Custom Hooks Active</span>
+              <span className="text-[10px] font-black uppercase tracking-widest text-slate-500">MMP Cross-Engine v6.0 | Objective Tracking & Strict Logic Active</span>
             </div>
             <div className="flex gap-4 items-center bg-[#131A2A] px-4 py-2 rounded-full border border-white/5">
               <div className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse shadow-[0_0_8px_rgba(52,211,153,0.8)]" />
