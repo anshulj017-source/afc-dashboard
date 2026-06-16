@@ -916,7 +916,7 @@ export default function App() {
     const sortedByInstalls = [...localCampaignBreakdown].sort((a, b) => b.installs - a.installs);
     const sortedByPurchases = [...localCampaignBreakdown].sort((a, b) => b.purchases - a.purchases);
     const validCPI = [...localCampaignBreakdown].filter(c => c.installs > 0 && c.cost > 0).sort((a, b) => a.cpi - b.cpi);
-    const validCPP = [...localChannelBreakdown].filter(c => c.purchases > 0 && c.cost > 0).sort((a, b) => a.cpp - b.cpp);
+    const validCPP = [...localCampaignBreakdown].filter(c => c.purchases > 0 && c.cost > 0).sort((a, b) => a.cpp - b.cpp);
 
     const activeCampaignData = selectedCampaignType === 'All' 
       ? null 
