@@ -106,6 +106,70 @@ const NavigationBar = ({ items, selected, setSelected, defaultLabel = "Global Ov
   </div>
 );
 
+// --- NEW COMPONENT: INTERACTIVE PIE/DONUT CHART ---
+const DonutChart = ({ chartData, valueKey, labelKey = 'name', isCurrency = false, exSym = '$', exRate = 1 }) => {
+  const [hovered, setHovered] = useState(null);
+  
+  // Filter out zero values for clean rendering
+  const validData = chartData.filter(d => d[valueKey] > 0);
+  if (validData.length === 0) return <div className="flex h-full w-full min-h-[200px] items-center justify-center text-[10px] text-slate-500 font-black uppercase tracking-widest">No Data Available</div>;
+
+  const width = 250;
+  const height = 250;
+  const margin = 10;
+  const radius = Math.min(width, height) / 2 - margin;
+  
+  const total = d3.sum(validData, d => d[valueKey]);
+  const pie = d3.pie().value(d => d[valueKey]).sort(null);
+  const data_ready = pie(validData);
+  
+  const arc = d3.arc().innerRadius(radius * 0.65).outerRadius(radius);
+  const hoverArc = d3.arc().innerRadius(radius * 0.6).outerRadius(radius * 1.05);
+  
+  // High-contrast dark mode colors
+  const colorScale = d3.scaleOrdinal().range(['#a855f7', '#34d399', '#fb7185', '#fbbf24', '#0ea5e9', '#6366f1', '#8b5cf6', '#ec4899', '#10b981', '#f43f5e']);
+
+  const defaultDisplay = data_ready.length > 0 ? data_ready[0].data : null;
+  const displayData = hovered || defaultDisplay;
+
+  return (
+    <div className="flex flex-col items-center justify-center w-full h-full relative min-h-[250px]">
+      <svg width={width} height={height} viewBox={`0 0 ${width} ${height}`} className="overflow-visible">
+        <g transform={`translate(${width / 2}, ${height / 2})`}>
+          {data_ready.map((d, i) => {
+            const isHovered = hovered && hovered[labelKey] === d.data[labelKey];
+            return (
+              <path 
+                key={i}
+                d={isHovered ? hoverArc(d) : arc(d)} 
+                fill={colorScale(d.data[labelKey])} 
+                stroke="#131A2A" 
+                strokeWidth="3" 
+                className="transition-all duration-300 cursor-pointer"
+                onMouseEnter={() => setHovered(d.data)}
+                onMouseLeave={() => setHovered(null)}
+                style={{ filter: isHovered ? `drop-shadow(0 0 10px ${colorScale(d.data[labelKey])}90)` : 'none' }}
+              />
+            );
+          })}
+          {/* Centered Value Display */}
+          {displayData && (
+            <text textAnchor="middle" dy="-0.8em" className="fill-white font-black text-xs pointer-events-none tracking-wide">
+              {displayData[labelKey].length > 16 ? displayData[labelKey].substring(0,14)+'...' : displayData[labelKey]}
+              <tspan x="0" dy="1.6em" className="fill-slate-300 font-bold text-sm">
+                {isCurrency ? `${exSym}${d3.format(",.0f")(displayData[valueKey] * exRate)}` : d3.format(",.0f")(displayData[valueKey])}
+              </tspan>
+              <tspan x="0" dy="1.4em" className="fill-purple-400 font-black text-sm">
+                {total > 0 ? ((displayData[valueKey] / total) * 100).toFixed(1) : 0}%
+              </tspan>
+            </text>
+          )}
+        </g>
+      </svg>
+    </div>
+  );
+};
+
 const BarChart = ({ chartData, valueKey, labelKey = 'name', color = 'bg-purple-500', isCurrency = false, isPercent = false, onClickItem = null, exSym = '$', exRate = 1 }) => {
   const maxVal = d3.max(chartData, d => d[valueKey]) || 1;
   return (
@@ -438,9 +502,9 @@ export default function App() {
       cpi: installs > 0 ? cost / installs : 0,
       cpp: purchases > 0 ? cost / purchases : 0,
       cvr: clicks > 0 ? (installs / clicks) * 100 : 0,
-      ltr: installs > 0 ? (logins / installs) * 100 : 0,
+      ltr: installs > 0 ? (logins / installs) * 100 : 0, // Install to Login
       ltp: logins > 0 ? (purchases / logins) * 100 : 0,
-      ipr: installs > 0 ? (purchases / installs) * 100 : 0
+      ipr: installs > 0 ? (purchases / installs) * 100 : 0 // Install to Purchase
     };
   };
 
@@ -914,9 +978,6 @@ export default function App() {
       .filter(c => trafficFilter === 'Paid' ? c.cost >= 1 : (c.cost >= 1 || c.purchases >= 1 || c.installs >= 1))
       .sort((a, b) => b.cost - a.cost);
 
-    const sortedBySpend = [...localCampaignBreakdown].sort((a, b) => b.cost - a.cost);
-    const sortedByInstalls = [...localCampaignBreakdown].sort((a, b) => b.installs - a.installs);
-    const sortedByPurchases = [...localCampaignBreakdown].sort((a, b) => b.purchases - a.purchases);
     const validCPI = [...localCampaignBreakdown].filter(c => c.installs > 0 && c.cost > 0).sort((a, b) => a.cpi - b.cpi);
     const validCPP = [...localCampaignBreakdown].filter(c => c.purchases > 0 && c.cost > 0).sort((a, b) => a.cpp - b.cpp);
 
@@ -998,9 +1059,35 @@ export default function App() {
 
         {selectedCampaignType === 'All' ? (
           <>
+            {/* UPDATED: DONUT CHART ROW */}
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-8 mb-8">
+               <div className="bg-[#131A2A] p-6 rounded-[2rem] border border-white/5 shadow-xl flex flex-col hover:border-purple-500/30 transition-colors">
+                  <div className="flex items-center gap-3 mb-6">
+                     <div className="p-2 rounded-xl bg-white/5"><DollarSign className="w-4 h-4 text-purple-400" /></div>
+                     <h4 className="text-sm font-black text-white uppercase tracking-widest">Spends by Objective</h4>
+                  </div>
+                  <div className="flex-1"><DonutChart chartData={localCampaignBreakdown} valueKey="cost" isCurrency={true} exSym={exSym} exRate={exRate} /></div>
+               </div>
+
+               <div className="bg-[#131A2A] p-6 rounded-[2rem] border border-white/5 shadow-xl flex flex-col hover:border-emerald-500/30 transition-colors">
+                  <div className="flex items-center gap-3 mb-6">
+                     <div className="p-2 rounded-xl bg-white/5"><Download className="w-4 h-4 text-emerald-400" /></div>
+                     <h4 className="text-sm font-black text-white uppercase tracking-widest">Installs by Objective</h4>
+                  </div>
+                  <div className="flex-1"><DonutChart chartData={localCampaignBreakdown} valueKey="installs" /></div>
+               </div>
+
+               <div className="bg-[#131A2A] p-6 rounded-[2rem] border border-white/5 shadow-xl flex flex-col hover:border-rose-500/30 transition-colors">
+                  <div className="flex items-center gap-3 mb-6">
+                     <div className="p-2 rounded-xl bg-white/5"><ShoppingCart className="w-4 h-4 text-rose-400" /></div>
+                     <h4 className="text-sm font-black text-white uppercase tracking-widest">Purchases by Obj.</h4>
+                  </div>
+                  <div className="flex-1"><DonutChart chartData={localCampaignBreakdown} valueKey="purchases" /></div>
+               </div>
+            </div>
+
+            {/* CPI and CPP Bar Charts Re-Aligned */}
             <div className="grid grid-cols-1 lg:grid-cols-2 gap-8 mb-8">
-              <EntityBarChartCard title="Installs by Objective" icon={Download} data={sortedByInstalls} dataKey="installs" color="bg-emerald-500" insight={`${sortedByInstalls[0]?.name || 'Top objective'} leads top-funnel volume.`} drillDownType="campaign" onDrillDown={handleDrillDown} exSym={exSym} exRate={exRate} />
-              <EntityBarChartCard title="Purchases by Objective" icon={ShoppingCart} data={sortedByPurchases} dataKey="purchases" color="bg-rose-500" insight={`${sortedByPurchases[0]?.name || 'Top objective'} brings in the highest verified intent.`} drillDownType="campaign" onDrillDown={handleDrillDown} exSym={exSym} exRate={exRate} />
               <EntityBarChartCard title="CPI by Objective" icon={Activity} data={validCPI.slice(0, 8)} dataKey="cpi" color="bg-amber-500" isCurrency={true} insight={`${validCPI[0]?.name || 'Top objective'} offers most cost-effective acquisition.`} drillDownType="campaign" onDrillDown={handleDrillDown} exSym={exSym} exRate={exRate} />
               <EntityBarChartCard title="CPP by Objective" icon={Target} data={validCPP.slice(0, 8)} dataKey="cpp" color="bg-red-500" isCurrency={true} insight={`${validCPP[0]?.name || 'Top objective'} is your most efficient conversion type.`} drillDownType="campaign" onDrillDown={handleDrillDown} exSym={exSym} exRate={exRate} />
             </div>
@@ -1214,28 +1301,28 @@ export default function App() {
 
         {isAllWeeks && activeTableData.length > 0 && (
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-8 mb-8 animate-in fade-in zoom-in-95 duration-500">
-             <div className="bg-[#131A2A] p-6 rounded-[2rem] border border-white/5 shadow-xl flex flex-col">
+             <div className="bg-[#131A2A] p-8 rounded-[2.5rem] border border-white/5 shadow-xl flex flex-col">
                <h4 className="text-xs font-black text-white uppercase tracking-widest mb-6 flex items-center gap-2"><Layers className="w-4 h-4 text-emerald-400" /> Installs (SW vs BAU)</h4>
                <div className="flex-1 min-h-[300px]">
                  <ComparisonLineChart rawData={marketFilteredData} metric="installs" colorSW="#34d399" colorBAU="#047857" isCurrency={false} exSym={exSym} exRate={exRate} aggregateFn={aggregate} />
                </div>
              </div>
              
-             <div className="bg-[#131A2A] p-6 rounded-[2rem] border border-white/5 shadow-xl flex flex-col">
+             <div className="bg-[#131A2A] p-8 rounded-[2.5rem] border border-white/5 shadow-xl flex flex-col">
                <h4 className="text-xs font-black text-white uppercase tracking-widest mb-6 flex items-center gap-2"><ShoppingCart className="w-4 h-4 text-rose-400" /> Purchases (SW vs BAU)</h4>
                <div className="flex-1 min-h-[300px]">
                  <ComparisonLineChart rawData={marketFilteredData} metric="purchases" colorSW="#fb7185" colorBAU="#be123c" isCurrency={false} exSym={exSym} exRate={exRate} aggregateFn={aggregate} />
                </div>
              </div>
 
-             <div className="bg-[#131A2A] p-6 rounded-[2rem] border border-white/5 shadow-xl flex flex-col">
+             <div className="bg-[#131A2A] p-8 rounded-[2.5rem] border border-white/5 shadow-xl flex flex-col">
                <h4 className="text-xs font-black text-white uppercase tracking-widest mb-6 flex items-center gap-2"><Activity className="w-4 h-4 text-amber-400" /> CPI (SW vs BAU)</h4>
                <div className="flex-1 min-h-[300px]">
                  <ComparisonLineChart rawData={marketFilteredData} metric="cpi" colorSW="#fbbf24" colorBAU="#b45309" isCurrency={true} exSym={exSym} exRate={exRate} aggregateFn={aggregate} />
                </div>
              </div>
 
-             <div className="bg-[#131A2A] p-6 rounded-[2rem] border border-white/5 shadow-xl flex flex-col">
+             <div className="bg-[#131A2A] p-8 rounded-[2.5rem] border border-white/5 shadow-xl flex flex-col">
                <h4 className="text-xs font-black text-white uppercase tracking-widest mb-6 flex items-center gap-2"><Target className="w-4 h-4 text-red-400" /> CPP (SW vs BAU)</h4>
                <div className="flex-1 min-h-[300px]">
                  <ComparisonLineChart rawData={marketFilteredData} metric="cpp" colorSW="#f87171" colorBAU="#991b1b" isCurrency={true} exSym={exSym} exRate={exRate} aggregateFn={aggregate} />
@@ -1254,6 +1341,7 @@ export default function App() {
                   <th className="px-6 py-5 text-right text-emerald-400">Installs</th>
                   <th className="px-6 py-5 text-right text-indigo-400">Sessions</th>
                   <th className="px-6 py-5 text-right text-cyan-400">Logins</th>
+                  <th className="px-6 py-5 text-right text-slate-500">Ins-Log %</th>
                   <th className="px-6 py-5 text-right text-rose-400">Purchases</th>
                   <th className="px-6 py-5 text-right text-slate-500">Ins-Pur %</th>
                   <th className="px-6 py-5 text-right text-amber-400">CPI</th>
@@ -1273,6 +1361,7 @@ export default function App() {
                     <td className="px-6 py-5 text-right font-mono font-bold text-emerald-400">{d3.format(",.0f")(w.installs)}</td>
                     <td className="px-6 py-5 text-right font-mono font-bold text-indigo-400">{d3.format(",.0f")(w.sessions)}</td>
                     <td className="px-6 py-5 text-right font-mono font-bold text-cyan-400">{d3.format(",.0f")(w.logins)}</td>
+                    <td className="px-6 py-5 text-right font-mono font-bold text-slate-500">{w.ltr.toFixed(1)}%</td>
                     <td className="px-6 py-5 text-right font-mono font-bold text-rose-400">{d3.format(",.0f")(w.purchases)}</td>
                     <td className="px-6 py-5 text-right font-mono font-bold text-slate-500">{w.ipr.toFixed(1)}%</td>
                     <td className="px-6 py-5 text-right"><span className="bg-amber-500/10 text-amber-400 px-3 py-1 rounded-full text-[10px] font-black border border-amber-500/20">{formatC(w.cpi, 2)}</span></td>
@@ -1613,7 +1702,7 @@ export default function App() {
           <footer className="max-w-7xl mx-auto px-6 pb-12 border-t border-white/5 mt-12 pt-8 flex flex-col md:flex-row justify-between items-center gap-6 opacity-60 hover:opacity-100 transition-opacity">
             <div className="flex items-center gap-4">
               <Info className="w-4 h-4 text-slate-400" />
-              <span className="text-[10px] font-black uppercase tracking-widest text-slate-500">MMP Cross-Engine v6.1 | Refined UI Layouts & Expanded Table Metrics Active</span>
+              <span className="text-[10px] font-black uppercase tracking-widest text-slate-500">MMP Cross-Engine v6.2 | Data Visualization Suite Expanded</span>
             </div>
             <div className="flex gap-4 items-center bg-[#131A2A] px-4 py-2 rounded-full border border-white/5">
               <div className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse shadow-[0_0_8px_rgba(52,211,153,0.8)]" />
