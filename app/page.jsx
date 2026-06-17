@@ -5,7 +5,7 @@ import { UserButton, SignedIn, SignedOut, SignIn } from "@clerk/nextjs";
 import { 
   TrendingUp, Globe, Layers, Activity, DollarSign, MousePointer2, 
   Eye, Zap, LayoutDashboard, CalendarDays, ChevronDown, Info, Check, 
-  Download, Target, ShoppingCart, Users, TableProperties, Trophy, ArrowRight, FileText, Megaphone, Search
+  Download, Target, ShoppingCart, Users, TableProperties, Trophy, ArrowRight, FileText, Megaphone, Search, Smartphone
 } from 'lucide-react';
 
 const COMBINED_COUNTRY_CSV_URL = "https://docs.google.com/spreadsheets/d/e/2PACX-1vSt_K4Y6h2g2iVm2CDrc33rQGDToGd41a805URte2UEDqMYB_K8V4YKLIJ9rCMoLdmwvbco7uyevE9U/pub?gid=1273221446&single=true&output=csv";
@@ -59,6 +59,15 @@ const normalizeChannel = (channelName) => {
   return cleanName;
 };
 
+const normalizeOS = (osName) => {
+  if (!osName || osName === 'BLANK' || osName === 'Unknown') return 'Unknown';
+  const clean = osName.toString().toLowerCase().trim();
+  if (clean.includes('ios') || clean.includes('apple') || clean.includes('mac') || clean.includes('iphone')) return 'iOS';
+  if (clean.includes('android')) return 'Android';
+  if (clean.includes('web') || clean.includes('windows')) return 'Web';
+  return osName.trim();
+};
+
 const parseWeekType = (val) => {
   if (!val || val === 'BLANK' || val === 'Unknown') return 'BAU';
   const clean = val.toString().toLowerCase().trim();
@@ -105,7 +114,7 @@ const MultiSelectDropdown = ({ label, options, selected, onChange }) => {
   const filteredOptions = options.filter(o => o.toLowerCase().includes(searchTerm.toLowerCase()));
 
   return (
-    <div className="flex-1 relative min-w-[200px]">
+    <div className="flex-1 relative min-w-[180px]">
       <span className="text-[10px] font-black uppercase text-slate-400 mb-1.5 tracking-widest block">{label}</span>
       <div 
         onClick={() => setIsOpen(!isOpen)}
@@ -430,6 +439,7 @@ export default function App() {
   const [filterMarkets, setFilterMarkets] = useState(['All']);
   const [filterChannels, setFilterChannels] = useState(['All']);
   const [filterCampaigns, setFilterCampaigns] = useState(['All']);
+  const [filterOS, setFilterOS] = useState(['All']);
   const [selectedWeekTypeView, setSelectedWeekTypeView] = useState('');
 
   // --- TOP BAR MASTER FILTERS ---
@@ -472,6 +482,7 @@ export default function App() {
           const rawS1Channel = Object.values(row)[7] || row['Channel'];
           const rawWeekTypeS1 = Object.values(row)[12] || row['Week Type'];
           const rawCampTypeS1 = row['Campaign Objective'] || row['campaign objective'] || Object.values(row)[13] || 'Unknown';
+          const rawOS1 = row['OS'] || row['os'] || Object.values(row)[11] || 'Unknown';
 
           return {
             cost: parseMetric(row['Cost'] || row['Spend'] || row['cost']),
@@ -483,6 +494,7 @@ export default function App() {
             channel: (!rawS1Channel || rawS1Channel === 'BLANK') ? 'Other' : normalizeChannel(rawS1Channel),
             weekType: parseWeekType(rawWeekTypeS1),
             campaignType: rawCampTypeS1.toString().trim(),
+            os: normalizeOS(rawOS1),
             source: 'AdNetwork', trafficType: 'Paid' 
           };
         });
@@ -498,6 +510,7 @@ export default function App() {
           const rawS2Channel = Object.values(row)[3] || row['Network'] || row['Source'];
           const rawWeekTypeS2 = Object.values(row)[17] || row['Week Type'];
           const rawCampTypeS2 = row['Campaign Objective'] || row['campaign objective'] || Object.values(row)[18] || 'Unknown';
+          const rawOS2 = row['OS'] || row['os'] || Object.values(row)[12] || 'Unknown';
 
           return {
             cost: 0, impressions: 0, clicks: 0,
@@ -507,6 +520,7 @@ export default function App() {
             channel: (!rawS2Channel || rawS2Channel === 'BLANK' || rawS2Channel === 'Organic') ? 'Other' : normalizeChannel(rawS2Channel),
             weekType: parseWeekType(rawWeekTypeS2),
             campaignType: rawCampTypeS2.toString().trim(),
+            os: normalizeOS(rawOS2),
             source: 'Adjust', trafficType
           };
         });
@@ -531,6 +545,7 @@ export default function App() {
     return { processedData: rows, allTimeKeys: timeKeys };
   }, [data]);
 
+  // Master Level Filter (Date + Traffic)
   const filteredData = useMemo(() => {
     return processedData.filter(d => {
       let passTraffic = true;
@@ -571,14 +586,21 @@ export default function App() {
      return Array.from(new Set(d.map(x => x.campaignType))).sort();
   }, [filteredData, trafficFilter]);
 
+  const uniqueOS = useMemo(() => {
+     let d = filteredData;
+     if (trafficFilter === 'Paid') d = d.filter(x => x.cost >= 1);
+     return Array.from(new Set(d.map(x => x.os))).sort();
+  }, [filteredData, trafficFilter]);
+
   // Global Context Filter applying the multi-select dropdowns
   const tabData = useMemo(() => {
     let d = filteredData;
     if (!filterMarkets.includes('All')) d = d.filter(x => filterMarkets.includes(x.market));
     if (!filterChannels.includes('All')) d = d.filter(x => filterChannels.includes(x.channel));
     if (!filterCampaigns.includes('All')) d = d.filter(x => filterCampaigns.includes(x.campaignType));
+    if (!filterOS.includes('All')) d = d.filter(x => filterOS.includes(x.os));
     return d;
-  }, [filteredData, filterMarkets, filterChannels, filterCampaigns]);
+  }, [filteredData, filterMarkets, filterChannels, filterCampaigns, filterOS]);
 
   const aggregate = (rows) => {
     const cost = d3.sum(rows, d => d.cost), impressions = d3.sum(rows, d => d.impressions);
@@ -602,36 +624,51 @@ export default function App() {
   const metrics = useMemo(() => aggregate(tabData), [tabData]);
   const weeklyTimeline = useMemo(() => d3.groups(tabData, d => d.timeKey).map(([key, values]) => ({ timeKey: key, week: values[0].week, year: values[0].year, ...aggregate(values) })).sort((a, b) => a.timeKey - b.timeKey), [tabData]);
   
-  // Breakdown tables base themselves on data BEFORE their specific filter is applied, to avoid narrowing to 1 option
+  // Breakdown tables base themselves on data BEFORE their specific filter is applied
   const marketBreakdown = useMemo(() => {
     let d = filteredData;
     if (!filterChannels.includes('All')) d = d.filter(x => filterChannels.includes(x.channel));
     if (!filterCampaigns.includes('All')) d = d.filter(x => filterCampaigns.includes(x.campaignType));
+    if (!filterOS.includes('All')) d = d.filter(x => filterOS.includes(x.os));
     return d3.groups(d, d => d.market)
       .map(([name, values]) => ({ name, ...aggregate(values) }))
       .filter(m => trafficFilter === 'Paid' ? m.cost >= 1 : (m.cost >= 1 || m.purchases >= 1 || m.installs >= 1))
       .sort((a, b) => b.cost - a.cost);
-  }, [filteredData, filterChannels, filterCampaigns, trafficFilter]);
+  }, [filteredData, filterChannels, filterCampaigns, filterOS, trafficFilter]);
     
   const channelBreakdown = useMemo(() => {
     let d = filteredData;
     if (!filterMarkets.includes('All')) d = d.filter(x => filterMarkets.includes(x.market));
     if (!filterCampaigns.includes('All')) d = d.filter(x => filterCampaigns.includes(x.campaignType));
+    if (!filterOS.includes('All')) d = d.filter(x => filterOS.includes(x.os));
     return d3.groups(d, d => d.channel)
       .map(([name, values]) => ({ name, ...aggregate(values) }))
       .filter(c => trafficFilter === 'Paid' ? c.cost >= 1 : (c.cost >= 1 || c.purchases >= 1 || c.installs >= 1))
       .sort((a, b) => b.cost - a.cost);
-  }, [filteredData, filterMarkets, filterCampaigns, trafficFilter]);
+  }, [filteredData, filterMarkets, filterCampaigns, filterOS, trafficFilter]);
 
   const campaignTypeBreakdown = useMemo(() => {
     let d = filteredData;
     if (!filterMarkets.includes('All')) d = d.filter(x => filterMarkets.includes(x.market));
     if (!filterChannels.includes('All')) d = d.filter(x => filterChannels.includes(x.channel));
+    if (!filterOS.includes('All')) d = d.filter(x => filterOS.includes(x.os));
     return d3.groups(d, d => d.campaignType)
       .map(([name, values]) => ({ name, ...aggregate(values) }))
       .filter(c => trafficFilter === 'Paid' ? c.cost >= 1 : (c.cost >= 1 || c.purchases >= 1 || c.installs >= 1))
       .sort((a, b) => b.cost - a.cost);
-  }, [filteredData, filterMarkets, filterChannels, trafficFilter]);
+  }, [filteredData, filterMarkets, filterChannels, filterOS, trafficFilter]);
+
+  const osBreakdown = useMemo(() => {
+    let d = filteredData;
+    if (!filterMarkets.includes('All')) d = d.filter(x => filterMarkets.includes(x.market));
+    if (!filterChannels.includes('All')) d = d.filter(x => filterChannels.includes(x.channel));
+    if (!filterCampaigns.includes('All')) d = d.filter(x => filterCampaigns.includes(x.campaignType));
+    return d3.groups(d, d => d.os)
+      .map(([name, values]) => ({ name, ...aggregate(values) }))
+      .filter(c => trafficFilter === 'Paid' ? c.cost >= 1 : (c.cost >= 1 || c.purchases >= 1 || c.installs >= 1))
+      .sort((a, b) => b.cost - a.cost);
+  }, [filteredData, filterMarkets, filterChannels, filterCampaigns, trafficFilter]);
+
 
   const handleDrillDown = (type, value) => {
     if (type === 'market') {
@@ -639,17 +676,21 @@ export default function App() {
       setFilterMarkets([value]);
       setFilterChannels(['All']);
       setFilterCampaigns(['All']);
+      setFilterOS(['All']);
     } else if (type === 'channel') {
       setActiveTab('detailed');
       setFilterChannels([value]);
       setFilterMarkets(['All']);
       setFilterCampaigns(['All']);
+      setFilterOS(['All']);
     } else if (type === 'campaign') {
       setActiveTab('campaign');
       setFilterCampaigns([value]);
-      setFilterMarkets(['All']);
-      setFilterChannels(['All']);
+    } else if (type === 'os') {
+      setActiveTab('os');
+      setFilterOS([value]);
     }
+    window.scrollTo({ top: 0, behavior: 'smooth' });
   };
 
   function getAIInsight(context, activeData = null, marketFilteredData = null, selectedType = 'All Weeks') {
@@ -744,6 +785,28 @@ export default function App() {
           </div>
        );
     }
+    
+    if (context === 'os') {
+       const sortedBySpend = [...activeData].sort((a,b)=>b.cost - a.cost);
+       const sortedByPurchases = [...activeData].sort((a,b)=>b.purchases - a.purchases);
+       const validCPP = [...activeData].filter(d=>d.purchases>0).sort((a,b)=>a.cpp - b.cpp);
+       
+       const topSpend = sortedBySpend[0];
+       const topPurchases = sortedByPurchases[0];
+       const bestCPP = validCPP[0];
+
+       if (!topSpend) return "Insufficient OS data based on current filters.";
+
+       return (
+          <div className="space-y-3 text-sm text-purple-50">
+             <p className="flex items-start gap-3"><span className="text-purple-400 mt-0.5">●</span> <strong>Platform Investment:</strong> '{topSpend?.name}' users capture the majority of the ad spend, utilizing {formatC(topSpend?.cost)}.</p>
+             <p className="flex items-start gap-3"><span className="text-rose-400 mt-0.5">●</span> <strong>Conversion Leader:</strong> The '{topPurchases?.name}' ecosystem drives the highest volume of bottom-funnel intent with {formatShort(topPurchases?.purchases)} verified purchases.</p>
+             <p className="flex items-start gap-3"><span className="text-amber-400 mt-0.5">●</span> <strong>Efficiency Champion:</strong> Acquisitions on '{bestCPP?.name}' are currently the most cost-effective, maintaining a highly efficient CPP of {formatC(bestCPP?.cpp, 2)}.</p>
+             <p className="flex items-start gap-3 mt-4 pt-4 border-t border-white/10"><span className="text-emerald-400 font-bold">Action Plan:</span> Consider adjusting bid modifiers to prioritize traffic from the '{bestCPP?.name}' operating system to lower blended CPP, while investigating funnel drop-offs on less efficient platforms.</p>
+          </div>
+       );
+    }
+    
     return "";
   }
 
@@ -934,9 +997,11 @@ export default function App() {
           <p className="text-slate-400 font-medium italic">Geographical footprint filtered dynamically by traffic segment parameters.</p>
         </div>
 
-        <div className="flex flex-col md:flex-row gap-4 mb-8 border-b border-white/5 pb-6">
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 mb-8 border-b border-white/5 pb-6">
           <MultiSelectDropdown label="Market Filter" options={uniqueMarkets} selected={filterMarkets} onChange={setFilterMarkets} />
           <MultiSelectDropdown label="Channel Filter" options={uniqueChannels} selected={filterChannels} onChange={setFilterChannels} />
+          <MultiSelectDropdown label="Campaign Type" options={uniqueCampaigns} selected={filterCampaigns} onChange={setFilterCampaigns} />
+          <MultiSelectDropdown label="OS Filter" options={uniqueOS} selected={filterOS} onChange={setFilterOS} />
         </div>
 
         {filterMarkets.includes('All') ? (
@@ -1000,9 +1065,11 @@ export default function App() {
           <p className="text-slate-400 font-medium italic">Marketing platform performance filtered dynamically by traffic segment.</p>
         </div>
 
-        <div className="flex flex-col md:flex-row gap-4 mb-8 border-b border-white/5 pb-6">
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 mb-8 border-b border-white/5 pb-6">
           <MultiSelectDropdown label="Market Filter" options={uniqueMarkets} selected={filterMarkets} onChange={setFilterMarkets} />
           <MultiSelectDropdown label="Channel Filter" options={uniqueChannels} selected={filterChannels} onChange={setFilterChannels} />
+          <MultiSelectDropdown label="Campaign Type" options={uniqueCampaigns} selected={filterCampaigns} onChange={setFilterCampaigns} />
+          <MultiSelectDropdown label="OS Filter" options={uniqueOS} selected={filterOS} onChange={setFilterOS} />
         </div>
 
         {filterChannels.includes('All') ? (
@@ -1084,10 +1151,11 @@ export default function App() {
           <p className="text-slate-400 font-medium italic">Attribution and efficiency mapped by creative and strategic intent.</p>
         </div>
 
-        <div className="flex flex-col md:flex-row gap-4 mb-8 border-b border-white/5 pb-6">
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 mb-8 border-b border-white/5 pb-6">
           <MultiSelectDropdown label="Market Filter" options={uniqueMarkets} selected={filterMarkets} onChange={setFilterMarkets} />
           <MultiSelectDropdown label="Channel Filter" options={uniqueChannels} selected={filterChannels} onChange={setFilterChannels} />
           <MultiSelectDropdown label="Campaign Type" options={uniqueCampaigns} selected={filterCampaigns} onChange={setFilterCampaigns} />
+          <MultiSelectDropdown label="OS Filter" options={uniqueOS} selected={filterOS} onChange={setFilterOS} />
         </div>
 
         <InsightBox text={getAIInsight('campaign', campaignTypeBreakdown)} />
@@ -1207,6 +1275,148 @@ export default function App() {
     );
   }
 
+  // --- NEW OS TAB RENDER ---
+  function renderOS() {
+    const validCPI = [...osBreakdown].filter(c => c.installs > 0 && c.cost > 0).sort((a, b) => a.cpi - b.cpi);
+    const validCPP = [...osBreakdown].filter(c => c.purchases > 0 && c.cost > 0).sort((a, b) => a.cpp - b.cpp);
+
+    const activeOSData = filterOS.includes('All') 
+      ? null 
+      : d3.groups(tabData, d => d.timeKey).map(([key, values]) => ({ week: values[0].week, year: values[0].year, ...aggregate(values) })).sort((a,b) => a.week - b.week);
+          
+    const activeOSSummary = filterOS.includes('All') ? null : aggregate(tabData);
+
+    return (
+      <div className="animate-in fade-in duration-500">
+        <div className="mb-6">
+          <h2 className="text-3xl font-black text-white tracking-tight">Operating System</h2>
+          <p className="text-slate-400 font-medium italic">Device-level efficiency and conversion behaviors.</p>
+        </div>
+
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 mb-8 border-b border-white/5 pb-6">
+          <MultiSelectDropdown label="Market Filter" options={uniqueMarkets} selected={filterMarkets} onChange={setFilterMarkets} />
+          <MultiSelectDropdown label="Channel Filter" options={uniqueChannels} selected={filterChannels} onChange={setFilterChannels} />
+          <MultiSelectDropdown label="Campaign Type" options={uniqueCampaigns} selected={filterCampaigns} onChange={setFilterCampaigns} />
+          <MultiSelectDropdown label="OS Filter" options={uniqueOS} selected={filterOS} onChange={setFilterOS} />
+        </div>
+
+        <InsightBox text={getAIInsight('os', osBreakdown)} />
+
+        {filterOS.includes('All') ? (
+          <>
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-8 mb-8">
+               <div className="bg-[#131A2A] p-6 rounded-[2rem] border border-white/5 shadow-xl flex flex-col hover:border-purple-500/30 transition-colors">
+                  <div className="flex items-center gap-3 mb-6">
+                     <div className="p-2 rounded-xl bg-white/5"><DollarSign className="w-4 h-4 text-purple-400" /></div>
+                     <h4 className="text-sm font-black text-white uppercase tracking-widest">Spends by OS</h4>
+                  </div>
+                  <div className="flex-1"><DonutChart chartData={osBreakdown} valueKey="cost" isCurrency={true} exSym={exSym} exRate={exRate} /></div>
+               </div>
+
+               <div className="bg-[#131A2A] p-6 rounded-[2rem] border border-white/5 shadow-xl flex flex-col hover:border-emerald-500/30 transition-colors">
+                  <div className="flex items-center gap-3 mb-6">
+                     <div className="p-2 rounded-xl bg-white/5"><Download className="w-4 h-4 text-emerald-400" /></div>
+                     <h4 className="text-sm font-black text-white uppercase tracking-widest">Installs by OS</h4>
+                  </div>
+                  <div className="flex-1"><DonutChart chartData={osBreakdown} valueKey="installs" /></div>
+               </div>
+
+               <div className="bg-[#131A2A] p-6 rounded-[2rem] border border-white/5 shadow-xl flex flex-col hover:border-rose-500/30 transition-colors">
+                  <div className="flex items-center gap-3 mb-6">
+                     <div className="p-2 rounded-xl bg-white/5"><ShoppingCart className="w-4 h-4 text-rose-400" /></div>
+                     <h4 className="text-sm font-black text-white uppercase tracking-widest">Purchases by OS</h4>
+                  </div>
+                  <div className="flex-1"><DonutChart chartData={osBreakdown} valueKey="purchases" /></div>
+               </div>
+            </div>
+
+            <div className="grid grid-cols-1 lg:grid-cols-2 gap-8 mb-8">
+              <EntityBarChartCard title="CPI by OS" icon={Activity} data={validCPI.slice(0, 8)} dataKey="cpi" color="bg-amber-500" isCurrency={true} insight={`${validCPI[0]?.name || 'Top OS'} offers most cost-effective acquisition.`} drillDownType="os" onDrillDown={handleDrillDown} exSym={exSym} exRate={exRate} />
+              <EntityBarChartCard title="CPP by OS" icon={Target} data={validCPP.slice(0, 8)} dataKey="cpp" color="bg-red-500" isCurrency={true} insight={`${validCPP[0]?.name || 'Top OS'} is your most efficient conversion platform.`} drillDownType="os" onDrillDown={handleDrillDown} exSym={exSym} exRate={exRate} />
+            </div>
+
+            <div className="bg-[#131A2A] rounded-[2rem] border border-white/5 shadow-xl overflow-hidden mb-8">
+              <div className="overflow-x-auto">
+                <table className="w-full text-left min-w-[1000px]">
+                  <thead className="bg-[#1A2235] border-b border-white/5">
+                    <tr className="text-[10px] font-black uppercase tracking-widest text-slate-400">
+                      <th className="px-6 py-5">OS / Platform</th>
+                      <th className="px-6 py-5 text-right text-purple-400">Cost</th>
+                      <th className="px-6 py-5 text-right">Impressions</th>
+                      <th className="px-6 py-5 text-right">Clicks</th>
+                      <th className="px-6 py-5 text-right text-emerald-400">Installs</th>
+                      <th className="px-6 py-5 text-right text-indigo-400">Sessions</th>
+                      <th className="px-6 py-5 text-right text-cyan-400">Logins</th>
+                      <th className="px-6 py-5 text-right text-slate-500">Ins-Log %</th>
+                      <th className="px-6 py-5 text-right text-rose-400">Purchases</th>
+                      <th className="px-6 py-5 text-right text-slate-500">Ins-Pur %</th>
+                      <th className="px-6 py-5 text-right text-amber-400">CPI</th>
+                      <th className="px-6 py-5 text-right text-red-400">CPP</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-white/5">
+                    {osBreakdown.map((row, i) => (
+                      <tr key={i} onClick={() => setFilterOS([row.name])} className="hover:bg-white/5 transition-colors group cursor-pointer">
+                        <td className="px-6 py-5">
+                          <div className="flex items-center gap-3">
+                            <div className="w-2 h-2 rounded-full bg-purple-500 shadow-[0_0_8px_rgba(168,85,247,0.8)]" />
+                            <span className="font-black text-white group-hover:text-purple-300 transition-colors">{row.name}</span>
+                          </div>
+                        </td>
+                        <td className="px-6 py-5 text-right font-mono font-bold text-slate-300">{formatC(row.cost)}</td>
+                        <td className="px-6 py-5 text-right font-mono text-slate-400">{formatShort(row.impressions)}</td>
+                        <td className="px-6 py-5 text-right font-mono text-slate-400">{formatShort(row.clicks)}</td>
+                        <td className="px-6 py-5 text-right font-mono font-bold text-emerald-400">{formatShort(row.installs)}</td>
+                        <td className="px-6 py-5 text-right font-mono font-bold text-indigo-400">{formatShort(row.sessions)}</td>
+                        <td className="px-6 py-5 text-right font-mono font-bold text-cyan-400">{formatShort(row.logins)}</td>
+                        <td className="px-6 py-5 text-right font-mono font-bold text-slate-500">{row.ltr.toFixed(1)}%</td>
+                        <td className="px-6 py-5 text-right font-mono font-bold text-rose-400">{formatShort(row.purchases)}</td>
+                        <td className="px-6 py-5 text-right font-mono font-bold text-slate-500">{row.ipr.toFixed(1)}%</td>
+                        <td className="px-6 py-5 text-right"><span className="bg-amber-500/10 text-amber-400 px-3 py-1 rounded-full text-[10px] font-black border border-amber-500/20">{formatC(row.cpi, 2)}</span></td>
+                        <td className="px-6 py-5 text-right"><span className="bg-red-500/10 text-red-400 px-3 py-1 rounded-full text-[10px] font-black border border-red-500/20">{formatC(row.cpp, 2)}</span></td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            </div>
+          </>
+        ) : (
+          <div className="animate-in fade-in zoom-in-95 duration-500">
+            <div className="grid grid-cols-2 md:grid-cols-4 xl:grid-cols-7 gap-4 mb-8">
+               <MetricCard label="Ad Spend" value={formatC(activeOSSummary?.cost || 0)} color="text-purple-400" />
+               <MetricCard label="Impressions" value={formatShort(activeOSSummary?.impressions || 0)} color="text-cyan-400" />
+               <MetricCard label="Clicks" value={formatShort(activeOSSummary?.clicks || 0)} color="text-blue-400" />
+               <MetricCard label="Installs" value={formatShort(activeOSSummary?.installs || 0)} color="text-emerald-400" />
+               <MetricCard label="Purchases" value={formatShort(activeOSSummary?.purchases || 0)} color="text-rose-400" />
+               <MetricCard label="CPI" value={formatC(activeOSSummary?.cpi || 0, 2)} color="text-amber-400" />
+               <MetricCard label="CPP" value={formatC(activeOSSummary?.cpp || 0, 2)} color="text-red-400" />
+            </div>
+
+            <div className="grid grid-cols-1 lg:grid-cols-2 gap-8 mb-8">
+               <div className="bg-[#131A2A] p-8 rounded-[2.5rem] border border-white/5 shadow-xl flex flex-col">
+                 <div className="flex justify-between items-center mb-8">
+                   <h4 className="text-sm font-black text-white uppercase tracking-widest flex items-center gap-2"><Layers className="w-4 h-4 text-emerald-400" /> Volume: Installs & Purchases</h4>
+                 </div>
+                 <div className="flex-1 min-h-[300px]">
+                    <DualAxisLineChart chartData={activeOSData} leftKey="installs" rightKey="purchases" leftColorText="fill-emerald-400" rightColorText="fill-rose-400" leftColorHex="#34d399" rightColorHex="#fb7185" isLeftCurrency={false} isRightCurrency={false} exSym={exSym} exRate={exRate} />
+                 </div>
+               </div>
+               <div className="bg-[#131A2A] p-8 rounded-[2.5rem] border border-white/5 shadow-xl flex flex-col">
+                 <div className="flex justify-between items-center mb-8">
+                   <h4 className="text-sm font-black text-white uppercase tracking-widest flex items-center gap-2"><Activity className="w-4 h-4 text-red-400" /> Efficiency: CPI & CPP</h4>
+                 </div>
+                 <div className="flex-1 min-h-[300px]">
+                    <DualAxisLineChart chartData={activeOSData} leftKey="cpi" rightKey="cpp" leftColorText="fill-amber-400" rightColorText="fill-red-400" leftColorHex="#fbbf24" rightColorHex="#f87171" isLeftCurrency={true} isRightCurrency={true} exSym={exSym} exRate={exRate} />
+                 </div>
+               </div>
+            </div>
+          </div>
+        )}
+      </div>
+    );
+  }
+
   function renderDetailed() {
     const activeDetailedData = (selectedWeekTypeView === '' || selectedWeekTypeView === 'All Weeks')
       ? tabData
@@ -1237,10 +1447,11 @@ export default function App() {
 
         {renderKpiTracker()}
 
-        <div className="flex flex-col md:flex-row gap-4 mb-8 border-b border-white/5 pb-6">
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 mb-8 border-b border-white/5 pb-6">
           <MultiSelectDropdown label="Market Filter" options={uniqueMarkets} selected={filterMarkets} onChange={setFilterMarkets} />
           <MultiSelectDropdown label="Channel Filter" options={uniqueChannels} selected={filterChannels} onChange={setFilterChannels} />
           <MultiSelectDropdown label="Campaign Type" options={uniqueCampaigns} selected={filterCampaigns} onChange={setFilterCampaigns} />
+          <MultiSelectDropdown label="OS Filter" options={uniqueOS} selected={filterOS} onChange={setFilterOS} />
         </div>
         
         <div className="flex gap-3 overflow-x-auto pb-4 mb-8 border-b border-white/5 hide-scrollbar">
@@ -1494,6 +1705,7 @@ export default function App() {
               { id: 'market', label: 'Market Intelligence', icon: Globe },
               { id: 'channel', label: 'Channel Attribution', icon: Layers },
               { id: 'campaign', label: 'Campaign Objectives', icon: Megaphone },
+              { id: 'os', label: 'Operating System', icon: Smartphone },
               { id: 'detailed', label: 'Detailed Data Hub', icon: TableProperties },
             ].map(tab => (
               <button
@@ -1545,7 +1757,7 @@ export default function App() {
                 </button>
                 {isWeekDropdownOpen && (
                   <>
-                    <div className="fixed inset-0 z-40" onClick={() => setIsWeekDropdownOpen(false)} />
+                    <div className="fixed inset-0 z-40" onClick={(e) => { e.stopPropagation(); setIsWeekDropdownOpen(false); }} />
                     <div className="absolute top-full left-0 mt-2 w-64 bg-[#131A2A] border border-white/10 rounded-xl shadow-[0_20px_50px_rgba(0,0,0,0.5)] z-50 max-h-80 flex flex-col">
                       <div className="p-3 border-b border-white/5 flex justify-between items-center bg-[#0B0F19]">
                         <span className="text-[10px] font-black uppercase tracking-widest text-slate-400">Select Weeks</span>
@@ -1575,7 +1787,7 @@ export default function App() {
             <div className="flex items-center gap-4">
               {(dateRange.start || compareWeeks.length > 0 || trafficFilter !== 'All') && (
                   <button onClick={() => { setDateRange({start:'', end:''}); setCompareWeeks([]); setTrafficFilter('All'); }} className="text-xs font-black uppercase tracking-widest text-rose-400 hover:text-rose-300 mr-2 flex items-center gap-1 transition-colors">
-                    <Zap className="w-3 h-3"/> Reset
+                    <Zap className="w-3 h-3"/> Reset Filters
                   </button>
               )}
               <button onClick={() => setCurrency(c => c === 'USD' ? 'BHD' : 'USD')} className="flex items-center gap-2 px-4 py-2 rounded-xl border transition-all font-black text-xs tracking-widest uppercase bg-[#131A2A] border-white/5 text-slate-300 hover:border-purple-500/50 hover:text-white">
@@ -1596,13 +1808,14 @@ export default function App() {
               {activeTab === 'market' && renderMarket()}
               {activeTab === 'channel' && renderChannel()}
               {activeTab === 'campaign' && renderCampaign()}
+              {activeTab === 'os' && renderOS()}
               {activeTab === 'detailed' && renderDetailed()}
             </div>
 
             <footer className="max-w-7xl mx-auto px-8 lg:px-12 pb-12 border-t border-white/5 mt-4 pt-8 flex flex-col md:flex-row justify-between items-center gap-6 opacity-60 hover:opacity-100 transition-opacity">
               <div className="flex items-center gap-4">
                 <Info className="w-4 h-4 text-slate-400" />
-                <span className="text-[10px] font-black uppercase tracking-widest text-slate-500">MMP Cross-Engine v7.1 | Global Sidebar UI Active</span>
+                <span className="text-[10px] font-black uppercase tracking-widest text-slate-500">MMP Cross-Engine v7.2 | OS Tracking Active</span>
               </div>
               <div className="flex gap-4 items-center bg-[#131A2A] px-4 py-2 rounded-full border border-white/5">
                 <div className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse shadow-[0_0_8px_rgba(52,211,153,0.8)]" />
@@ -1623,26 +1836,37 @@ export default function App() {
                    <button onClick={() => setReportModal({...reportModal, isOpen: false})} className="text-slate-500 hover:text-white"><Zap className="w-5 h-5 rotate-45"/></button>
                 </div>
                 <div className="space-y-5">
-                   <div>
-                      <label className="text-[10px] font-black uppercase text-slate-400 mb-1.5 block tracking-widest">Date Range</label>
-                      <div className="flex gap-3">
-                         <input style={{ colorScheme: 'dark' }} type="date" value={reportModal.start} onChange={e=>setReportModal({...reportModal, start: e.target.value})} className="w-full text-sm font-bold text-white bg-[#0B0F19] border border-white/10 rounded-xl px-4 py-3 outline-none focus:border-purple-500 cursor-pointer" />
-                         <input style={{ colorScheme: 'dark' }} type="date" value={reportModal.end} onChange={e=>setReportModal({...reportModal, end: e.target.value})} className="w-full text-sm font-bold text-white bg-[#0B0F19] border border-white/10 rounded-xl px-4 py-3 outline-none focus:border-purple-500 cursor-pointer" />
+                   <div className="grid grid-cols-2 gap-4">
+                      <div>
+                         <label className="text-[10px] font-black uppercase text-slate-400 mb-1.5 block tracking-widest">Market Filter</label>
+                         <select value={reportModal.market} onChange={e=>setReportModal({...reportModal, market: e.target.value})} className="w-full px-4 py-3 bg-[#0B0F19] border border-white/10 rounded-xl text-sm font-bold text-white outline-none focus:border-purple-500 cursor-pointer">
+                            <option value="All">Global</option>
+                            {uniqueMarkets.map(m => <option key={m} value={m}>{m}</option>)}
+                         </select>
+                      </div>
+                      <div>
+                         <label className="text-[10px] font-black uppercase text-slate-400 mb-1.5 block tracking-widest">Channel Filter</label>
+                         <select value={reportModal.channel} onChange={e=>setReportModal({...reportModal, channel: e.target.value})} className="w-full px-4 py-3 bg-[#0B0F19] border border-white/10 rounded-xl text-sm font-bold text-white outline-none focus:border-purple-500 cursor-pointer">
+                            <option value="All">All</option>
+                            {uniqueChannels.map(c => <option key={c} value={c}>{c}</option>)}
+                         </select>
                       </div>
                    </div>
-                   <div>
-                      <label className="text-[10px] font-black uppercase text-slate-400 mb-1.5 block tracking-widest">Market Filter</label>
-                      <select value={reportModal.market} onChange={e=>setReportModal({...reportModal, market: e.target.value})} className="w-full px-4 py-3 bg-[#0B0F19] border border-white/10 rounded-xl text-sm font-bold text-white outline-none focus:border-purple-500 cursor-pointer">
-                         <option value="All">Global (All Markets)</option>
-                         {uniqueMarkets.map(m => <option key={m} value={m}>{m}</option>)}
-                      </select>
-                   </div>
-                   <div>
-                      <label className="text-[10px] font-black uppercase text-slate-400 mb-1.5 block tracking-widest">Channel Filter</label>
-                      <select value={reportModal.channel} onChange={e=>setReportModal({...reportModal, channel: e.target.value})} className="w-full px-4 py-3 bg-[#0B0F19] border border-white/10 rounded-xl text-sm font-bold text-white outline-none focus:border-purple-500 cursor-pointer">
-                         <option value="All">All Channels</option>
-                         {uniqueChannels.map(c => <option key={c} value={c}>{c}</option>)}
-                      </select>
+                   <div className="grid grid-cols-2 gap-4">
+                      <div>
+                         <label className="text-[10px] font-black uppercase text-slate-400 mb-1.5 block tracking-widest">Campaign</label>
+                         <select value={reportModal.campaign} onChange={e=>setReportModal({...reportModal, campaign: e.target.value})} className="w-full px-4 py-3 bg-[#0B0F19] border border-white/10 rounded-xl text-sm font-bold text-white outline-none focus:border-purple-500 cursor-pointer">
+                            <option value="All">All</option>
+                            {uniqueCampaigns.map(c => <option key={c} value={c}>{c}</option>)}
+                         </select>
+                      </div>
+                      <div>
+                         <label className="text-[10px] font-black uppercase text-slate-400 mb-1.5 block tracking-widest">OS System</label>
+                         <select value={reportModal.os} onChange={e=>setReportModal({...reportModal, os: e.target.value})} className="w-full px-4 py-3 bg-[#0B0F19] border border-white/10 rounded-xl text-sm font-bold text-white outline-none focus:border-purple-500 cursor-pointer">
+                            <option value="All">All</option>
+                            {uniqueOS.map(o => <option key={o} value={o}>{o}</option>)}
+                         </select>
+                      </div>
                    </div>
                    <div>
                       <label className="text-[10px] font-black uppercase text-slate-400 mb-1.5 block tracking-widest">Traffic Segment</label>
