@@ -3,7 +3,7 @@ import React, { useState, useMemo, useEffect } from 'react';
 import * as d3 from 'd3';
 import { UserButton, SignedIn, SignedOut, SignIn } from "@clerk/nextjs"; 
 import { 
-  TrendingUp, Globe, Layers, Filter, Activity, DollarSign, MousePointer2, 
+  TrendingUp, Globe, Layers, Activity, DollarSign, MousePointer2, 
   Eye, Zap, LayoutDashboard, CalendarDays, ChevronDown, Info, Check, 
   Download, Target, ShoppingCart, Users, TableProperties, Trophy, ArrowRight, FileText, Megaphone, Search
 } from 'lucide-react';
@@ -170,6 +170,15 @@ const MultiSelectDropdown = ({ label, options, selected, onChange }) => {
     </div>
   );
 };
+
+const NavigationBar = ({ items, selected, setSelected, defaultLabel = "Global Overview" }) => (
+  <div className="flex gap-3 overflow-x-auto pb-4 mb-8 border-b border-white/5 hide-scrollbar">
+    <button onClick={() => setSelected('All')} className={`whitespace-nowrap px-6 py-2.5 rounded-xl text-sm font-black transition-all ${selected === 'All' ? 'bg-gradient-to-r from-purple-600 to-rose-500 text-white shadow-lg shadow-purple-500/25 border-none' : 'bg-[#131A2A] text-slate-400 border border-white/5 hover:bg-white/5 hover:text-white'}`}>{defaultLabel}</button>
+    {items.map(item => (
+      <button key={item.name} onClick={() => setSelected(item.name)} className={`whitespace-nowrap px-6 py-2.5 rounded-xl text-sm font-black transition-all ${selected === item.name ? 'bg-gradient-to-r from-purple-600 to-rose-500 text-white shadow-lg shadow-purple-500/25 border-none' : 'bg-[#131A2A] text-slate-400 border border-white/5 hover:bg-white/5 hover:text-white'}`}>{item.name}</button>
+    ))}
+  </div>
+);
 
 const DonutChart = ({ chartData, valueKey, labelKey = 'name', isCurrency = false, exSym = '$', exRate = 1 }) => {
   const [hovered, setHovered] = useState(null);
@@ -423,10 +432,11 @@ export default function App() {
   const [filterCampaigns, setFilterCampaigns] = useState(['All']);
   const [selectedWeekTypeView, setSelectedWeekTypeView] = useState('');
 
-  const [isFilterOpen, setIsFilterOpen] = useState(false);
+  // --- TOP BAR MASTER FILTERS ---
   const [dateRange, setDateRange] = useState({ start: '', end: '' });
   const [compareWeeks, setCompareWeeks] = useState([]); 
   const [trafficFilter, setTrafficFilter] = useState('All'); 
+  const [isWeekDropdownOpen, setIsWeekDropdownOpen] = useState(false);
 
   const [currency, setCurrency] = useState('USD');
   const [kpi, setKpi] = useState({ isOpen: false, isSet: false, budget: '', impressions: '', installs: '', purchases: '' });
@@ -511,7 +521,6 @@ export default function App() {
       });
   }, []);
 
-  // Base processed data
   const { processedData, allTimeKeys } = useMemo(() => {
     if (!data || data.length === 0) return { processedData: [], allTimeKeys: [] };
     const rows = data.map(row => ({
@@ -522,7 +531,6 @@ export default function App() {
     return { processedData: rows, allTimeKeys: timeKeys };
   }, [data]);
 
-  // Master Level Filter (Date + Traffic)
   const filteredData = useMemo(() => {
     return processedData.filter(d => {
       let passTraffic = true;
@@ -544,10 +552,24 @@ export default function App() {
     });
   }, [processedData, dateRange, compareWeeks, trafficFilter]);
 
-  // Dynamic Options for Multi-Select Dropdowns based on active Master Filters
-  const uniqueMarkets = useMemo(() => Array.from(new Set(filteredData.map(d => d.market))).sort(), [filteredData]);
-  const uniqueChannels = useMemo(() => Array.from(new Set(filteredData.map(d => d.channel))).sort(), [filteredData]);
-  const uniqueCampaigns = useMemo(() => Array.from(new Set(filteredData.map(d => d.campaignType))).sort(), [filteredData]);
+  // Dynamic Options based ONLY on the top bar master filters (Paid/Organic/Dates)
+  const uniqueMarkets = useMemo(() => {
+     let d = filteredData;
+     if (trafficFilter === 'Paid') d = d.filter(x => x.cost >= 1);
+     return Array.from(new Set(d.map(x => x.market))).sort();
+  }, [filteredData, trafficFilter]);
+  
+  const uniqueChannels = useMemo(() => {
+     let d = filteredData;
+     if (trafficFilter === 'Paid') d = d.filter(x => x.cost >= 1);
+     return Array.from(new Set(d.map(x => x.channel))).sort();
+  }, [filteredData, trafficFilter]);
+  
+  const uniqueCampaigns = useMemo(() => {
+     let d = filteredData;
+     if (trafficFilter === 'Paid') d = d.filter(x => x.cost >= 1);
+     return Array.from(new Set(d.map(x => x.campaignType))).sort();
+  }, [filteredData, trafficFilter]);
 
   // Global Context Filter applying the multi-select dropdowns
   const tabData = useMemo(() => {
@@ -625,8 +647,9 @@ export default function App() {
     } else if (type === 'campaign') {
       setActiveTab('campaign');
       setFilterCampaigns([value]);
+      setFilterMarkets(['All']);
+      setFilterChannels(['All']);
     }
-    window.scrollTo({ top: 0, behavior: 'smooth' });
   };
 
   function getAIInsight(context, activeData = null, marketFilteredData = null, selectedType = 'All Weeks') {
@@ -1044,7 +1067,6 @@ export default function App() {
     );
   }
 
-  // --- NEW CAMPAIGN TAB RENDER ---
   function renderCampaign() {
     const validCPI = [...campaignTypeBreakdown].filter(c => c.installs > 0 && c.cost > 0).sort((a, b) => a.cpi - b.cpi);
     const validCPP = [...campaignTypeBreakdown].filter(c => c.purchases > 0 && c.cost > 0).sort((a, b) => a.cpp - b.cpp);
@@ -1454,25 +1476,25 @@ export default function App() {
 
       <SignedIn>
         
-        {/* SIDEBAR NAVIGATION */}
-        <aside className="w-64 flex-shrink-0 bg-[#0B0F19] border-r border-white/5 flex flex-col z-[100] no-print">
-          <div className="p-6 border-b border-white/5 flex items-center gap-4">
-            <div className="bg-white px-2 py-1.5 rounded-xl flex items-center justify-center shadow-[0_0_15px_rgba(168,85,247,0.3)]">
-              <span className="text-lg font-black text-[#0B0F19] tracking-tighter">stc</span>
+        {/* EXPANDED SIDEBAR NAVIGATION */}
+        <aside className="w-[288px] flex-shrink-0 bg-[#0B0F19] border-r border-white/5 flex flex-col z-[100] no-print">
+          <div className="p-8 border-b border-white/5 flex items-center gap-4">
+            <div className="bg-white w-10 h-10 rounded-xl flex items-center justify-center shadow-[0_0_20px_rgba(168,85,247,0.3)]">
+              <span className="text-xl font-black text-[#0B0F19] tracking-tighter">stc</span>
             </div>
-            <div className="leading-tight">
-              <h1 className="text-[15px] font-black tracking-tighter text-white">ROVA PERF.</h1>
-              <p className="text-[8px] font-black text-purple-400 uppercase tracking-[0.2em] mt-0.5">Intelligence</p>
+            <div className="leading-none">
+              <h1 className="text-lg font-black tracking-tight text-white">ROVA PERFORMANCE</h1>
+              <p className="text-[9px] font-black text-purple-400 uppercase tracking-[0.25em] mt-1">Intelligence Hub</p>
             </div>
           </div>
 
-          <nav className="flex-1 p-4 space-y-2 overflow-y-auto custom-scrollbar">
+          <nav className="flex-1 p-6 space-y-2 overflow-y-auto custom-scrollbar">
             {[
-              { id: 'summary', label: 'Summary', icon: LayoutDashboard },
-              { id: 'market', label: 'Markets', icon: Globe },
-              { id: 'channel', label: 'Channels', icon: Layers },
-              { id: 'campaign', label: 'Campaigns', icon: Megaphone },
-              { id: 'detailed', label: 'Details', icon: TableProperties },
+              { id: 'summary', label: 'Summary Overview', icon: LayoutDashboard },
+              { id: 'market', label: 'Market Intelligence', icon: Globe },
+              { id: 'channel', label: 'Channel Attribution', icon: Layers },
+              { id: 'campaign', label: 'Campaign Objectives', icon: Megaphone },
+              { id: 'detailed', label: 'Detailed Data Hub', icon: TableProperties },
             ].map(tab => (
               <button
                 key={tab.id}
@@ -1488,106 +1510,108 @@ export default function App() {
               </button>
             ))}
           </nav>
+        </aside>
 
-          <div className="p-4 border-t border-white/5 space-y-4">
-            <button 
-              onClick={() => setIsFilterOpen(!isFilterOpen)}
-              className={`w-full flex items-center justify-between px-4 py-3 rounded-xl transition-all font-bold text-sm ${
-                (dateRange.start || compareWeeks.length > 0 || trafficFilter !== 'All')
-                ? 'bg-purple-500/20 text-purple-300 border border-purple-500/50' 
-                : 'bg-[#131A2A] border border-white/5 text-slate-300 hover:bg-white/5'
-              }`}
-            >
-              <div className="flex items-center gap-2"><Filter className="w-4 h-4"/> Master Filters</div>
-            </button>
-            <div className="flex items-center justify-between px-2 pb-2">
-              <button 
-                  onClick={() => setCurrency(c => c === 'USD' ? 'BHD' : 'USD')}
-                  className="flex items-center gap-2 transition-all font-black text-xs tracking-widest uppercase text-slate-400 hover:text-white"
-              >
-                  <DollarSign className="w-4 h-4 text-emerald-400" /> {currency}
+        {/* MAIN CONTENT WRAPPER */}
+        <div className="flex-1 flex flex-col h-screen overflow-hidden relative">
+          
+          {/* STICKY TOP HEADER (Reimagined Master Filters) */}
+          <header className="sticky top-0 z-50 bg-[#0B0F19]/90 backdrop-blur-2xl border-b border-white/5 px-8 py-4 flex flex-col xl:flex-row xl:items-center justify-between gap-4 shadow-xl no-print">
+            <div className="flex flex-wrap items-center gap-6">
+              
+              {/* Traffic Segment */}
+              <div className="flex bg-[#131A2A] p-1 rounded-xl border border-white/5">
+                {['All', 'Paid', 'Organic'].map(type => (
+                   <button key={type} onClick={() => setTrafficFilter(type)} className={`px-4 py-1.5 text-xs font-bold rounded-lg transition-all ${trafficFilter === type ? 'bg-gradient-to-r from-purple-600 to-rose-500 text-white shadow-md' : 'text-slate-400 hover:text-white'}`}>
+                     {type} Traffic
+                   </button>
+                ))}
+              </div>
+
+              {/* Date Range */}
+              <div className="flex items-center gap-2 bg-[#131A2A] border border-white/5 rounded-xl px-2 py-1">
+                <CalendarDays className="w-4 h-4 text-slate-400 ml-2" />
+                <input style={{ colorScheme: 'dark' }} type="date" value={dateRange.start} onChange={e => setDateRange(prev => ({...prev, start: e.target.value}))} className="w-32 text-xs font-bold text-slate-200 bg-transparent border-none outline-none cursor-pointer" />
+                <span className="text-slate-500">-</span>
+                <input style={{ colorScheme: 'dark' }} type="date" value={dateRange.end} onChange={e => setDateRange(prev => ({...prev, end: e.target.value}))} className="w-32 text-xs font-bold text-slate-200 bg-transparent border-none outline-none cursor-pointer" />
+              </div>
+
+              {/* Compare Weeks Dropdown */}
+              <div className="relative">
+                <button onClick={() => setIsWeekDropdownOpen(!isWeekDropdownOpen)} className={`flex items-center gap-2 px-4 py-2 rounded-xl text-xs font-bold transition-all border ${compareWeeks.length > 0 ? 'bg-purple-500/20 border-purple-500/50 text-purple-300' : 'bg-[#131A2A] border-white/5 text-slate-400 hover:text-white'}`}>
+                   <Layers className="w-4 h-4" />
+                   Compare Weeks {compareWeeks.length > 0 && `(${compareWeeks.length})`}
+                   <ChevronDown className={`w-3 h-3 transition-transform ${isWeekDropdownOpen ? 'rotate-180' : ''}`} />
+                </button>
+                {isWeekDropdownOpen && (
+                  <>
+                    <div className="fixed inset-0 z-40" onClick={() => setIsWeekDropdownOpen(false)} />
+                    <div className="absolute top-full left-0 mt-2 w-64 bg-[#131A2A] border border-white/10 rounded-xl shadow-[0_20px_50px_rgba(0,0,0,0.5)] z-50 max-h-80 flex flex-col">
+                      <div className="p-3 border-b border-white/5 flex justify-between items-center bg-[#0B0F19]">
+                        <span className="text-[10px] font-black uppercase tracking-widest text-slate-400">Select Weeks</span>
+                        {compareWeeks.length > 0 && (
+                          <button onClick={() => setCompareWeeks([])} className="text-[10px] font-black uppercase text-purple-400 hover:text-purple-300 tracking-widest">Clear</button>
+                        )}
+                      </div>
+                      <div className="flex-1 overflow-y-auto custom-scrollbar p-2 grid grid-cols-2 gap-2">
+                        {allTimeKeys.map(key => {
+                          const year = Math.floor(key / 100);
+                          const week = key % 100;
+                          const isSelected = compareWeeks.includes(key);
+                          return (
+                              <button key={key} onClick={() => setCompareWeeks(prev => isSelected ? prev.filter(k => k !== key) : [...prev, key])} className={`flex items-center justify-between px-3 py-2 rounded-lg border text-xs font-bold transition-all ${isSelected ? 'bg-purple-500/20 border-purple-500/50 text-purple-300' : 'border-white/5 hover:bg-white/5 text-slate-400 hover:text-white'}`}>
+                                W{week} '{year.toString().slice(2)}
+                                {isSelected && <Check className="w-3 h-3 text-purple-400" />}
+                              </button>
+                          );
+                        })}
+                      </div>
+                    </div>
+                  </>
+                )}
+              </div>
+            </div>
+
+            <div className="flex items-center gap-4">
+              {(dateRange.start || compareWeeks.length > 0 || trafficFilter !== 'All') && (
+                  <button onClick={() => { setDateRange({start:'', end:''}); setCompareWeeks([]); setTrafficFilter('All'); }} className="text-xs font-black uppercase tracking-widest text-rose-400 hover:text-rose-300 mr-2 flex items-center gap-1 transition-colors">
+                    <Zap className="w-3 h-3"/> Reset
+                  </button>
+              )}
+              <button onClick={() => setCurrency(c => c === 'USD' ? 'BHD' : 'USD')} className="flex items-center gap-2 px-4 py-2 rounded-xl border transition-all font-black text-xs tracking-widest uppercase bg-[#131A2A] border-white/5 text-slate-300 hover:border-purple-500/50 hover:text-white">
+                 <DollarSign className="w-4 h-4 text-emerald-400" /> {currency}
               </button>
               <div className="bg-[#131A2A] border border-white/10 rounded-full p-1 shadow-lg shadow-purple-500/10 hover:border-purple-500/50 transition-colors">
                 <UserButton afterSignOutUrl="/" />
               </div>
             </div>
-          </div>
-        </aside>
+          </header>
 
-        {/* MASTER FILTER SLIDE-OUT PANEL */}
-        {isFilterOpen && (
-          <div className="no-print">
-            <div className="fixed inset-0 z-40 bg-black/20 backdrop-blur-sm" onClick={() => setIsFilterOpen(false)} />
-            <div className="fixed top-0 left-64 h-full w-96 bg-[#131A2A] border-r border-white/5 shadow-[20px_0_50px_rgba(0,0,0,0.5)] z-50 p-8 flex flex-col animate-in slide-in-from-left duration-300">
-              <div className="flex justify-between items-center mb-8 border-b border-white/5 pb-4">
-                <span className="text-[10px] font-black uppercase tracking-widest text-slate-400">Master Time Filters</span>
-                <button onClick={() => { setDateRange({start:'', end:''}); setCompareWeeks([]); setTrafficFilter('All'); }} className="text-[10px] font-black uppercase tracking-widest text-purple-400 hover:text-purple-300">
-                  Reset All
-                </button>
+          {/* SCROLLABLE MAIN CONTENT AREA */}
+          <main className="flex-1 overflow-y-auto relative custom-scrollbar scroll-smooth">
+            <div className="absolute top-0 left-1/2 -translate-x-1/2 w-full h-[600px] bg-gradient-to-b from-purple-900/10 via-transparent to-transparent pointer-events-none rounded-full blur-[100px]"></div>
+            
+            <div className="p-8 lg:p-12 max-w-7xl mx-auto relative z-10">
+              {activeTab === 'summary' && renderSummary()}
+              {activeTab === 'market' && renderMarket()}
+              {activeTab === 'channel' && renderChannel()}
+              {activeTab === 'campaign' && renderCampaign()}
+              {activeTab === 'detailed' && renderDetailed()}
+            </div>
+
+            <footer className="max-w-7xl mx-auto px-8 lg:px-12 pb-12 border-t border-white/5 mt-4 pt-8 flex flex-col md:flex-row justify-between items-center gap-6 opacity-60 hover:opacity-100 transition-opacity">
+              <div className="flex items-center gap-4">
+                <Info className="w-4 h-4 text-slate-400" />
+                <span className="text-[10px] font-black uppercase tracking-widest text-slate-500">MMP Cross-Engine v7.1 | Global Sidebar UI Active</span>
               </div>
-              
-              <div className="space-y-8 flex-1 flex flex-col min-h-0">
-                <div>
-                  <h4 className="text-[10px] font-black uppercase tracking-widest text-slate-400 mb-3 flex items-center gap-2"><Users className="w-3 h-3" /> Traffic Segment</h4>
-                  <div className="flex bg-[#0B0F19] p-1 rounded-xl border border-white/5">
-                    {['All', 'Paid', 'Organic'].map(type => (
-                        <button key={type} onClick={() => setTrafficFilter(type)} className={`flex-1 text-xs font-bold py-2 rounded-lg transition-all ${trafficFilter === type ? 'bg-gradient-to-r from-purple-600 to-rose-500 text-white shadow-md' : 'text-slate-400 hover:text-white'}`}>
-                          {type}
-                        </button>
-                    ))}
-                  </div>
-                </div>
-                <div className={compareWeeks.length > 0 ? 'opacity-30 pointer-events-none' : ''}>
-                  <h4 className="text-[10px] font-black uppercase tracking-widest text-slate-400 mb-3 flex items-center gap-2"><CalendarDays className="w-3 h-3" /> Custom Date Range</h4>
-                  <div className="flex gap-2">
-                      <input style={{ colorScheme: 'dark' }} type="date" value={dateRange.start} onChange={e => setDateRange(prev => ({...prev, start: e.target.value}))} className="w-full text-xs font-bold text-slate-200 bg-[#0B0F19] border border-white/10 rounded-xl px-3 py-2 outline-none focus:border-purple-500 cursor-pointer" />
-                      <input style={{ colorScheme: 'dark' }} type="date" value={dateRange.end} onChange={e => setDateRange(prev => ({...prev, end: e.target.value}))} className="w-full text-xs font-bold text-slate-200 bg-[#0B0F19] border border-white/10 rounded-xl px-3 py-2 outline-none focus:border-purple-500 cursor-pointer" />
-                  </div>
-                </div>
-                <div className={dateRange.start || dateRange.end ? 'opacity-30 pointer-events-none flex-1 flex flex-col min-h-0' : 'flex-1 flex flex-col min-h-0'}>
-                  <h4 className="text-[10px] font-black uppercase tracking-widest text-slate-400 mb-3 flex items-center gap-2"><Layers className="w-3 h-3" /> Compare Specific Weeks</h4>
-                  <div className="flex-1 overflow-y-auto pr-2 grid grid-cols-2 gap-2 custom-scrollbar content-start">
-                      {allTimeKeys.map(key => {
-                        const year = Math.floor(key / 100);
-                        const week = key % 100;
-                        const isSelected = compareWeeks.includes(key);
-                        return (
-                            <button key={key} onClick={() => setCompareWeeks(prev => isSelected ? prev.filter(k => k !== key) : [...prev, key])} className={`flex items-center justify-between px-3 py-2 rounded-xl border text-xs font-bold transition-all ${isSelected ? 'bg-purple-500/20 border-purple-500/50 text-purple-300' : 'border-white/5 hover:bg-white/5 text-slate-400 hover:text-white'}`}>
-                              W{week} '{year.toString().slice(2)}
-                              {isSelected && <Check className="w-3 h-3 text-purple-400" />}
-                            </button>
-                        );
-                      })}
-                  </div>
-                </div>
+              <div className="flex gap-4 items-center bg-[#131A2A] px-4 py-2 rounded-full border border-white/5">
+                <div className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse shadow-[0_0_8px_rgba(52,211,153,0.8)]" />
+                <span className="text-[10px] font-black uppercase tracking-widest text-emerald-400">Live Secure Connect</span>
               </div>
-            </div>
-          </div>
-        )}
+            </footer>
+          </main>
 
-        {/* MAIN CONTENT AREA */}
-        <main className="flex-1 overflow-y-auto relative custom-scrollbar scroll-smooth">
-          <div className="absolute top-0 left-1/2 -translate-x-1/2 w-full h-[600px] bg-gradient-to-b from-purple-900/10 via-transparent to-transparent pointer-events-none rounded-full blur-[100px]"></div>
-          
-          <div className="p-8 lg:p-12 max-w-7xl mx-auto relative z-10">
-            {activeTab === 'summary' && renderSummary()}
-            {activeTab === 'market' && renderMarket()}
-            {activeTab === 'channel' && renderChannel()}
-            {activeTab === 'campaign' && renderCampaign()}
-            {activeTab === 'detailed' && renderDetailed()}
-          </div>
-
-          <footer className="max-w-7xl mx-auto px-8 lg:px-12 pb-12 border-t border-white/5 mt-4 pt-8 flex flex-col md:flex-row justify-between items-center gap-6 opacity-60 hover:opacity-100 transition-opacity">
-            <div className="flex items-center gap-4">
-              <Info className="w-4 h-4 text-slate-400" />
-              <span className="text-[10px] font-black uppercase tracking-widest text-slate-500">MMP Cross-Engine v7.0 | Global Sidebar UI Active</span>
-            </div>
-            <div className="flex gap-4 items-center bg-[#131A2A] px-4 py-2 rounded-full border border-white/5">
-              <div className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse shadow-[0_0_8px_rgba(52,211,153,0.8)]" />
-              <span className="text-[10px] font-black uppercase tracking-widest text-emerald-400">Live Secure Connect</span>
-            </div>
-          </footer>
-        </main>
+        </div>
 
         {/* REPORT MODAL & PDF OVERLAYS */}
         {reportModal.isOpen && (
