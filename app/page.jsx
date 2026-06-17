@@ -97,20 +97,60 @@ const InsightBox = ({ text }) => (
   </div>
 );
 
-const NavigationBar = ({ items, selected, setSelected, defaultLabel = "Global Overview" }) => (
-  <div className="flex gap-3 overflow-x-auto pb-4 mb-8 border-b border-white/5 hide-scrollbar">
-    <button onClick={() => setSelected('All')} className={`whitespace-nowrap px-6 py-2.5 rounded-xl text-sm font-black transition-all ${selected === 'All' ? 'bg-gradient-to-r from-purple-600 to-rose-500 text-white shadow-lg shadow-purple-500/25 border-none' : 'bg-[#131A2A] text-slate-400 border border-white/5 hover:bg-white/5 hover:text-white'}`}>{defaultLabel}</button>
-    {items.map(item => (
-      <button key={item.name} onClick={() => setSelected(item.name)} className={`whitespace-nowrap px-6 py-2.5 rounded-xl text-sm font-black transition-all ${selected === item.name ? 'bg-gradient-to-r from-purple-600 to-rose-500 text-white shadow-lg shadow-purple-500/25 border-none' : 'bg-[#131A2A] text-slate-400 border border-white/5 hover:bg-white/5 hover:text-white'}`}>{item.name}</button>
-    ))}
-  </div>
-);
+// --- REUSABLE MULTI-SELECT DROPDOWN ---
+const MultiSelectDropdown = ({ label, options, selected, onChange }) => {
+  const [isOpen, setIsOpen] = useState(false);
+  return (
+    <div className="flex-1 relative min-w-[200px]">
+      <span className="text-[10px] font-black uppercase text-slate-400 mb-1.5 tracking-widest block">{label}</span>
+      <div 
+        onClick={() => setIsOpen(!isOpen)}
+        className="w-full px-4 py-3 bg-[#131A2A] border border-white/10 rounded-xl text-sm font-black text-purple-400 shadow-sm cursor-pointer flex justify-between items-center transition-colors hover:border-purple-500/50"
+      >
+        <span className="truncate">{selected.includes('All') ? 'All Selected' : selected.join(', ')}</span>
+        <ChevronDown className={`w-4 h-4 transition-transform ${isOpen ? 'rotate-180' : ''}`} />
+      </div>
+      {isOpen && (
+        <>
+          <div className="fixed inset-0 z-40" onClick={() => setIsOpen(false)} />
+          <div className="absolute top-full mt-2 w-full bg-[#131A2A] border border-white/10 rounded-xl shadow-[0_20px_50px_rgba(0,0,0,0.5)] z-50 max-h-60 overflow-y-auto custom-scrollbar p-2">
+            <div 
+              onClick={() => { onChange(['All']); setIsOpen(false); }}
+              className={`px-3 py-2.5 rounded-lg text-sm font-bold cursor-pointer flex items-center justify-between ${selected.includes('All') ? 'bg-purple-500/20 text-purple-300' : 'text-slate-300 hover:bg-white/5'}`}
+            >
+              All <Check className={`w-4 h-4 ${selected.includes('All') ? 'opacity-100' : 'opacity-0'}`} />
+            </div>
+            {options.map(opt => {
+              const isSel = selected.includes(opt);
+              return (
+                <div 
+                  key={opt}
+                  onClick={() => {
+                    let next = [...selected];
+                    if (next.includes('All')) next = [];
+                    if (isSel) {
+                      next = next.filter(n => n !== opt);
+                      if (next.length === 0) next = ['All'];
+                    } else {
+                      next.push(opt);
+                    }
+                    onChange(next);
+                  }}
+                  className={`px-3 py-2.5 rounded-lg text-sm font-bold cursor-pointer flex items-center justify-between mt-1 transition-colors ${isSel ? 'bg-purple-500/20 text-purple-300' : 'text-slate-300 hover:bg-white/5'}`}
+                >
+                  <span className="truncate pr-2">{opt}</span> <Check className={`w-4 h-4 flex-shrink-0 ${isSel ? 'text-purple-400 opacity-100' : 'opacity-0'}`} />
+                </div>
+              )
+            })}
+          </div>
+        </>
+      )}
+    </div>
+  );
+};
 
-// --- NEW COMPONENT: INTERACTIVE PIE/DONUT CHART ---
 const DonutChart = ({ chartData, valueKey, labelKey = 'name', isCurrency = false, exSym = '$', exRate = 1 }) => {
   const [hovered, setHovered] = useState(null);
-  
-  // Filter out zero values for clean rendering
   const validData = chartData.filter(d => d[valueKey] > 0);
   if (validData.length === 0) return <div className="flex h-full w-full min-h-[200px] items-center justify-center text-[10px] text-slate-500 font-black uppercase tracking-widest">No Data Available</div>;
 
@@ -125,8 +165,6 @@ const DonutChart = ({ chartData, valueKey, labelKey = 'name', isCurrency = false
   
   const arc = d3.arc().innerRadius(radius * 0.65).outerRadius(radius);
   const hoverArc = d3.arc().innerRadius(radius * 0.6).outerRadius(radius * 1.05);
-  
-  // High-contrast dark mode colors
   const colorScale = d3.scaleOrdinal().range(['#a855f7', '#34d399', '#fb7185', '#fbbf24', '#0ea5e9', '#6366f1', '#8b5cf6', '#ec4899', '#10b981', '#f43f5e']);
 
   const defaultDisplay = data_ready.length > 0 ? data_ready[0].data : null;
@@ -152,7 +190,6 @@ const DonutChart = ({ chartData, valueKey, labelKey = 'name', isCurrency = false
               />
             );
           })}
-          {/* Centered Value Display */}
           {displayData && (
             <text textAnchor="middle" dy="-0.8em" className="fill-white font-black text-xs pointer-events-none tracking-wide">
               {displayData[labelKey].length > 16 ? displayData[labelKey].substring(0,14)+'...' : displayData[labelKey]}
@@ -268,9 +305,9 @@ const DualAxisLineChart = ({ chartData, leftKey, rightKey, leftColorText, rightC
   );
 };
 
-const ComparisonLineChart = ({ rawData, metric, colorSW, colorBAU, isCurrency, exSym = '$', exRate = 1, aggregateFn, width = 800, height = 250 }) => {
+const ComparisonLineChart = ({ rawData, metric, colorSW, colorBAU, isCurrency, exSym = '$', exRate = 1, aggregateFn, width = 800, height = 300 }) => {
   if (!rawData || rawData.length === 0) return (
-    <div className="h-full w-full min-h-[250px] flex items-center justify-center bg-white/5 rounded-3xl border border-dashed border-white/10 text-[10px] font-black text-slate-500 uppercase tracking-widest">Insufficient Data</div>
+    <div className="h-full w-full min-h-[300px] flex items-center justify-center bg-white/5 rounded-3xl border border-dashed border-white/10 text-[10px] font-black text-slate-500 uppercase tracking-widest">Insufficient Data</div>
   );
   
   const margin = { top: 20, right: 30, bottom: 40, left: 50 };
@@ -304,7 +341,7 @@ const ComparisonLineChart = ({ rawData, metric, colorSW, colorBAU, isCurrency, e
 
   return (
     <div className="flex flex-col h-full w-full relative">
-      <svg width="100%" height="100%" viewBox={`0 0 ${width} ${height}`} preserveAspectRatio="xMidYMid meet" className="overflow-visible min-h-[200px] flex-1">
+      <svg width="100%" height="100%" viewBox={`0 0 ${width} ${height}`} preserveAspectRatio="xMidYMid meet" className="overflow-visible min-h-[250px] flex-1">
         <g transform={`translate(${margin.left},${margin.top})`}>
           {y.ticks(5).map(t => (
             <g key={`t-${t}`} transform={`translate(0, ${y(t)})`}>
@@ -354,21 +391,15 @@ export default function App() {
   const [data, setData] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
-
   const [clientDate, setClientDate] = useState("");
+  
   const [activeTab, setActiveTab] = useState('summary');
-  const [selectedMarketView, setSelectedMarketView] = useState('All');
-  const [selectedChannelView, setSelectedChannelView] = useState('All');
   
-  const [selectedDetailedChannel, setSelectedDetailedChannel] = useState(['All']);
-  const [isDetailedChannelOpen, setIsDetailedChannelOpen] = useState(false);
+  // --- UNIFIED GLOBAL MULTI-SELECT FILTERS ---
+  const [filterMarkets, setFilterMarkets] = useState(['All']);
+  const [filterChannels, setFilterChannels] = useState(['All']);
+  const [filterCampaigns, setFilterCampaigns] = useState(['All']);
   const [selectedWeekTypeView, setSelectedWeekTypeView] = useState('');
-  
-  // --- CAMPAIGN TYPE STATE ---
-  const [selectedCampaignType, setSelectedCampaignType] = useState('All');
-  const [selectedCampaignMarket, setSelectedCampaignMarket] = useState('All');
-  const [selectedCampaignChannel, setSelectedCampaignChannel] = useState(['All']);
-  const [isCampaignChannelOpen, setIsCampaignChannelOpen] = useState(false);
 
   const [isFilterOpen, setIsFilterOpen] = useState(false);
   const [dateRange, setDateRange] = useState({ start: '', end: '' });
@@ -489,6 +520,20 @@ export default function App() {
     });
   }, [processedData, dateRange, compareWeeks, trafficFilter]);
 
+  // Dynamic Options for Multi-Select Dropdowns based on active Master Filters
+  const uniqueMarkets = useMemo(() => Array.from(new Set(filteredData.map(d => d.market))).sort(), [filteredData]);
+  const uniqueChannels = useMemo(() => Array.from(new Set(filteredData.map(d => d.channel))).sort(), [filteredData]);
+  const uniqueCampaigns = useMemo(() => Array.from(new Set(filteredData.map(d => d.campaignType))).sort(), [filteredData]);
+
+  // Tab-specific filtered data applying the multi-select dropdowns
+  const tabData = useMemo(() => {
+    let d = filteredData;
+    if (!filterMarkets.includes('All')) d = d.filter(x => filterMarkets.includes(x.market));
+    if (!filterChannels.includes('All')) d = d.filter(x => filterChannels.includes(x.channel));
+    if (!filterCampaigns.includes('All')) d = d.filter(x => filterCampaigns.includes(x.campaignType));
+    return d;
+  }, [filteredData, filterMarkets, filterChannels, filterCampaigns]);
+
   const aggregate = (rows) => {
     const cost = d3.sum(rows, d => d.cost), impressions = d3.sum(rows, d => d.impressions);
     const clicks = d3.sum(rows, d => d.clicks), installs = d3.sum(rows, d => d.installs);
@@ -521,22 +566,21 @@ export default function App() {
     .filter(c => trafficFilter === 'Paid' ? c.cost >= 1 : (c.cost >= 1 || c.purchases >= 1 || c.installs >= 1))
     .sort((a, b) => b.cost - a.cost), [filteredData, trafficFilter]);
 
-  const campaignTypeBreakdown = useMemo(() => d3.groups(filteredData, d => d.campaignType)
-    .map(([name, values]) => ({ name, ...aggregate(values) }))
-    .filter(c => trafficFilter === 'Paid' ? c.cost >= 1 : (c.cost >= 1 || c.purchases >= 1 || c.installs >= 1))
-    .sort((a, b) => b.cost - a.cost), [filteredData, trafficFilter]);
-
   const handleDrillDown = (type, value) => {
     setActiveTab('detailed');
     if (type === 'market') {
-      setSelectedMarketView(value);
-      setSelectedDetailedChannel(['All']);
+      setFilterMarkets([value]);
+      setFilterChannels(['All']);
+      setFilterCampaigns(['All']);
     } else if (type === 'channel') {
-      setSelectedDetailedChannel([value]);
-      setSelectedMarketView('All');
+      setFilterChannels([value]);
+      setFilterMarkets(['All']);
+      setFilterCampaigns(['All']);
     } else if (type === 'campaign') {
       setActiveTab('campaign');
-      setSelectedCampaignType(value);
+      setFilterCampaigns([value]);
+      setFilterMarkets(['All']);
+      setFilterChannels(['All']);
     }
     window.scrollTo({ top: 0, behavior: 'smooth' });
   };
@@ -805,16 +849,16 @@ export default function App() {
   }
 
   function renderMarket() {
+    const activeMarketData = filterMarkets.includes('All') 
+      ? null 
+      : d3.groups(tabData, d => d.timeKey).map(([key, values]) => ({ week: values[0].week, year: values[0].year, ...aggregate(values) })).sort((a,b) => a.week - b.week);
+          
+    const activeMarketSummary = filterMarkets.includes('All') ? null : aggregate(tabData);
+
     const sortedByInstalls = [...marketBreakdown].sort((a, b) => b.installs - a.installs);
     const sortedByPurchases = [...marketBreakdown].sort((a, b) => b.purchases - a.purchases);
     const validCPI = [...marketBreakdown].filter(m => m.installs > 0 && m.cost > 0).sort((a, b) => a.cpi - b.cpi);
     const validCPP = [...marketBreakdown].filter(m => m.purchases > 0 && m.cost > 0).sort((a, b) => a.cpp - b.cpp);
-
-    const activeMarketData = selectedMarketView === 'All' 
-      ? null 
-      : d3.groups(filteredData.filter(d => d.market === selectedMarketView), d => d.timeKey).map(([key, values]) => ({ week: values[0].week, year: values[0].year, ...aggregate(values) })).sort((a,b) => a.week - b.week);
-          
-    const activeMarketSummary = selectedMarketView === 'All' ? null : marketBreakdown.find(m => m.name === selectedMarketView);
 
     return (
       <div className="animate-in fade-in duration-500">
@@ -823,9 +867,12 @@ export default function App() {
           <p className="text-slate-400 font-medium italic">Geographical footprint filtered dynamically by traffic segment parameters.</p>
         </div>
 
-        <NavigationBar items={marketBreakdown} selected={selectedMarketView} setSelected={setSelectedMarketView} />
+        <div className="flex flex-col md:flex-row gap-4 mb-8 border-b border-white/5 pb-6">
+          <MultiSelectDropdown label="Market Filter" options={uniqueMarkets} selected={filterMarkets} onChange={setFilterMarkets} />
+          <MultiSelectDropdown label="Channel Filter" options={uniqueChannels} selected={filterChannels} onChange={setFilterChannels} />
+        </div>
 
-        {selectedMarketView === 'All' ? (
+        {filterMarkets.includes('All') ? (
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
             <EntityBarChartCard title="Total Installs" icon={Download} data={sortedByInstalls} dataKey="installs" color="bg-emerald-500" insight={`${sortedByInstalls[0]?.name || 'Top market'} leads acquisition volume.`} drillDownType="market" onDrillDown={handleDrillDown} exSym={exSym} exRate={exRate} />
             <EntityBarChartCard title="Total Purchases" icon={ShoppingCart} data={sortedByPurchases} dataKey="purchases" color="bg-rose-500" insight={`${sortedByPurchases[0]?.name || 'Top market'} drives highest bottom-funnel intent.`} drillDownType="market" onDrillDown={handleDrillDown} exSym={exSym} exRate={exRate} />
@@ -868,40 +915,30 @@ export default function App() {
   }
 
   function renderChannel() {
-    const localFilteredData = selectedMarketView === 'All' ? filteredData : filteredData.filter(d => d.market === selectedMarketView);
-    const localChannelBreakdown = d3.groups(localFilteredData, d => d.channel).map(([name, values]) => ({ name, ...aggregate(values) }))
-      .filter(c => trafficFilter === 'Paid' ? c.cost >= 1 : (c.cost >= 1 || c.purchases >= 1 || c.installs >= 1)).sort((a, b) => b.cost - a.cost);
+    const sortedByInstalls = [...channelBreakdown].sort((a, b) => b.installs - a.installs);
+    const sortedByPurchases = [...channelBreakdown].sort((a, b) => b.purchases - a.purchases);
+    const validCPI = [...channelBreakdown].filter(c => c.installs > 0 && c.cost > 0).sort((a, b) => a.cpi - b.cpi);
+    const validCPP = [...channelBreakdown].filter(c => c.purchases > 0 && c.cost > 0).sort((a, b) => a.cpp - b.cpp);
 
-    const sortedByInstalls = [...localChannelBreakdown].sort((a, b) => b.installs - a.installs);
-    const sortedByPurchases = [...localChannelBreakdown].sort((a, b) => b.purchases - a.purchases);
-    const validCPI = [...localChannelBreakdown].filter(c => c.installs > 0 && c.cost > 0).sort((a, b) => a.cpi - b.cpi);
-    const validCPP = [...localChannelBreakdown].filter(c => c.purchases > 0 && c.cost > 0).sort((a, b) => a.cpp - b.cpp);
-
-    const activeChannelData = selectedChannelView === 'All' 
+    const activeChannelData = filterChannels.includes('All') 
       ? null 
-      : d3.groups(localFilteredData.filter(d => d.channel === selectedChannelView), d => d.timeKey).map(([key, values]) => ({ week: values[0].week, year: values[0].year, ...aggregate(values) })).sort((a,b) => a.week - b.week);
+      : d3.groups(tabData, d => d.timeKey).map(([key, values]) => ({ week: values[0].week, year: values[0].year, ...aggregate(values) })).sort((a,b) => a.week - b.week);
           
-    const activeChannelSummary = selectedChannelView === 'All' ? null : localChannelBreakdown.find(c => c.name === selectedChannelView);
+    const activeChannelSummary = filterChannels.includes('All') ? null : aggregate(tabData);
 
     return (
       <div className="animate-in fade-in duration-500">
-        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 mb-6">
-          <div>
-            <h2 className="text-3xl font-black text-white tracking-tight">Channel Attribution</h2>
-            <p className="text-slate-400 font-medium italic">Marketing platform performance filtered dynamically by traffic segment.</p>
-          </div>
-          <div className="flex flex-col items-end">
-             <span className="text-[10px] font-black uppercase text-slate-400 mb-1 tracking-widest">Filter by Market</span>
-             <select value={selectedMarketView} onChange={(e) => setSelectedMarketView(e.target.value)} className="px-4 py-2.5 bg-[#131A2A] border border-white/10 rounded-xl text-sm font-black text-purple-400 shadow-sm outline-none focus:border-purple-500 cursor-pointer">
-               <option value="All">Global (All Markets)</option>
-               {marketBreakdown.map(m => (<option key={m.name} value={m.name}>{m.name}</option>))}
-             </select>
-          </div>
+        <div className="mb-6">
+          <h2 className="text-3xl font-black text-white tracking-tight">Channel Attribution</h2>
+          <p className="text-slate-400 font-medium italic">Marketing platform performance filtered dynamically by traffic segment.</p>
         </div>
 
-        <NavigationBar items={localChannelBreakdown} selected={selectedChannelView} setSelected={setSelectedChannelView} defaultLabel="All Channels" />
+        <div className="flex flex-col md:flex-row gap-4 mb-8 border-b border-white/5 pb-6">
+          <MultiSelectDropdown label="Market Filter" options={uniqueMarkets} selected={filterMarkets} onChange={setFilterMarkets} />
+          <MultiSelectDropdown label="Channel Filter" options={uniqueChannels} selected={filterChannels} onChange={setFilterChannels} />
+        </div>
 
-        {selectedChannelView === 'All' ? (
+        {filterChannels.includes('All') ? (
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
             <EntityBarChartCard title="Total Installs" icon={Download} data={sortedByInstalls} dataKey="installs" color="bg-emerald-500" insight={`${sortedByInstalls[0]?.name || 'Top channel'} drives highest top-funnel acquisition.`} drillDownType="channel" onDrillDown={handleDrillDown} exSym={exSym} exRate={exRate} />
             <EntityBarChartCard title="Total Purchases" icon={ShoppingCart} data={sortedByPurchases} dataKey="purchases" color="bg-rose-500" insight={`${sortedByPurchases[0]?.name || 'Top channel'} brings in highest volume of paying users.`} drillDownType="channel" onDrillDown={handleDrillDown} exSym={exSym} exRate={exRate} />
@@ -963,110 +1000,40 @@ export default function App() {
     );
   }
 
-  // --- NEW CAMPAIGN TAB RENDER ---
   function renderCampaign() {
-    let campaignFilteredData = selectedCampaignMarket === 'All' 
-      ? filteredData 
-      : filteredData.filter(d => d.market === selectedCampaignMarket);
-      
-    campaignFilteredData = selectedCampaignChannel.includes('All')
-      ? campaignFilteredData
-      : campaignFilteredData.filter(d => selectedCampaignChannel.includes(d.channel));
+    const validCPI = [...campaignTypeBreakdown].filter(c => c.installs > 0 && c.cost > 0).sort((a, b) => a.cpi - b.cpi);
+    const validCPP = [...campaignTypeBreakdown].filter(c => c.purchases > 0 && c.cost > 0).sort((a, b) => a.cpp - b.cpp);
 
-    const localCampaignBreakdown = d3.groups(campaignFilteredData, d => d.campaignType)
-      .map(([name, values]) => ({ name, ...aggregate(values) }))
-      .filter(c => trafficFilter === 'Paid' ? c.cost >= 1 : (c.cost >= 1 || c.purchases >= 1 || c.installs >= 1))
-      .sort((a, b) => b.cost - a.cost);
-
-    const validCPI = [...localCampaignBreakdown].filter(c => c.installs > 0 && c.cost > 0).sort((a, b) => a.cpi - b.cpi);
-    const validCPP = [...localCampaignBreakdown].filter(c => c.purchases > 0 && c.cost > 0).sort((a, b) => a.cpp - b.cpp);
-
-    const activeCampaignData = selectedCampaignType === 'All' 
+    const activeCampaignData = filterCampaigns.includes('All') 
       ? null 
-      : d3.groups(campaignFilteredData.filter(d => d.campaignType === selectedCampaignType), d => d.timeKey).map(([key, values]) => ({ week: values[0].week, year: values[0].year, ...aggregate(values) })).sort((a,b) => a.week - b.week);
+      : d3.groups(tabData, d => d.timeKey).map(([key, values]) => ({ week: values[0].week, year: values[0].year, ...aggregate(values) })).sort((a,b) => a.week - b.week);
           
-    const activeCampaignSummary = selectedCampaignType === 'All' ? null : localCampaignBreakdown.find(c => c.name === selectedCampaignType);
+    const activeCampaignSummary = filterCampaigns.includes('All') ? null : aggregate(tabData);
 
     return (
       <div className="animate-in fade-in duration-500">
-        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 mb-6">
-          <div>
-            <h2 className="text-3xl font-black text-white tracking-tight">Campaign Objectives</h2>
-            <p className="text-slate-400 font-medium italic">Attribution and efficiency mapped by creative and strategic intent.</p>
-          </div>
+        <div className="mb-6">
+          <h2 className="text-3xl font-black text-white tracking-tight">Campaign Objectives</h2>
+          <p className="text-slate-400 font-medium italic">Attribution and efficiency mapped by creative and strategic intent.</p>
         </div>
 
-        {/* CAMPAIGN SUB-FILTERS */}
-        <div className="flex flex-col md:flex-row gap-4 mb-8 border-b border-white/5 pb-4">
-           <div className="flex-1">
-             <span className="text-[10px] font-black uppercase text-slate-400 mb-1 tracking-widest block">Market Filter</span>
-             <select value={selectedCampaignMarket} onChange={(e) => setSelectedCampaignMarket(e.target.value)} className="w-full px-4 py-2.5 bg-[#131A2A] border border-white/10 rounded-xl text-sm font-black text-purple-400 shadow-sm outline-none focus:border-purple-500 cursor-pointer">
-               <option value="All">Global (All Markets)</option>
-               {marketBreakdown.map(m => (<option key={m.name} value={m.name}>{m.name}</option>))}
-             </select>
-           </div>
-           
-           <div className="flex-1 relative">
-             <span className="text-[10px] font-black uppercase text-slate-400 mb-1 tracking-widest block">Channel Filter (Multi-Select)</span>
-             <div 
-               onClick={() => setIsCampaignChannelOpen(!isCampaignChannelOpen)}
-               className="w-full px-4 py-2.5 bg-[#131A2A] border border-white/10 rounded-xl text-sm font-black text-purple-400 shadow-sm cursor-pointer flex justify-between items-center"
-             >
-               <span className="truncate">{selectedCampaignChannel.includes('All') ? 'All Channels' : selectedCampaignChannel.join(', ')}</span>
-               <ChevronDown className={`w-4 h-4 transition-transform ${isCampaignChannelOpen ? 'rotate-180' : ''}`} />
-             </div>
-             {isCampaignChannelOpen && (
-               <>
-                 <div className="fixed inset-0 z-40" onClick={() => setIsCampaignChannelOpen(false)} />
-                 <div className="absolute top-full mt-2 w-full bg-[#131A2A] border border-white/10 rounded-xl shadow-2xl z-50 max-h-60 overflow-y-auto custom-scrollbar p-2">
-                   <div 
-                     onClick={() => setSelectedCampaignChannel(['All'])}
-                     className={`px-3 py-2 rounded-lg text-sm font-bold cursor-pointer flex items-center justify-between ${selectedCampaignChannel.includes('All') ? 'bg-purple-500/20 text-purple-300' : 'text-slate-300 hover:bg-white/5'}`}
-                   >
-                     All Channels {selectedCampaignChannel.includes('All') && <Check className="w-4 h-4" />}
-                   </div>
-                   {channelBreakdown.map(c => {
-                     const isSel = selectedCampaignChannel.includes(c.name);
-                     return (
-                       <div 
-                         key={c.name}
-                         onClick={() => {
-                           let next = [...selectedCampaignChannel];
-                           if (next.includes('All')) next = [];
-                           if (isSel) {
-                             next = next.filter(n => n !== c.name);
-                             if (next.length === 0) next = ['All'];
-                           } else {
-                             next.push(c.name);
-                           }
-                           setSelectedCampaignChannel(next);
-                         }}
-                         className={`px-3 py-2 rounded-lg text-sm font-bold cursor-pointer flex items-center justify-between mt-1 ${isSel ? 'bg-purple-500/20 text-purple-300' : 'text-slate-300 hover:bg-white/5'}`}
-                       >
-                         {c.name} {isSel && <Check className="w-4 h-4 text-purple-400" />}
-                       </div>
-                     )
-                   })}
-                 </div>
-               </>
-             )}
-           </div>
+        <div className="flex flex-col md:flex-row gap-4 mb-8 border-b border-white/5 pb-6">
+          <MultiSelectDropdown label="Market Filter" options={uniqueMarkets} selected={filterMarkets} onChange={setFilterMarkets} />
+          <MultiSelectDropdown label="Channel Filter" options={uniqueChannels} selected={filterChannels} onChange={setFilterChannels} />
+          <MultiSelectDropdown label="Campaign Type" options={uniqueCampaigns} selected={filterCampaigns} onChange={setFilterCampaigns} />
         </div>
 
-        <InsightBox text={getAIInsight('campaign', localCampaignBreakdown)} />
+        <InsightBox text={getAIInsight('campaign', campaignTypeBreakdown)} />
 
-        <NavigationBar items={localCampaignBreakdown} selected={selectedCampaignType} setSelected={setSelectedCampaignType} defaultLabel="All Objectives" />
-
-        {selectedCampaignType === 'All' ? (
+        {filterCampaigns.includes('All') ? (
           <>
-            {/* UPDATED: DONUT CHART ROW */}
             <div className="grid grid-cols-1 md:grid-cols-3 gap-8 mb-8">
                <div className="bg-[#131A2A] p-6 rounded-[2rem] border border-white/5 shadow-xl flex flex-col hover:border-purple-500/30 transition-colors">
                   <div className="flex items-center gap-3 mb-6">
                      <div className="p-2 rounded-xl bg-white/5"><DollarSign className="w-4 h-4 text-purple-400" /></div>
                      <h4 className="text-sm font-black text-white uppercase tracking-widest">Spends by Objective</h4>
                   </div>
-                  <div className="flex-1"><DonutChart chartData={localCampaignBreakdown} valueKey="cost" isCurrency={true} exSym={exSym} exRate={exRate} /></div>
+                  <div className="flex-1"><DonutChart chartData={campaignTypeBreakdown} valueKey="cost" isCurrency={true} exSym={exSym} exRate={exRate} /></div>
                </div>
 
                <div className="bg-[#131A2A] p-6 rounded-[2rem] border border-white/5 shadow-xl flex flex-col hover:border-emerald-500/30 transition-colors">
@@ -1074,7 +1041,7 @@ export default function App() {
                      <div className="p-2 rounded-xl bg-white/5"><Download className="w-4 h-4 text-emerald-400" /></div>
                      <h4 className="text-sm font-black text-white uppercase tracking-widest">Installs by Objective</h4>
                   </div>
-                  <div className="flex-1"><DonutChart chartData={localCampaignBreakdown} valueKey="installs" /></div>
+                  <div className="flex-1"><DonutChart chartData={campaignTypeBreakdown} valueKey="installs" /></div>
                </div>
 
                <div className="bg-[#131A2A] p-6 rounded-[2rem] border border-white/5 shadow-xl flex flex-col hover:border-rose-500/30 transition-colors">
@@ -1082,11 +1049,10 @@ export default function App() {
                      <div className="p-2 rounded-xl bg-white/5"><ShoppingCart className="w-4 h-4 text-rose-400" /></div>
                      <h4 className="text-sm font-black text-white uppercase tracking-widest">Purchases by Obj.</h4>
                   </div>
-                  <div className="flex-1"><DonutChart chartData={localCampaignBreakdown} valueKey="purchases" /></div>
+                  <div className="flex-1"><DonutChart chartData={campaignTypeBreakdown} valueKey="purchases" /></div>
                </div>
             </div>
 
-            {/* CPI and CPP Bar Charts Re-Aligned */}
             <div className="grid grid-cols-1 lg:grid-cols-2 gap-8 mb-8">
               <EntityBarChartCard title="CPI by Objective" icon={Activity} data={validCPI.slice(0, 8)} dataKey="cpi" color="bg-amber-500" isCurrency={true} insight={`${validCPI[0]?.name || 'Top objective'} offers most cost-effective acquisition.`} drillDownType="campaign" onDrillDown={handleDrillDown} exSym={exSym} exRate={exRate} />
               <EntityBarChartCard title="CPP by Objective" icon={Target} data={validCPP.slice(0, 8)} dataKey="cpp" color="bg-red-500" isCurrency={true} insight={`${validCPP[0]?.name || 'Top objective'} is your most efficient conversion type.`} drillDownType="campaign" onDrillDown={handleDrillDown} exSym={exSym} exRate={exRate} />
@@ -1094,21 +1060,26 @@ export default function App() {
 
             <div className="bg-[#131A2A] rounded-[2rem] border border-white/5 shadow-xl overflow-hidden mb-8">
               <div className="overflow-x-auto">
-                <table className="w-full text-left min-w-[900px]">
+                <table className="w-full text-left min-w-[1000px]">
                   <thead className="bg-[#1A2235] border-b border-white/5">
                     <tr className="text-[10px] font-black uppercase tracking-widest text-slate-400">
                       <th className="px-6 py-5">Campaign Objective</th>
                       <th className="px-6 py-5 text-right text-purple-400">Cost</th>
                       <th className="px-6 py-5 text-right">Impressions</th>
+                      <th className="px-6 py-5 text-right">Clicks</th>
                       <th className="px-6 py-5 text-right text-emerald-400">Installs</th>
+                      <th className="px-6 py-5 text-right text-indigo-400">Sessions</th>
+                      <th className="px-6 py-5 text-right text-cyan-400">Logins</th>
+                      <th className="px-6 py-5 text-right text-slate-500">Ins-Log %</th>
                       <th className="px-6 py-5 text-right text-rose-400">Purchases</th>
+                      <th className="px-6 py-5 text-right text-slate-500">Ins-Pur %</th>
                       <th className="px-6 py-5 text-right text-amber-400">CPI</th>
                       <th className="px-6 py-5 text-right text-red-400">CPP</th>
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-white/5">
-                    {localCampaignBreakdown.map((row, i) => (
-                      <tr key={i} onClick={() => setSelectedCampaignType(row.name)} className="hover:bg-white/5 transition-colors group cursor-pointer">
+                    {campaignTypeBreakdown.map((row, i) => (
+                      <tr key={i} onClick={() => setFilterCampaigns([row.name])} className="hover:bg-white/5 transition-colors group cursor-pointer">
                         <td className="px-6 py-5">
                           <div className="flex items-center gap-3">
                             <div className="w-2 h-2 rounded-full bg-purple-500 shadow-[0_0_8px_rgba(168,85,247,0.8)]" />
@@ -1116,9 +1087,14 @@ export default function App() {
                           </div>
                         </td>
                         <td className="px-6 py-5 text-right font-mono font-bold text-slate-300">{formatC(row.cost)}</td>
-                        <td className="px-6 py-5 text-right font-mono text-slate-400">{d3.format(",.0f")(row.impressions)}</td>
-                        <td className="px-6 py-5 text-right font-mono font-bold text-emerald-400">{d3.format(",.0f")(row.installs)}</td>
-                        <td className="px-6 py-5 text-right font-mono font-bold text-rose-400">{d3.format(",.0f")(row.purchases)}</td>
+                        <td className="px-6 py-5 text-right font-mono text-slate-400">{formatShort(row.impressions)}</td>
+                        <td className="px-6 py-5 text-right font-mono text-slate-400">{formatShort(row.clicks)}</td>
+                        <td className="px-6 py-5 text-right font-mono font-bold text-emerald-400">{formatShort(row.installs)}</td>
+                        <td className="px-6 py-5 text-right font-mono font-bold text-indigo-400">{formatShort(row.sessions)}</td>
+                        <td className="px-6 py-5 text-right font-mono font-bold text-cyan-400">{formatShort(row.logins)}</td>
+                        <td className="px-6 py-5 text-right font-mono font-bold text-slate-500">{row.ltr.toFixed(1)}%</td>
+                        <td className="px-6 py-5 text-right font-mono font-bold text-rose-400">{formatShort(row.purchases)}</td>
+                        <td className="px-6 py-5 text-right font-mono font-bold text-slate-500">{row.ipr.toFixed(1)}%</td>
                         <td className="px-6 py-5 text-right"><span className="bg-amber-500/10 text-amber-400 px-3 py-1 rounded-full text-[10px] font-black border border-amber-500/20">{formatC(row.cpi, 2)}</span></td>
                         <td className="px-6 py-5 text-right"><span className="bg-red-500/10 text-red-400 px-3 py-1 rounded-full text-[10px] font-black border border-red-500/20">{formatC(row.cpp, 2)}</span></td>
                       </tr>
@@ -1165,18 +1141,9 @@ export default function App() {
   }
 
   function renderDetailed() {
-    let marketFilteredData = selectedMarketView === 'All' 
-      ? filteredData 
-      : filteredData.filter(d => d.market === selectedMarketView);
-      
-    // --- MULTI-CHANNEL FILTER LOGIC ---
-    marketFilteredData = selectedDetailedChannel.includes('All')
-      ? marketFilteredData
-      : marketFilteredData.filter(d => selectedDetailedChannel.includes(d.channel));
-
     const activeDetailedData = (selectedWeekTypeView === '' || selectedWeekTypeView === 'All Weeks')
-      ? marketFilteredData
-      : marketFilteredData.filter(d => d.weekType === selectedWeekTypeView);
+      ? tabData
+      : tabData.filter(d => d.weekType === selectedWeekTypeView);
 
     const activeTableData = d3.groups(activeDetailedData, d => d.timeKey)
         .map(([key, values]) => ({ week: values[0].week, year: values[0].year, ...aggregate(values) }))
@@ -1184,10 +1151,9 @@ export default function App() {
 
     const isAllWeeks = selectedWeekTypeView === 'All Weeks';
     const isSpecificWeek = selectedWeekTypeView === 'Salary Weeks' || selectedWeekTypeView === 'BAU';
-    
-    // --- ALWAYS SHOW CHARTS IF DATE RANGE / MULTIPLE WEEKS OR NO SPECIFIC FILTER ---
+    const isDefaultView = selectedWeekTypeView === '';
     const isAnySelected = selectedWeekTypeView !== '';
-    const shouldShowDefaultCharts = (isSpecificWeek || selectedWeekTypeView === '' || compareWeeks.length > 0 || dateRange.start || dateRange.end);
+    const shouldShowDefaultCharts = (isSpecificWeek || isDefaultView || compareWeeks.length > 0 || dateRange.start || dateRange.end);
 
     return (
       <div className="animate-in fade-in duration-500">
@@ -1204,61 +1170,10 @@ export default function App() {
 
         {renderKpiTracker()}
 
-        <div className="flex flex-col md:flex-row gap-4 mb-8 border-b border-white/5 pb-4">
-           <div className="flex-1">
-             <span className="text-[10px] font-black uppercase text-slate-400 mb-1 tracking-widest block">Market Filter</span>
-             <select value={selectedMarketView} onChange={(e) => setSelectedMarketView(e.target.value)} className="w-full px-4 py-2.5 bg-[#131A2A] border border-white/10 rounded-xl text-sm font-black text-purple-400 shadow-sm outline-none focus:border-purple-500 cursor-pointer">
-               <option value="All">Global (All Markets)</option>
-               {marketBreakdown.map(m => (<option key={m.name} value={m.name}>{m.name}</option>))}
-             </select>
-           </div>
-           
-           {/* MULTI-SELECT CUSTOM DROPDOWN UI */}
-           <div className="flex-1 relative">
-             <span className="text-[10px] font-black uppercase text-slate-400 mb-1 tracking-widest block">Channel Filter (Multi-Select)</span>
-             <div 
-               onClick={() => setIsDetailedChannelOpen(!isDetailedChannelOpen)}
-               className="w-full px-4 py-2.5 bg-[#131A2A] border border-white/10 rounded-xl text-sm font-black text-purple-400 shadow-sm cursor-pointer flex justify-between items-center"
-             >
-               <span className="truncate">{selectedDetailedChannel.includes('All') ? 'All Channels' : selectedDetailedChannel.join(', ')}</span>
-               <ChevronDown className={`w-4 h-4 transition-transform ${isDetailedChannelOpen ? 'rotate-180' : ''}`} />
-             </div>
-             {isDetailedChannelOpen && (
-               <>
-                 <div className="fixed inset-0 z-40" onClick={() => setIsDetailedChannelOpen(false)} />
-                 <div className="absolute top-full mt-2 w-full bg-[#131A2A] border border-white/10 rounded-xl shadow-2xl z-50 max-h-60 overflow-y-auto custom-scrollbar p-2">
-                   <div 
-                     onClick={() => setSelectedDetailedChannel(['All'])}
-                     className={`px-3 py-2 rounded-lg text-sm font-bold cursor-pointer flex items-center justify-between ${selectedDetailedChannel.includes('All') ? 'bg-purple-500/20 text-purple-300' : 'text-slate-300 hover:bg-white/5'}`}
-                   >
-                     All Channels {selectedDetailedChannel.includes('All') && <Check className="w-4 h-4" />}
-                   </div>
-                   {channelBreakdown.map(c => {
-                     const isSel = selectedDetailedChannel.includes(c.name);
-                     return (
-                       <div 
-                         key={c.name}
-                         onClick={() => {
-                           let next = [...selectedDetailedChannel];
-                           if (next.includes('All')) next = [];
-                           if (isSel) {
-                             next = next.filter(n => n !== c.name);
-                             if (next.length === 0) next = ['All'];
-                           } else {
-                             next.push(c.name);
-                           }
-                           setSelectedDetailedChannel(next);
-                         }}
-                         className={`px-3 py-2 rounded-lg text-sm font-bold cursor-pointer flex items-center justify-between mt-1 ${isSel ? 'bg-purple-500/20 text-purple-300' : 'text-slate-300 hover:bg-white/5'}`}
-                       >
-                         {c.name} {isSel && <Check className="w-4 h-4 text-purple-400" />}
-                       </div>
-                     )
-                   })}
-                 </div>
-               </>
-             )}
-           </div>
+        <div className="flex flex-col md:flex-row gap-4 mb-8 border-b border-white/5 pb-6">
+          <MultiSelectDropdown label="Market Filter" options={uniqueMarkets} selected={filterMarkets} onChange={setFilterMarkets} />
+          <MultiSelectDropdown label="Channel Filter" options={uniqueChannels} selected={filterChannels} onChange={setFilterChannels} />
+          <MultiSelectDropdown label="Campaign Type" options={uniqueCampaigns} selected={filterCampaigns} onChange={setFilterCampaigns} />
         </div>
         
         <div className="flex gap-3 overflow-x-auto pb-4 mb-8 border-b border-white/5 hide-scrollbar">
@@ -1274,10 +1189,9 @@ export default function App() {
         </div>
 
         {isAnySelected && (
-          <InsightBox text={getAIInsight('detailed', activeTableData, marketFilteredData, selectedWeekTypeView)} />
+          <InsightBox text={getAIInsight('detailed', activeTableData, tabData, selectedWeekTypeView)} />
         )}
 
-        {/* DEFAULT VIEW CHARTS (Always visible dynamically for active timeline selection) */}
         {shouldShowDefaultCharts && !isAllWeeks && activeTableData.length > 0 && (
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-8 mb-8 animate-in fade-in zoom-in-95 duration-500">
              <div className="bg-[#131A2A] p-8 rounded-[2.5rem] border border-white/5 shadow-xl flex flex-col">
@@ -1304,28 +1218,28 @@ export default function App() {
              <div className="bg-[#131A2A] p-8 rounded-[2.5rem] border border-white/5 shadow-xl flex flex-col">
                <h4 className="text-xs font-black text-white uppercase tracking-widest mb-6 flex items-center gap-2"><Layers className="w-4 h-4 text-emerald-400" /> Installs (SW vs BAU)</h4>
                <div className="flex-1 min-h-[300px]">
-                 <ComparisonLineChart rawData={marketFilteredData} metric="installs" colorSW="#34d399" colorBAU="#047857" isCurrency={false} exSym={exSym} exRate={exRate} aggregateFn={aggregate} />
+                 <ComparisonLineChart rawData={tabData} metric="installs" colorSW="#34d399" colorBAU="#047857" isCurrency={false} exSym={exSym} exRate={exRate} aggregateFn={aggregate} />
                </div>
              </div>
              
              <div className="bg-[#131A2A] p-8 rounded-[2.5rem] border border-white/5 shadow-xl flex flex-col">
                <h4 className="text-xs font-black text-white uppercase tracking-widest mb-6 flex items-center gap-2"><ShoppingCart className="w-4 h-4 text-rose-400" /> Purchases (SW vs BAU)</h4>
                <div className="flex-1 min-h-[300px]">
-                 <ComparisonLineChart rawData={marketFilteredData} metric="purchases" colorSW="#fb7185" colorBAU="#be123c" isCurrency={false} exSym={exSym} exRate={exRate} aggregateFn={aggregate} />
+                 <ComparisonLineChart rawData={tabData} metric="purchases" colorSW="#fb7185" colorBAU="#be123c" isCurrency={false} exSym={exSym} exRate={exRate} aggregateFn={aggregate} />
                </div>
              </div>
 
              <div className="bg-[#131A2A] p-8 rounded-[2.5rem] border border-white/5 shadow-xl flex flex-col">
                <h4 className="text-xs font-black text-white uppercase tracking-widest mb-6 flex items-center gap-2"><Activity className="w-4 h-4 text-amber-400" /> CPI (SW vs BAU)</h4>
                <div className="flex-1 min-h-[300px]">
-                 <ComparisonLineChart rawData={marketFilteredData} metric="cpi" colorSW="#fbbf24" colorBAU="#b45309" isCurrency={true} exSym={exSym} exRate={exRate} aggregateFn={aggregate} />
+                 <ComparisonLineChart rawData={tabData} metric="cpi" colorSW="#fbbf24" colorBAU="#b45309" isCurrency={true} exSym={exSym} exRate={exRate} aggregateFn={aggregate} />
                </div>
              </div>
 
              <div className="bg-[#131A2A] p-8 rounded-[2.5rem] border border-white/5 shadow-xl flex flex-col">
                <h4 className="text-xs font-black text-white uppercase tracking-widest mb-6 flex items-center gap-2"><Target className="w-4 h-4 text-red-400" /> CPP (SW vs BAU)</h4>
                <div className="flex-1 min-h-[300px]">
-                 <ComparisonLineChart rawData={marketFilteredData} metric="cpp" colorSW="#f87171" colorBAU="#991b1b" isCurrency={true} exSym={exSym} exRate={exRate} aggregateFn={aggregate} />
+                 <ComparisonLineChart rawData={tabData} metric="cpp" colorSW="#f87171" colorBAU="#991b1b" isCurrency={true} exSym={exSym} exRate={exRate} aggregateFn={aggregate} />
                </div>
              </div>
           </div>
@@ -1338,6 +1252,7 @@ export default function App() {
                 <tr className="text-[10px] font-black uppercase tracking-widest text-slate-400">
                   <th className="px-6 py-5">Fiscal Window</th>
                   <th className="px-6 py-5 text-right text-purple-400">Cost</th>
+                  <th className="px-6 py-5 text-right">Clicks</th>
                   <th className="px-6 py-5 text-right text-emerald-400">Installs</th>
                   <th className="px-6 py-5 text-right text-indigo-400">Sessions</th>
                   <th className="px-6 py-5 text-right text-cyan-400">Logins</th>
@@ -1358,6 +1273,7 @@ export default function App() {
                       </div>
                     </td>
                     <td className="px-6 py-5 text-right font-mono font-bold text-slate-300">{formatC(w.cost)}</td>
+                    <td className="px-6 py-5 text-right font-mono text-slate-400">{d3.format(",.0f")(w.clicks)}</td>
                     <td className="px-6 py-5 text-right font-mono font-bold text-emerald-400">{d3.format(",.0f")(w.installs)}</td>
                     <td className="px-6 py-5 text-right font-mono font-bold text-indigo-400">{d3.format(",.0f")(w.sessions)}</td>
                     <td className="px-6 py-5 text-right font-mono font-bold text-cyan-400">{d3.format(",.0f")(w.logins)}</td>
@@ -1473,10 +1389,7 @@ export default function App() {
     );
   }
 
-  // --- COMPONENT LEVEL SECURITY RENDER ---
-
   // Strict bailout: Wait until React has fully mounted in the browser before rendering anything.
-  // This guarantees zero Server-Side Rendering (SSR) HTML mismatches.
   if (!isMounted) {
     return (
       <div className="min-h-screen bg-[#0B0F19] flex items-center justify-center">
@@ -1486,18 +1399,152 @@ export default function App() {
   }
 
   return (
-    <div className="min-h-screen bg-[#0B0F19] text-slate-200 font-sans selection:bg-purple-500/30 selection:text-purple-100">
+    <div className="flex h-screen w-full overflow-hidden bg-[#0B0F19] text-slate-200 font-sans selection:bg-purple-500/30 selection:text-purple-100">
       
-      {/* SECURITY LOCK: EMBEDDED LOGIN AVOIDS ROUTING CRASHES */}
       <SignedOut>
-        <div className="flex items-center justify-center min-h-screen">
+        <div className="flex w-full items-center justify-center min-h-screen">
            <SignIn routing="hash" forceRedirectUrl="/" />
         </div>
       </SignedOut>
 
-      {/* SECURE AREA: ONLY SHOW THIS TO FULLY AUTHENTICATED USERS */}
       <SignedIn>
-        {/* REPORT CONFIGURATION MODAL */}
+        
+        {/* SIDEBAR NAVIGATION */}
+        <aside className="w-64 flex-shrink-0 bg-[#0B0F19] border-r border-white/5 flex flex-col z-[100] no-print">
+          <div className="p-6 border-b border-white/5 flex items-center gap-4">
+            <div className="bg-white px-2 py-1.5 rounded-xl flex items-center justify-center shadow-[0_0_15px_rgba(168,85,247,0.3)]">
+              <span className="text-lg font-black text-[#0B0F19] tracking-tighter">stc</span>
+            </div>
+            <div className="leading-tight">
+              <h1 className="text-[15px] font-black tracking-tighter text-white">ROVA PERF.</h1>
+              <p className="text-[8px] font-black text-purple-400 uppercase tracking-[0.2em] mt-0.5">Intelligence</p>
+            </div>
+          </div>
+
+          <nav className="flex-1 p-4 space-y-2 overflow-y-auto custom-scrollbar">
+            {[
+              { id: 'summary', label: 'Summary', icon: LayoutDashboard },
+              { id: 'market', label: 'Markets', icon: Globe },
+              { id: 'channel', label: 'Channels', icon: Layers },
+              { id: 'campaign', label: 'Campaigns', icon: Megaphone },
+              { id: 'detailed', label: 'Details', icon: TableProperties },
+            ].map(tab => (
+              <button
+                key={tab.id}
+                onClick={() => { setActiveTab(tab.id); }}
+                className={`w-full flex items-center gap-3 px-4 py-3 rounded-xl text-sm font-black transition-all ${
+                  activeTab === tab.id 
+                  ? 'bg-gradient-to-r from-purple-600 to-rose-500 text-white shadow-lg shadow-purple-500/25 border-none' 
+                  : 'text-slate-400 hover:text-white hover:bg-white/5'
+                }`}
+              >
+                <tab.icon className="w-4 h-4" />
+                <span>{tab.label}</span>
+              </button>
+            ))}
+          </nav>
+
+          <div className="p-4 border-t border-white/5 space-y-4">
+            <button 
+              onClick={() => setIsFilterOpen(!isFilterOpen)}
+              className={`w-full flex items-center justify-between px-4 py-3 rounded-xl transition-all font-bold text-sm ${
+                (dateRange.start || compareWeeks.length > 0 || trafficFilter !== 'All')
+                ? 'bg-purple-500/20 text-purple-300 border border-purple-500/50' 
+                : 'bg-[#131A2A] border border-white/5 text-slate-300 hover:bg-white/5'
+              }`}
+            >
+              <div className="flex items-center gap-2"><Filter className="w-4 h-4"/> Master Filters</div>
+            </button>
+            <div className="flex items-center justify-between px-2 pb-2">
+              <button 
+                  onClick={() => setCurrency(c => c === 'USD' ? 'BHD' : 'USD')}
+                  className="flex items-center gap-2 transition-all font-black text-xs tracking-widest uppercase text-slate-400 hover:text-white"
+              >
+                  <DollarSign className="w-4 h-4 text-emerald-400" /> {currency}
+              </button>
+              <div className="bg-[#131A2A] border border-white/10 rounded-full p-1 shadow-lg shadow-purple-500/10 hover:border-purple-500/50 transition-colors">
+                <UserButton afterSignOutUrl="/" />
+              </div>
+            </div>
+          </div>
+        </aside>
+
+        {/* MASTER FILTER SLIDE-OUT PANEL */}
+        {isFilterOpen && (
+          <div className="no-print">
+            <div className="fixed inset-0 z-40 bg-black/20 backdrop-blur-sm" onClick={() => setIsFilterOpen(false)} />
+            <div className="fixed top-0 left-64 h-full w-96 bg-[#131A2A] border-r border-white/5 shadow-[20px_0_50px_rgba(0,0,0,0.5)] z-50 p-8 overflow-y-auto animate-in slide-in-from-left duration-300 custom-scrollbar">
+              <div className="flex justify-between items-center mb-8 border-b border-white/5 pb-4">
+                <span className="text-[10px] font-black uppercase tracking-widest text-slate-400">Master Time Filters</span>
+                <button onClick={() => { setDateRange({start:'', end:''}); setCompareWeeks([]); setTrafficFilter('All'); }} className="text-[10px] font-black uppercase tracking-widest text-purple-400 hover:text-purple-300">
+                  Reset All
+                </button>
+              </div>
+              
+              <div className="space-y-8">
+                <div>
+                  <h4 className="text-[10px] font-black uppercase tracking-widest text-slate-400 mb-3 flex items-center gap-2"><Users className="w-3 h-3" /> Traffic Segment</h4>
+                  <div className="flex bg-[#0B0F19] p-1 rounded-xl border border-white/5">
+                    {['All', 'Paid', 'Organic'].map(type => (
+                        <button key={type} onClick={() => setTrafficFilter(type)} className={`flex-1 text-xs font-bold py-2 rounded-lg transition-all ${trafficFilter === type ? 'bg-gradient-to-r from-purple-600 to-rose-500 text-white shadow-md' : 'text-slate-400 hover:text-white'}`}>
+                          {type}
+                        </button>
+                    ))}
+                  </div>
+                </div>
+                <div className={compareWeeks.length > 0 ? 'opacity-30 pointer-events-none' : ''}>
+                  <h4 className="text-[10px] font-black uppercase tracking-widest text-slate-400 mb-3 flex items-center gap-2"><CalendarDays className="w-3 h-3" /> Custom Date Range</h4>
+                  <div className="flex gap-2">
+                      <input style={{ colorScheme: 'dark' }} type="date" value={dateRange.start} onChange={e => setDateRange(prev => ({...prev, start: e.target.value}))} className="w-full text-xs font-bold text-slate-200 bg-[#0B0F19] border border-white/10 rounded-xl px-3 py-2 outline-none focus:border-purple-500 cursor-pointer" />
+                      <input style={{ colorScheme: 'dark' }} type="date" value={dateRange.end} onChange={e => setDateRange(prev => ({...prev, end: e.target.value}))} className="w-full text-xs font-bold text-slate-200 bg-[#0B0F19] border border-white/10 rounded-xl px-3 py-2 outline-none focus:border-purple-500 cursor-pointer" />
+                  </div>
+                </div>
+                <div className={dateRange.start || dateRange.end ? 'opacity-30 pointer-events-none' : ''}>
+                  <h4 className="text-[10px] font-black uppercase tracking-widest text-slate-400 mb-3 flex items-center gap-2"><Layers className="w-3 h-3" /> Compare Specific Weeks</h4>
+                  <div className="max-h-64 overflow-y-auto pr-2 grid grid-cols-2 gap-2 custom-scrollbar">
+                      {allTimeKeys.map(key => {
+                        const year = Math.floor(key / 100);
+                        const week = key % 100;
+                        const isSelected = compareWeeks.includes(key);
+                        return (
+                            <button key={key} onClick={() => setCompareWeeks(prev => isSelected ? prev.filter(k => k !== key) : [...prev, key])} className={`flex items-center justify-between px-3 py-2 rounded-xl border text-xs font-bold transition-all ${isSelected ? 'bg-purple-500/20 border-purple-500/50 text-purple-300' : 'border-white/5 hover:bg-white/5 text-slate-400 hover:text-white'}`}>
+                              W{week} '{year.toString().slice(2)}
+                              {isSelected && <Check className="w-3 h-3 text-purple-400" />}
+                            </button>
+                        );
+                      })}
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* MAIN CONTENT AREA */}
+        <main className="flex-1 overflow-y-auto relative custom-scrollbar scroll-smooth">
+          <div className="absolute top-0 left-1/2 -translate-x-1/2 w-full h-[600px] bg-gradient-to-b from-purple-900/10 via-transparent to-transparent pointer-events-none rounded-full blur-[100px]"></div>
+          
+          <div className="p-8 lg:p-12 max-w-7xl mx-auto relative z-10">
+            {activeTab === 'summary' && renderSummary()}
+            {activeTab === 'market' && renderMarket()}
+            {activeTab === 'channel' && renderChannel()}
+            {activeTab === 'campaign' && renderCampaign()}
+            {activeTab === 'detailed' && renderDetailed()}
+          </div>
+
+          <footer className="max-w-7xl mx-auto px-8 lg:px-12 pb-12 border-t border-white/5 mt-4 pt-8 flex flex-col md:flex-row justify-between items-center gap-6 opacity-60 hover:opacity-100 transition-opacity">
+            <div className="flex items-center gap-4">
+              <Info className="w-4 h-4 text-slate-400" />
+              <span className="text-[10px] font-black uppercase tracking-widest text-slate-500">MMP Cross-Engine v7.0 | Global Sidebar UI Active</span>
+            </div>
+            <div className="flex gap-4 items-center bg-[#131A2A] px-4 py-2 rounded-full border border-white/5">
+              <div className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse shadow-[0_0_8px_rgba(52,211,153,0.8)]" />
+              <span className="text-[10px] font-black uppercase tracking-widest text-emerald-400">Live Secure Connect</span>
+            </div>
+          </footer>
+        </main>
+
+        {/* REPORT MODAL & PDF OVERLAYS */}
         {reportModal.isOpen && (
           <div className="fixed inset-0 z-[9999] flex items-center justify-center px-4 no-print">
              <div className="absolute inset-0 bg-[#0B0F19]/80 backdrop-blur-sm" onClick={() => setReportModal({...reportModal, isOpen: false})}></div>
@@ -1518,14 +1565,14 @@ export default function App() {
                       <label className="text-[10px] font-black uppercase text-slate-400 mb-1.5 block tracking-widest">Market Filter</label>
                       <select value={reportModal.market} onChange={e=>setReportModal({...reportModal, market: e.target.value})} className="w-full px-4 py-3 bg-[#0B0F19] border border-white/10 rounded-xl text-sm font-bold text-white outline-none focus:border-purple-500 cursor-pointer">
                          <option value="All">Global (All Markets)</option>
-                         {marketBreakdown.map(m => <option key={m.name} value={m.name}>{m.name}</option>)}
+                         {uniqueMarkets.map(m => <option key={m} value={m}>{m}</option>)}
                       </select>
                    </div>
                    <div>
                       <label className="text-[10px] font-black uppercase text-slate-400 mb-1.5 block tracking-widest">Channel Filter</label>
                       <select value={reportModal.channel} onChange={e=>setReportModal({...reportModal, channel: e.target.value})} className="w-full px-4 py-3 bg-[#0B0F19] border border-white/10 rounded-xl text-sm font-bold text-white outline-none focus:border-purple-500 cursor-pointer">
                          <option value="All">All Channels</option>
-                         {channelBreakdown.map(c => <option key={c.name} value={c.name}>{c.name}</option>)}
+                         {uniqueChannels.map(c => <option key={c} value={c}>{c}</option>)}
                       </select>
                    </div>
                    <div>
@@ -1547,7 +1594,6 @@ export default function App() {
           </div>
         )}
 
-        {/* PDF OVERLAY & HIDDEN RENDER */}
         {isGeneratingPdf && (
           <div className="fixed inset-0 bg-[#0B0F19] z-[99998] flex items-center justify-center no-print">
              <div className="flex flex-col items-center gap-4">
@@ -1569,147 +1615,13 @@ export default function App() {
             .print-only { display: block !important; } 
           } 
           @media screen { .print-only { display: none !important; } }
+          
+          /* Custom scrollbar matching the dark theme */
+          .custom-scrollbar::-webkit-scrollbar { width: 6px; height: 6px; }
+          .custom-scrollbar::-webkit-scrollbar-track { background: transparent; }
+          .custom-scrollbar::-webkit-scrollbar-thumb { background: rgba(255,255,255,0.1); border-radius: 10px; }
+          .custom-scrollbar::-webkit-scrollbar-thumb:hover { background: rgba(168,85,247,0.5); }
         `}} />
-
-        <div className="no-print">
-          <header className="sticky top-0 z-[100] bg-[#0B0F19]/80 backdrop-blur-2xl border-b border-white/5 px-6 py-4 shadow-xl">
-            <div className="max-w-7xl mx-auto flex flex-col lg:flex-row justify-between items-center gap-6">
-              <div className="flex items-center gap-4">
-                <div className="bg-white px-3 py-2 rounded-xl flex items-center justify-center shadow-[0_0_20px_rgba(168,85,247,0.3)]">
-                  <span className="text-xl font-black text-[#0B0F19] tracking-tighter">stc</span>
-                </div>
-                <div>
-                  <h1 className="text-xl font-black tracking-tighter text-white leading-none">ROVA PERFORMANCE</h1>
-                  <p className="text-[10px] font-black text-purple-400 uppercase tracking-[0.25em] mt-1.5">Intelligence Dashboard</p>
-                </div>
-              </div>
-
-              <nav className="flex items-center gap-2 bg-[#131A2A] p-1.5 rounded-2xl border border-white/5 overflow-x-auto hide-scrollbar">
-                {[
-                  { id: 'summary', label: 'Summary', icon: LayoutDashboard },
-                  { id: 'market', label: 'Markets', icon: Globe },
-                  { id: 'channel', label: 'Channels', icon: Layers },
-                  { id: 'campaign', label: 'Campaigns', icon: Megaphone },
-                  { id: 'detailed', label: 'Details', icon: TableProperties },
-                ].map(tab => (
-                  <button
-                    key={tab.id}
-                    onClick={() => { setActiveTab(tab.id); window.scrollTo({ top: 0, behavior: 'smooth' }); }}
-                    className={`flex items-center gap-2 px-5 py-2.5 rounded-xl text-sm font-black transition-all ${
-                      activeTab === tab.id 
-                      ? 'bg-gradient-to-r from-purple-600 to-rose-500 text-white shadow-lg shadow-purple-500/25 border-none' 
-                      : 'text-slate-400 hover:text-white hover:bg-white/5'
-                    }`}
-                  >
-                    <tab.icon className="w-4 h-4" />
-                    <span className="hidden sm:inline">{tab.label}</span>
-                  </button>
-                ))}
-              </nav>
-
-              <div className="flex items-center gap-4">
-                <button 
-                   onClick={() => setCurrency(c => c === 'USD' ? 'BHD' : 'USD')}
-                   className="flex items-center gap-2 px-4 py-2.5 rounded-2xl border transition-all font-black text-xs tracking-widest uppercase bg-[#131A2A] border-white/5 text-slate-300 hover:border-purple-500/50 hover:text-white"
-                >
-                   <DollarSign className="w-4 h-4 text-emerald-400" /> {currency}
-                </button>
-
-                {/* THE USER LOGOUT BUTTON */}
-                <div className="bg-[#131A2A] border border-white/10 rounded-full p-1 shadow-lg shadow-purple-500/10 hover:border-purple-500/50 transition-colors">
-                  <UserButton afterSignOutUrl="/" />
-                </div>
-
-                <div className="relative">
-                  <button 
-                    onClick={() => setIsFilterOpen(!isFilterOpen)}
-                    className={`flex items-center gap-3 px-5 py-2.5 rounded-2xl border transition-all font-bold text-sm ${
-                      (dateRange.start || compareWeeks.length > 0 || trafficFilter !== 'All')
-                      ? 'bg-purple-500/10 border-purple-500/50 text-purple-300' 
-                      : 'bg-[#131A2A] border-white/5 text-slate-300 hover:border-purple-500/50'
-                    }`}
-                  >
-                    <Filter className="w-4 h-4" />
-                    {(dateRange.start || compareWeeks.length > 0 || trafficFilter !== 'All') ? 'Filters Active' : 'Filter Data'}
-                    <ChevronDown className={`w-4 h-4 transition-transform ${isFilterOpen ? 'rotate-180' : ''}`} />
-                  </button>
-
-                  {isFilterOpen && (
-                    <>
-                      <div className="fixed inset-0 z-40" onClick={() => setIsFilterOpen(false)} />
-                      <div className="absolute right-0 mt-3 w-96 bg-[#131A2A] rounded-[2.5rem] border border-white/10 shadow-[0_20px_50px_rgba(0,0,0,0.5)] z-50 p-6 animate-in zoom-in-95 duration-200">
-                        <div className="flex justify-between items-center mb-6 px-1 border-b border-white/5 pb-4">
-                          <span className="text-[10px] font-black uppercase tracking-widest text-slate-400">Master Filters</span>
-                          <button onClick={() => { setDateRange({start:'', end:''}); setCompareWeeks([]); setTrafficFilter('All'); }} className="text-[10px] font-black uppercase tracking-widest text-purple-400 hover:text-purple-300">
-                            Reset All
-                          </button>
-                        </div>
-                        
-                        <div className="space-y-6">
-                          <div>
-                            <h4 className="text-[10px] font-black uppercase tracking-widest text-slate-400 mb-3 flex items-center gap-2"><Users className="w-3 h-3" /> Traffic Segment</h4>
-                            <div className="flex bg-[#0B0F19] p-1 rounded-xl border border-white/5">
-                              {['All', 'Paid', 'Organic'].map(type => (
-                                 <button key={type} onClick={() => setTrafficFilter(type)} className={`flex-1 text-xs font-bold py-2 rounded-lg transition-all ${trafficFilter === type ? 'bg-gradient-to-r from-purple-600 to-rose-500 text-white shadow-md' : 'text-slate-400 hover:text-white'}`}>
-                                   {type}
-                                 </button>
-                              ))}
-                            </div>
-                          </div>
-                          <div className={compareWeeks.length > 0 ? 'opacity-30 pointer-events-none' : ''}>
-                            <h4 className="text-[10px] font-black uppercase tracking-widest text-slate-400 mb-3 flex items-center gap-2"><CalendarDays className="w-3 h-3" /> Custom Date Range</h4>
-                            <div className="flex gap-2">
-                               <input style={{ colorScheme: 'dark' }} type="date" value={dateRange.start} onChange={e => setDateRange(prev => ({...prev, start: e.target.value}))} className="w-full text-xs font-bold text-slate-200 bg-[#0B0F19] border border-white/10 rounded-xl px-3 py-2 outline-none focus:border-purple-500 cursor-pointer" />
-                               <input style={{ colorScheme: 'dark' }} type="date" value={dateRange.end} onChange={e => setDateRange(prev => ({...prev, end: e.target.value}))} className="w-full text-xs font-bold text-slate-200 bg-[#0B0F19] border border-white/10 rounded-xl px-3 py-2 outline-none focus:border-purple-500 cursor-pointer" />
-                            </div>
-                          </div>
-                          <div className={dateRange.start || dateRange.end ? 'opacity-30 pointer-events-none' : ''}>
-                            <h4 className="text-[10px] font-black uppercase tracking-widest text-slate-400 mb-3 flex items-center gap-2"><Layers className="w-3 h-3" /> Compare Specific Weeks</h4>
-                            <div className="max-h-40 overflow-y-auto pr-2 grid grid-cols-2 gap-2 custom-scrollbar">
-                               {allTimeKeys.map(key => {
-                                  const year = Math.floor(key / 100);
-                                  const week = key % 100;
-                                  const isSelected = compareWeeks.includes(key);
-                                  return (
-                                     <button key={key} onClick={() => setCompareWeeks(prev => isSelected ? prev.filter(k => k !== key) : [...prev, key])} className={`flex items-center justify-between px-3 py-2 rounded-xl border text-xs font-bold transition-all ${isSelected ? 'bg-purple-500/20 border-purple-500/50 text-purple-300' : 'border-white/5 hover:bg-white/5 text-slate-400 hover:text-white'}`}>
-                                       W{week} '{year.toString().slice(2)}
-                                       {isSelected && <Check className="w-3 h-3 text-purple-400" />}
-                                     </button>
-                                  );
-                               })}
-                            </div>
-                          </div>
-                        </div>
-                      </div>
-                    </>
-                  )}
-                </div>
-              </div>
-            </div>
-          </header>
-
-          <main className="max-w-7xl mx-auto px-6 py-12 relative">
-            <div className="absolute top-0 left-1/2 -translate-x-1/2 w-full h-[600px] bg-gradient-to-b from-purple-900/10 via-transparent to-transparent pointer-events-none rounded-full blur-[100px]"></div>
-            <div className="relative z-10">
-              {activeTab === 'summary' && renderSummary()}
-              {activeTab === 'market' && renderMarket()}
-              {activeTab === 'channel' && renderChannel()}
-              {activeTab === 'campaign' && renderCampaign()}
-              {activeTab === 'detailed' && renderDetailed()}
-            </div>
-          </main>
-
-          <footer className="max-w-7xl mx-auto px-6 pb-12 border-t border-white/5 mt-12 pt-8 flex flex-col md:flex-row justify-between items-center gap-6 opacity-60 hover:opacity-100 transition-opacity">
-            <div className="flex items-center gap-4">
-              <Info className="w-4 h-4 text-slate-400" />
-              <span className="text-[10px] font-black uppercase tracking-widest text-slate-500">MMP Cross-Engine v6.2 | Data Visualization Suite Expanded</span>
-            </div>
-            <div className="flex gap-4 items-center bg-[#131A2A] px-4 py-2 rounded-full border border-white/5">
-              <div className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse shadow-[0_0_8px_rgba(52,211,153,0.8)]" />
-              <span className="text-[10px] font-black uppercase tracking-widest text-emerald-400">Live Secure Connect</span>
-            </div>
-          </footer>
-        </div>
       </SignedIn>
     </div>
   );
