@@ -5,7 +5,7 @@ import { UserButton, SignedIn, SignedOut, SignIn } from "@clerk/nextjs";
 import { 
   TrendingUp, Globe, Layers, Filter, Activity, DollarSign, MousePointer2, 
   Eye, Zap, LayoutDashboard, CalendarDays, ChevronDown, Info, Check, 
-  Download, Target, ShoppingCart, Users, TableProperties, Trophy, ArrowRight, FileText, Megaphone
+  Download, Target, ShoppingCart, Users, TableProperties, Trophy, ArrowRight, FileText, Megaphone, Search
 } from 'lucide-react';
 
 const COMBINED_COUNTRY_CSV_URL = "https://docs.google.com/spreadsheets/d/e/2PACX-1vSt_K4Y6h2g2iVm2CDrc33rQGDToGd41a805URte2UEDqMYB_K8V4YKLIJ9rCMoLdmwvbco7uyevE9U/pub?gid=1273221446&single=true&output=csv";
@@ -97,9 +97,13 @@ const InsightBox = ({ text }) => (
   </div>
 );
 
-// --- REUSABLE MULTI-SELECT DROPDOWN ---
+// --- REUSABLE MULTI-SELECT DROPDOWN WITH SEARCH ---
 const MultiSelectDropdown = ({ label, options, selected, onChange }) => {
   const [isOpen, setIsOpen] = useState(false);
+  const [searchTerm, setSearchTerm] = useState('');
+
+  const filteredOptions = options.filter(o => o.toLowerCase().includes(searchTerm.toLowerCase()));
+
   return (
     <div className="flex-1 relative min-w-[200px]">
       <span className="text-[10px] font-black uppercase text-slate-400 mb-1.5 tracking-widest block">{label}</span>
@@ -107,41 +111,59 @@ const MultiSelectDropdown = ({ label, options, selected, onChange }) => {
         onClick={() => setIsOpen(!isOpen)}
         className="w-full px-4 py-3 bg-[#131A2A] border border-white/10 rounded-xl text-sm font-black text-purple-400 shadow-sm cursor-pointer flex justify-between items-center transition-colors hover:border-purple-500/50"
       >
-        <span className="truncate">{selected.includes('All') ? 'All Selected' : selected.join(', ')}</span>
-        <ChevronDown className={`w-4 h-4 transition-transform ${isOpen ? 'rotate-180' : ''}`} />
+        <span className="truncate pr-4">{selected.includes('All') ? 'All Selected' : selected.join(', ')}</span>
+        <ChevronDown className={`w-4 h-4 flex-shrink-0 transition-transform ${isOpen ? 'rotate-180' : ''}`} />
       </div>
       {isOpen && (
         <>
-          <div className="fixed inset-0 z-40" onClick={() => setIsOpen(false)} />
-          <div className="absolute top-full mt-2 w-full bg-[#131A2A] border border-white/10 rounded-xl shadow-[0_20px_50px_rgba(0,0,0,0.5)] z-50 max-h-60 overflow-y-auto custom-scrollbar p-2">
-            <div 
-              onClick={() => { onChange(['All']); setIsOpen(false); }}
-              className={`px-3 py-2.5 rounded-lg text-sm font-bold cursor-pointer flex items-center justify-between ${selected.includes('All') ? 'bg-purple-500/20 text-purple-300' : 'text-slate-300 hover:bg-white/5'}`}
-            >
-              All <Check className={`w-4 h-4 ${selected.includes('All') ? 'opacity-100' : 'opacity-0'}`} />
+          <div className="fixed inset-0 z-40" onClick={(e) => { e.stopPropagation(); setIsOpen(false); setSearchTerm(''); }} />
+          <div className="absolute top-full mt-2 w-full bg-[#131A2A] border border-white/10 rounded-xl shadow-[0_20px_50px_rgba(0,0,0,0.5)] z-50 flex flex-col max-h-80 overflow-hidden">
+            <div className="p-3 border-b border-white/5 bg-[#0B0F19]">
+              <div className="relative">
+                <Search className="w-4 h-4 text-slate-500 absolute left-3 top-1/2 -translate-y-1/2" />
+                <input 
+                  type="text" 
+                  placeholder="Search..." 
+                  autoFocus 
+                  value={searchTerm} 
+                  onChange={e => setSearchTerm(e.target.value)} 
+                  className="w-full bg-[#131A2A] text-white text-xs font-bold pl-9 pr-3 py-2.5 rounded-lg outline-none border border-white/10 focus:border-purple-500 transition-colors" 
+                />
+              </div>
             </div>
-            {options.map(opt => {
-              const isSel = selected.includes(opt);
-              return (
-                <div 
-                  key={opt}
-                  onClick={() => {
-                    let next = [...selected];
-                    if (next.includes('All')) next = [];
-                    if (isSel) {
-                      next = next.filter(n => n !== opt);
-                      if (next.length === 0) next = ['All'];
-                    } else {
-                      next.push(opt);
-                    }
-                    onChange(next);
-                  }}
-                  className={`px-3 py-2.5 rounded-lg text-sm font-bold cursor-pointer flex items-center justify-between mt-1 transition-colors ${isSel ? 'bg-purple-500/20 text-purple-300' : 'text-slate-300 hover:bg-white/5'}`}
-                >
-                  <span className="truncate pr-2">{opt}</span> <Check className={`w-4 h-4 flex-shrink-0 ${isSel ? 'text-purple-400 opacity-100' : 'opacity-0'}`} />
-                </div>
-              )
-            })}
+            <div className="overflow-y-auto custom-scrollbar p-2 flex-1">
+              <div 
+                onClick={() => { onChange(['All']); setIsOpen(false); setSearchTerm(''); }}
+                className={`px-3 py-2.5 rounded-lg text-sm font-bold cursor-pointer flex items-center justify-between ${selected.includes('All') ? 'bg-purple-500/20 text-purple-300' : 'text-slate-300 hover:bg-white/5'}`}
+              >
+                All <Check className={`w-4 h-4 ${selected.includes('All') ? 'opacity-100' : 'opacity-0'}`} />
+              </div>
+              {filteredOptions.map(opt => {
+                const isSel = selected.includes(opt);
+                return (
+                  <div 
+                    key={opt}
+                    onClick={() => {
+                      let next = [...selected];
+                      if (next.includes('All')) next = [];
+                      if (isSel) {
+                        next = next.filter(n => n !== opt);
+                        if (next.length === 0) next = ['All'];
+                      } else {
+                        next.push(opt);
+                      }
+                      onChange(next);
+                    }}
+                    className={`px-3 py-2.5 rounded-lg text-sm font-bold cursor-pointer flex items-center justify-between mt-1 transition-colors ${isSel ? 'bg-purple-500/20 text-purple-300' : 'text-slate-300 hover:bg-white/5'}`}
+                  >
+                    <span className="truncate pr-2">{opt}</span> <Check className={`w-4 h-4 flex-shrink-0 ${isSel ? 'text-purple-400 opacity-100' : 'opacity-0'}`} />
+                  </div>
+                )
+              })}
+              {filteredOptions.length === 0 && (
+                <div className="px-3 py-4 text-center text-xs font-bold text-slate-500 uppercase tracking-widest">No results found</div>
+              )}
+            </div>
           </div>
         </>
       )}
@@ -341,7 +363,7 @@ const ComparisonLineChart = ({ rawData, metric, colorSW, colorBAU, isCurrency, e
 
   return (
     <div className="flex flex-col h-full w-full relative">
-      <svg width="100%" height="100%" viewBox={`0 0 ${width} ${height}`} preserveAspectRatio="xMidYMid meet" className="overflow-visible min-h-[250px] flex-1">
+      <svg width="100%" height="100%" viewBox={`0 0 ${width} ${height}`} preserveAspectRatio="xMidYMid meet" className="overflow-visible min-h-[200px] flex-1">
         <g transform={`translate(${margin.left},${margin.top})`}>
           {y.ticks(5).map(t => (
             <g key={`t-${t}`} transform={`translate(0, ${y(t)})`}>
@@ -489,6 +511,7 @@ export default function App() {
       });
   }, []);
 
+  // Base processed data
   const { processedData, allTimeKeys } = useMemo(() => {
     if (!data || data.length === 0) return { processedData: [], allTimeKeys: [] };
     const rows = data.map(row => ({
@@ -499,6 +522,7 @@ export default function App() {
     return { processedData: rows, allTimeKeys: timeKeys };
   }, [data]);
 
+  // Master Level Filter (Date + Traffic)
   const filteredData = useMemo(() => {
     return processedData.filter(d => {
       let passTraffic = true;
@@ -525,7 +549,7 @@ export default function App() {
   const uniqueChannels = useMemo(() => Array.from(new Set(filteredData.map(d => d.channel))).sort(), [filteredData]);
   const uniqueCampaigns = useMemo(() => Array.from(new Set(filteredData.map(d => d.campaignType))).sort(), [filteredData]);
 
-  // Tab-specific filtered data applying the multi-select dropdowns
+  // Global Context Filter applying the multi-select dropdowns
   const tabData = useMemo(() => {
     let d = filteredData;
     if (!filterMarkets.includes('All')) d = d.filter(x => filterMarkets.includes(x.market));
@@ -553,34 +577,54 @@ export default function App() {
     };
   };
 
-  const metrics = useMemo(() => aggregate(filteredData), [filteredData]);
-  const weeklyTimeline = useMemo(() => d3.groups(filteredData, d => d.timeKey).map(([key, values]) => ({ timeKey: key, week: values[0].week, year: values[0].year, ...aggregate(values) })).sort((a, b) => a.timeKey - b.timeKey), [filteredData]);
+  const metrics = useMemo(() => aggregate(tabData), [tabData]);
+  const weeklyTimeline = useMemo(() => d3.groups(tabData, d => d.timeKey).map(([key, values]) => ({ timeKey: key, week: values[0].week, year: values[0].year, ...aggregate(values) })).sort((a, b) => a.timeKey - b.timeKey), [tabData]);
   
-  const marketBreakdown = useMemo(() => d3.groups(filteredData, d => d.market)
-    .map(([name, values]) => ({ name, ...aggregate(values) }))
-    .filter(m => trafficFilter === 'Paid' ? m.cost >= 1 : (m.cost >= 1 || m.purchases >= 1 || m.installs >= 1))
-    .sort((a, b) => b.cost - a.cost), [filteredData, trafficFilter]);
+  // Breakdown tables base themselves on data BEFORE their specific filter is applied, to avoid narrowing to 1 option
+  const marketBreakdown = useMemo(() => {
+    let d = filteredData;
+    if (!filterChannels.includes('All')) d = d.filter(x => filterChannels.includes(x.channel));
+    if (!filterCampaigns.includes('All')) d = d.filter(x => filterCampaigns.includes(x.campaignType));
+    return d3.groups(d, d => d.market)
+      .map(([name, values]) => ({ name, ...aggregate(values) }))
+      .filter(m => trafficFilter === 'Paid' ? m.cost >= 1 : (m.cost >= 1 || m.purchases >= 1 || m.installs >= 1))
+      .sort((a, b) => b.cost - a.cost);
+  }, [filteredData, filterChannels, filterCampaigns, trafficFilter]);
     
-  const channelBreakdown = useMemo(() => d3.groups(filteredData, d => d.channel)
-    .map(([name, values]) => ({ name, ...aggregate(values) }))
-    .filter(c => trafficFilter === 'Paid' ? c.cost >= 1 : (c.cost >= 1 || c.purchases >= 1 || c.installs >= 1))
-    .sort((a, b) => b.cost - a.cost), [filteredData, trafficFilter]);
+  const channelBreakdown = useMemo(() => {
+    let d = filteredData;
+    if (!filterMarkets.includes('All')) d = d.filter(x => filterMarkets.includes(x.market));
+    if (!filterCampaigns.includes('All')) d = d.filter(x => filterCampaigns.includes(x.campaignType));
+    return d3.groups(d, d => d.channel)
+      .map(([name, values]) => ({ name, ...aggregate(values) }))
+      .filter(c => trafficFilter === 'Paid' ? c.cost >= 1 : (c.cost >= 1 || c.purchases >= 1 || c.installs >= 1))
+      .sort((a, b) => b.cost - a.cost);
+  }, [filteredData, filterMarkets, filterCampaigns, trafficFilter]);
+
+  const campaignTypeBreakdown = useMemo(() => {
+    let d = filteredData;
+    if (!filterMarkets.includes('All')) d = d.filter(x => filterMarkets.includes(x.market));
+    if (!filterChannels.includes('All')) d = d.filter(x => filterChannels.includes(x.channel));
+    return d3.groups(d, d => d.campaignType)
+      .map(([name, values]) => ({ name, ...aggregate(values) }))
+      .filter(c => trafficFilter === 'Paid' ? c.cost >= 1 : (c.cost >= 1 || c.purchases >= 1 || c.installs >= 1))
+      .sort((a, b) => b.cost - a.cost);
+  }, [filteredData, filterMarkets, filterChannels, trafficFilter]);
 
   const handleDrillDown = (type, value) => {
-    setActiveTab('detailed');
     if (type === 'market') {
+      setActiveTab('detailed');
       setFilterMarkets([value]);
       setFilterChannels(['All']);
       setFilterCampaigns(['All']);
     } else if (type === 'channel') {
+      setActiveTab('detailed');
       setFilterChannels([value]);
       setFilterMarkets(['All']);
       setFilterCampaigns(['All']);
     } else if (type === 'campaign') {
       setActiveTab('campaign');
       setFilterCampaigns([value]);
-      setFilterMarkets(['All']);
-      setFilterChannels(['All']);
     }
     window.scrollTo({ top: 0, behavior: 'smooth' });
   };
@@ -1000,6 +1044,7 @@ export default function App() {
     );
   }
 
+  // --- NEW CAMPAIGN TAB RENDER ---
   function renderCampaign() {
     const validCPI = [...campaignTypeBreakdown].filter(c => c.installs > 0 && c.cost > 0).sort((a, b) => a.cpi - b.cpi);
     const validCPP = [...campaignTypeBreakdown].filter(c => c.purchases > 0 && c.cost > 0).sort((a, b) => a.cpp - b.cpp);
@@ -1473,7 +1518,7 @@ export default function App() {
         {isFilterOpen && (
           <div className="no-print">
             <div className="fixed inset-0 z-40 bg-black/20 backdrop-blur-sm" onClick={() => setIsFilterOpen(false)} />
-            <div className="fixed top-0 left-64 h-full w-96 bg-[#131A2A] border-r border-white/5 shadow-[20px_0_50px_rgba(0,0,0,0.5)] z-50 p-8 overflow-y-auto animate-in slide-in-from-left duration-300 custom-scrollbar">
+            <div className="fixed top-0 left-64 h-full w-96 bg-[#131A2A] border-r border-white/5 shadow-[20px_0_50px_rgba(0,0,0,0.5)] z-50 p-8 flex flex-col animate-in slide-in-from-left duration-300">
               <div className="flex justify-between items-center mb-8 border-b border-white/5 pb-4">
                 <span className="text-[10px] font-black uppercase tracking-widest text-slate-400">Master Time Filters</span>
                 <button onClick={() => { setDateRange({start:'', end:''}); setCompareWeeks([]); setTrafficFilter('All'); }} className="text-[10px] font-black uppercase tracking-widest text-purple-400 hover:text-purple-300">
@@ -1481,7 +1526,7 @@ export default function App() {
                 </button>
               </div>
               
-              <div className="space-y-8">
+              <div className="space-y-8 flex-1 flex flex-col min-h-0">
                 <div>
                   <h4 className="text-[10px] font-black uppercase tracking-widest text-slate-400 mb-3 flex items-center gap-2"><Users className="w-3 h-3" /> Traffic Segment</h4>
                   <div className="flex bg-[#0B0F19] p-1 rounded-xl border border-white/5">
@@ -1499,9 +1544,9 @@ export default function App() {
                       <input style={{ colorScheme: 'dark' }} type="date" value={dateRange.end} onChange={e => setDateRange(prev => ({...prev, end: e.target.value}))} className="w-full text-xs font-bold text-slate-200 bg-[#0B0F19] border border-white/10 rounded-xl px-3 py-2 outline-none focus:border-purple-500 cursor-pointer" />
                   </div>
                 </div>
-                <div className={dateRange.start || dateRange.end ? 'opacity-30 pointer-events-none' : ''}>
+                <div className={dateRange.start || dateRange.end ? 'opacity-30 pointer-events-none flex-1 flex flex-col min-h-0' : 'flex-1 flex flex-col min-h-0'}>
                   <h4 className="text-[10px] font-black uppercase tracking-widest text-slate-400 mb-3 flex items-center gap-2"><Layers className="w-3 h-3" /> Compare Specific Weeks</h4>
-                  <div className="max-h-64 overflow-y-auto pr-2 grid grid-cols-2 gap-2 custom-scrollbar">
+                  <div className="flex-1 overflow-y-auto pr-2 grid grid-cols-2 gap-2 custom-scrollbar content-start">
                       {allTimeKeys.map(key => {
                         const year = Math.floor(key / 100);
                         const week = key % 100;
