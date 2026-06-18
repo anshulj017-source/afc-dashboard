@@ -451,7 +451,7 @@ export default function App() {
   const [currency, setCurrency] = useState('USD');
   const [kpi, setKpi] = useState({ isOpen: false, isSet: false, budget: '', impressions: '', installs: '', purchases: '' });
 
-  const [reportModal, setReportModal] = useState({ isOpen: false, start: '', end: '', market: 'All', channel: 'All', traffic: 'All' });
+  const [reportModal, setReportModal] = useState({ isOpen: false, start: '', end: '', market: 'All', channel: 'All', traffic: 'All', campaign: 'All', os: 'All' });
   const [isGeneratingPdf, setIsGeneratingPdf] = useState(false);
 
   const exRate = currency === 'BHD' ? 0.377 : 1;
@@ -1275,7 +1275,6 @@ export default function App() {
     );
   }
 
-  // --- NEW OS TAB RENDER ---
   function renderOS() {
     const validCPI = [...osBreakdown].filter(c => c.installs > 0 && c.cost > 0).sort((a, b) => a.cpi - b.cpi);
     const validCPP = [...osBreakdown].filter(c => c.purchases > 0 && c.cost > 0).sort((a, b) => a.cpp - b.cpp);
@@ -1575,10 +1574,12 @@ export default function App() {
        let passT = reportModal.traffic === 'All' ? true : d.trafficType === reportModal.traffic;
        let passM = reportModal.market === 'All' ? true : d.market === reportModal.market;
        let passC = reportModal.channel === 'All' ? true : d.channel === reportModal.channel;
+       let passCamp = reportModal.campaign === 'All' ? true : d.campaignType === reportModal.campaign;
+       let passOS = reportModal.os === 'All' ? true : d.os === reportModal.os;
        let passTime = true;
        if (reportModal.start) { const sd = new Date(reportModal.start); sd.setHours(0,0,0,0); passTime = passTime && d.date >= sd; }
        if (reportModal.end) { const ed = new Date(reportModal.end); ed.setHours(23,59,59,999); passTime = passTime && d.date <= ed; }
-       return passT && passM && passC && passTime;
+       return passT && passM && passC && passCamp && passOS && passTime;
     });
 
     const reportMetrics = aggregate(pData);
@@ -1614,11 +1615,17 @@ export default function App() {
             </div>
             <div className="text-right">
                <p className="text-xs font-bold text-slate-500">Generated: {clientDate}</p>
-               <div className="mt-2 text-xs font-bold text-slate-700 space-y-1">
-                 <p>Market: <span className="text-indigo-600">{reportModal.market}</span></p>
-                 <p>Channel: <span className="text-indigo-600">{reportModal.channel}</span></p>
-                 <p>Traffic: <span className="text-indigo-600">{reportModal.traffic}</span></p>
-                 <p>Dates: <span className="text-indigo-600">{reportModal.start || 'All Time'} to {reportModal.end || 'All Time'}</span></p>
+               <div className="mt-2 text-xs font-bold text-slate-700 space-y-1 flex gap-4 text-right">
+                 <div>
+                   <p>Market: <span className="text-indigo-600">{reportModal.market}</span></p>
+                   <p>Channel: <span className="text-indigo-600">{reportModal.channel}</span></p>
+                   <p>Campaign: <span className="text-indigo-600">{reportModal.campaign}</span></p>
+                 </div>
+                 <div>
+                   <p>OS: <span className="text-indigo-600">{reportModal.os}</span></p>
+                   <p>Traffic: <span className="text-indigo-600">{reportModal.traffic}</span></p>
+                   <p>Dates: <span className="text-indigo-600">{reportModal.start || 'All Time'} to {reportModal.end || 'All Time'}</span></p>
+                 </div>
                </div>
             </div>
          </div>
@@ -1815,7 +1822,7 @@ export default function App() {
             <footer className="max-w-7xl mx-auto px-8 lg:px-12 pb-12 border-t border-white/5 mt-4 pt-8 flex flex-col md:flex-row justify-between items-center gap-6 opacity-60 hover:opacity-100 transition-opacity">
               <div className="flex items-center gap-4">
                 <Info className="w-4 h-4 text-slate-400" />
-                <span className="text-[10px] font-black uppercase tracking-widest text-slate-500">MMP Cross-Engine v7.2 | OS Tracking Active</span>
+                <span className="text-[10px] font-black uppercase tracking-widest text-slate-500">MMP Cross-Engine v7.3 | Report Downloader Restored</span>
               </div>
               <div className="flex gap-4 items-center bg-[#131A2A] px-4 py-2 rounded-full border border-white/5">
                 <div className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse shadow-[0_0_8px_rgba(52,211,153,0.8)]" />
@@ -1836,6 +1843,16 @@ export default function App() {
                    <button onClick={() => setReportModal({...reportModal, isOpen: false})} className="text-slate-500 hover:text-white"><Zap className="w-5 h-5 rotate-45"/></button>
                 </div>
                 <div className="space-y-5">
+                   {/* RESTORED DATE RANGE ROW */}
+                   <div>
+                      <label className="text-[10px] font-black uppercase text-slate-400 mb-1.5 block tracking-widest">Date Range</label>
+                      <div className="flex gap-3">
+                         <input style={{ colorScheme: 'dark' }} type="date" value={reportModal.start} onChange={e=>setReportModal({...reportModal, start: e.target.value})} className="w-full text-sm font-bold text-white bg-[#0B0F19] border border-white/10 rounded-xl px-4 py-3 outline-none focus:border-purple-500 cursor-pointer" />
+                         <input style={{ colorScheme: 'dark' }} type="date" value={reportModal.end} onChange={e=>setReportModal({...reportModal, end: e.target.value})} className="w-full text-sm font-bold text-white bg-[#0B0F19] border border-white/10 rounded-xl px-4 py-3 outline-none focus:border-purple-500 cursor-pointer" />
+                      </div>
+                   </div>
+                   
+                   {/* GRID LAYOUT FOR FILTERS */}
                    <div className="grid grid-cols-2 gap-4">
                       <div>
                          <label className="text-[10px] font-black uppercase text-slate-400 mb-1.5 block tracking-widest">Market Filter</label>
@@ -1887,6 +1904,7 @@ export default function App() {
           </div>
         )}
 
+        {/* PDF OVERLAY & HIDDEN RENDER */}
         {isGeneratingPdf && (
           <div className="fixed inset-0 bg-[#0B0F19] z-[99998] flex items-center justify-center no-print">
              <div className="flex flex-col items-center gap-4">
