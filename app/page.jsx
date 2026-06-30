@@ -180,15 +180,6 @@ const MultiSelectDropdown = ({ label, options, selected, onChange }) => {
   );
 };
 
-const NavigationBar = ({ items, selected, setSelected, defaultLabel = "Global Overview" }) => (
-  <div className="flex gap-3 overflow-x-auto pb-4 mb-8 border-b border-white/5 hide-scrollbar">
-    <button onClick={() => setSelected('All')} className={`whitespace-nowrap px-6 py-2.5 rounded-xl text-sm font-black transition-all ${selected === 'All' ? 'bg-gradient-to-r from-purple-600 to-rose-500 text-white shadow-lg shadow-purple-500/25 border-none' : 'bg-[#131A2A] text-slate-400 border border-white/5 hover:bg-white/5 hover:text-white'}`}>{defaultLabel}</button>
-    {items.map(item => (
-      <button key={item.name} onClick={() => setSelected(item.name)} className={`whitespace-nowrap px-6 py-2.5 rounded-xl text-sm font-black transition-all ${selected === item.name ? 'bg-gradient-to-r from-purple-600 to-rose-500 text-white shadow-lg shadow-purple-500/25 border-none' : 'bg-[#131A2A] text-slate-400 border border-white/5 hover:bg-white/5 hover:text-white'}`}>{item.name}</button>
-    ))}
-  </div>
-);
-
 const DonutChart = ({ chartData, valueKey, labelKey = 'name', isCurrency = false, exSym = '$', exRate = 1 }) => {
   const [hovered, setHovered] = useState(null);
   const validData = chartData.filter(d => d[valueKey] > 0);
@@ -328,8 +319,8 @@ const DualAxisLineChart = ({ chartData, leftKey, rightKey, leftColorText, rightC
                <foreignObject x={x(`W${d.week}`) > iw / 2 ? x(`W${d.week}`) - 140 : x(`W${d.week}`) + 10} y={10} width="130" height="90" className="opacity-0 group-hover:opacity-100 pointer-events-none transition-opacity z-50">
                  <div className="bg-[#0f172a]/90 backdrop-blur-md text-white text-[10px] p-3 rounded-xl shadow-2xl flex flex-col gap-1.5 border border-white/10">
                    <span className="font-black text-slate-300 border-b border-white/10 pb-1.5 mb-0.5">Week {d.week}, {d.year}</span>
-                   <div className="flex justify-between"><span className={leftColorText.replace('fill-', 'text-')}>{leftKey.toUpperCase()}:</span> <span>{isLeftCurrency ? `${exSym}${d3.format(",.2f")(d[leftKey] * exRate)}` : d3.format(",.2f")(d[leftKey])}</span></div>
-                   <div className="flex justify-between"><span className={rightColorText.replace('fill-', 'text-')}>{rightKey.toUpperCase()}:</span> <span>{isRightCurrency ? `${exSym}${d3.format(",.2f")(d[rightKey] * exRate)}` : d3.format(",.2f")(d[rightKey])}</span></div>
+                   <div className="flex justify-between"><span className={leftColorText.replace('fill-', 'text')}>{leftKey.toUpperCase()}:</span> <span>{isLeftCurrency ? `${exSym}${d3.format(",.2f")(d[leftKey] * exRate)}` : d3.format(",.2f")(d[leftKey])}</span></div>
+                   <div className="flex justify-between"><span className={rightColorText.replace('fill-', 'text')}>{rightKey.toUpperCase()}:</span> <span>{isRightCurrency ? `${exSym}${d3.format(",.2f")(d[rightKey] * exRate)}` : d3.format(",.2f")(d[rightKey])}</span></div>
                  </div>
                </foreignObject>
              </g>
@@ -545,22 +536,29 @@ export default function App() {
     return { processedData: rows, allTimeKeys: timeKeys };
   }, [data]);
 
-  // Master Level Filter (Date + Traffic)
+  // Master Level Filter (Date + Traffic) with FULL WEEK OVERLAP LOGIC
   const filteredData = useMemo(() => {
     return processedData.filter(d => {
       let passTraffic = true;
       if (trafficFilter !== 'All') passTraffic = d.trafficType === trafficFilter;
+      
       let passTime = true;
       if (compareWeeks.length > 0) {
         passTime = compareWeeks.includes(d.timeKey);
-      } else {
+      } else if (dateRange.start || dateRange.end) {
+        // OVERLAP LOGIC: Expand single d.date into full 7 day week span
+        const wStart = new Date(d.date);
+        const wEnd = new Date(d.date);
+        wEnd.setDate(wEnd.getDate() + 6);
+        wEnd.setHours(23, 59, 59, 999);
+
         if (dateRange.start) {
           const startDate = new Date(dateRange.start); startDate.setHours(0, 0, 0, 0);
-          passTime = passTime && d.date >= startDate;
+          passTime = passTime && (wEnd >= startDate);
         }
         if (dateRange.end) {
           const endDate = new Date(dateRange.end); endDate.setHours(23, 59, 59, 999);
-          passTime = passTime && d.date <= endDate;
+          passTime = passTime && (wStart <= endDate);
         }
       }
       return passTraffic && passTime;
@@ -615,9 +613,9 @@ export default function App() {
       cpi: installs > 0 ? cost / installs : 0,
       cpp: purchases > 0 ? cost / purchases : 0,
       cvr: clicks > 0 ? (installs / clicks) * 100 : 0,
-      ltr: installs > 0 ? (logins / installs) * 100 : 0, // Install to Login
+      ltr: installs > 0 ? (logins / installs) * 100 : 0, 
       ltp: logins > 0 ? (purchases / logins) * 100 : 0,
-      ipr: installs > 0 ? (purchases / installs) * 100 : 0 // Install to Purchase
+      ipr: installs > 0 ? (purchases / installs) * 100 : 0 
     };
   };
 
@@ -1576,9 +1574,14 @@ export default function App() {
        let passC = reportModal.channel === 'All' ? true : d.channel === reportModal.channel;
        let passCamp = reportModal.campaign === 'All' ? true : d.campaignType === reportModal.campaign;
        let passOS = reportModal.os === 'All' ? true : d.os === reportModal.os;
+       
        let passTime = true;
-       if (reportModal.start) { const sd = new Date(reportModal.start); sd.setHours(0,0,0,0); passTime = passTime && d.date >= sd; }
-       if (reportModal.end) { const ed = new Date(reportModal.end); ed.setHours(23,59,59,999); passTime = passTime && d.date <= ed; }
+       if (reportModal.start || reportModal.end) {
+           const wStart = new Date(d.date);
+           const wEnd = new Date(d.date); wEnd.setDate(wEnd.getDate() + 6); wEnd.setHours(23,59,59,999);
+           if (reportModal.start) { const sd = new Date(reportModal.start); sd.setHours(0,0,0,0); passTime = passTime && (wEnd >= sd); }
+           if (reportModal.end) { const ed = new Date(reportModal.end); ed.setHours(23,59,59,999); passTime = passTime && (wStart <= ed); }
+       }
        return passT && passM && passC && passCamp && passOS && passTime;
     });
 
@@ -1822,7 +1825,7 @@ export default function App() {
             <footer className="max-w-7xl mx-auto px-8 lg:px-12 pb-12 border-t border-white/5 mt-4 pt-8 flex flex-col md:flex-row justify-between items-center gap-6 opacity-60 hover:opacity-100 transition-opacity">
               <div className="flex items-center gap-4">
                 <Info className="w-4 h-4 text-slate-400" />
-                <span className="text-[10px] font-black uppercase tracking-widest text-slate-500">MMP Cross-Engine v7.3 | Report Downloader Restored</span>
+                <span className="text-[10px] font-black uppercase tracking-widest text-slate-500">MMP Cross-Engine v7.4 | Full Logic Engine Fixed</span>
               </div>
               <div className="flex gap-4 items-center bg-[#131A2A] px-4 py-2 rounded-full border border-white/5">
                 <div className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse shadow-[0_0_8px_rgba(52,211,153,0.8)]" />
