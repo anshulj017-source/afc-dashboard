@@ -1,15 +1,16 @@
 "use client";
 import React, { useState, useMemo, useEffect } from 'react';
+import { UserButton, SignedIn, SignedOut, RedirectToSignIn } from '@clerk/nextjs';
 import * as d3 from 'd3';
-import { UserButton, SignedIn, SignedOut, SignIn } from "@clerk/nextjs"; 
 import { 
   TrendingUp, Globe, Layers, Activity, DollarSign, MousePointer2, 
   Eye, Zap, LayoutDashboard, CalendarDays, ChevronDown, Info, Check, 
-  Download, Target, ShoppingCart, Users, TableProperties, Trophy, ArrowRight, FileText, Megaphone, Search, Smartphone
+  Download, Target, ShoppingCart, Users, TableProperties, Trophy, ArrowRight, FileText, Megaphone, Search, Smartphone, MonitorPlay, Image as ImageIcon, List, Grid, BarChart3, ArrowUpDown
 } from 'lucide-react';
 
 const COMBINED_COUNTRY_CSV_URL = "https://docs.google.com/spreadsheets/d/e/2PACX-1vSt_K4Y6h2g2iVm2CDrc33rQGDToGd41a805URte2UEDqMYB_K8V4YKLIJ9rCMoLdmwvbco7uyevE9U/pub?gid=1273221446&single=true&output=csv";
 const RAW_ADJUST_CSV_URL = "https://docs.google.com/spreadsheets/d/e/2PACX-1vSt_K4Y6h2g2iVm2CDrc33rQGDToGd41a805URte2UEDqMYB_K8V4YKLIJ9rCMoLdmwvbco7uyevE9U/pub?gid=588241351&single=true&output=csv";
+const CREATIVE_CSV_URL = "https://docs.google.com/spreadsheets/d/e/2PACX-1vSmrxP52BP6y8mP1iCh2-SxDbtV5eSlgRi-YzL_O36gHtjzWyvTNy-LBVfT1UfD-L1sUkCI_IbKR3Vc/pub?gid=0&single=true&output=csv";
 
 // --- SSR-SAFE CORE HELPERS ---
 const MONTHS = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
@@ -426,6 +427,19 @@ export default function App() {
   
   const [activeTab, setActiveTab] = useState('summary');
   
+  // --- CREATIVE TAB STATES ---
+  const [creativeData, setCreativeData] = useState([]);
+  const [creativeLoading, setCreativeLoading] = useState(true);
+  const [creativeFilterMarkets, setCreativeFilterMarkets] = useState(['All']);
+  const [creativeFilterChannels, setCreativeFilterChannels] = useState(['All']);
+  const [creativeFilterLanguages, setCreativeFilterLanguages] = useState(['All']);
+  const [creativeFilterTypes, setCreativeFilterTypes] = useState(['All']);
+  const [creativeFilterObjectives, setCreativeFilterObjectives] = useState(['All']);
+  const [creativeFilterWeeks, setCreativeFilterWeeks] = useState(['All']);
+  
+  const [creativeViewMode, setCreativeViewMode] = useState('grid'); // 'grid' or 'list'
+  const [creativeSortConfig, setCreativeSortConfig] = useState({ key: 'cost', direction: 'desc' });
+  
   // --- UNIFIED GLOBAL MULTI-SELECT FILTERS ---
   const [filterMarkets, setFilterMarkets] = useState(['All']);
   const [filterChannels, setFilterChannels] = useState(['All']);
@@ -465,8 +479,8 @@ export default function App() {
   }, [isGeneratingPdf]);
 
   useEffect(() => {
-    Promise.all([d3.csv(COMBINED_COUNTRY_CSV_URL), d3.csv(RAW_ADJUST_CSV_URL)])
-      .then(([adData, mmpData]) => {
+    Promise.all([d3.csv(COMBINED_COUNTRY_CSV_URL), d3.csv(RAW_ADJUST_CSV_URL), d3.csv(CREATIVE_CSV_URL)])
+      .then(([adData, mmpData, crData]) => {
         const s1 = adData.map(row => {
           const week = parseInt(row['Week'] || row['week']) || 0;
           const year = parseInt(row['Year'] || row['year']) || 2024;
@@ -515,14 +529,35 @@ export default function App() {
             source: 'Adjust', trafficType
           };
         });
+        const s3 = crData.map(row => {
+          return {
+            date: new Date(row['Date']),
+            market: row['Markets'] || 'Unknown',
+            channel: row['Channel'] || 'Unknown',
+            language: row['Adjusted Creative Language'] || 'Unknown',
+            creativeType: row['Creative Type'] || 'Unknown',
+            objective: row['Adjusted Objective'] || 'Unknown',
+            weekType: row['Salary Week vs BAU'] || 'Unknown',
+            creativeName: row['Adjusted Creative Name'] || 'Unknown',
+            adImageUrl: row['Ad creative image URL'] || '',
+            impressions: parseMetric(row['Impressions']),
+            clicks: parseMetric(row['Link clicks']),
+            cost: parseMetric(row['Cost']),
+            installs: parseMetric(row['Omni app installs']),
+            purchases: parseMetric(row['Omni purchases'])
+          };
+        });
         
         setData([...s1, ...s2]);
+        setCreativeData(s3);
         setLoading(false);
+        setCreativeLoading(false);
       })
       .catch((err) => {
         console.error("Error fetching data:", err);
         setError("Failed to load data.");
         setLoading(false);
+        setCreativeLoading(false);
       });
   }, []);
 
@@ -667,6 +702,85 @@ export default function App() {
       .sort((a, b) => b.cost - a.cost);
   }, [filteredData, filterMarkets, filterChannels, filterCampaigns, trafficFilter]);
 
+  // --- CREATIVE TAB LOGIC ---
+  const uniqueCreativeMarkets = useMemo(() => Array.from(new Set(creativeData.map(x => x.market))).filter(Boolean).sort(), [creativeData]);
+  const uniqueCreativeChannels = useMemo(() => Array.from(new Set(creativeData.map(x => x.channel))).filter(Boolean).sort(), [creativeData]);
+  const uniqueCreativeLanguages = useMemo(() => Array.from(new Set(creativeData.map(x => x.language))).filter(Boolean).sort(), [creativeData]);
+  const uniqueCreativeTypes = useMemo(() => Array.from(new Set(creativeData.map(x => x.creativeType))).filter(Boolean).sort(), [creativeData]);
+  const uniqueCreativeObjectives = useMemo(() => Array.from(new Set(creativeData.map(x => x.objective))).filter(Boolean).sort(), [creativeData]);
+  const uniqueCreativeWeeks = useMemo(() => Array.from(new Set(creativeData.map(x => x.weekType))).filter(Boolean).sort(), [creativeData]);
+
+  const creativeTabData = useMemo(() => {
+    let d = creativeData.filter(x => {
+      let passTime = true;
+      if (compareWeeks.length > 0) {
+         // Creative doesn't have timeKey logic explicitly built yet, fallback to date range.
+         // Or just let dateRange govern it.
+      } else if (dateRange.start || dateRange.end) {
+        const wStart = new Date(x.date);
+        const wEnd = new Date(x.date);
+        wEnd.setDate(wEnd.getDate() + 6);
+        wEnd.setHours(23, 59, 59, 999);
+
+        if (dateRange.start) {
+          const startDate = new Date(dateRange.start); startDate.setHours(0, 0, 0, 0);
+          passTime = passTime && (wEnd >= startDate);
+        }
+        if (dateRange.end) {
+          const endDate = new Date(dateRange.end); endDate.setHours(23, 59, 59, 999);
+          passTime = passTime && (wStart <= endDate);
+        }
+      }
+      return passTime;
+    });
+
+    if (!creativeFilterMarkets.includes('All')) d = d.filter(x => creativeFilterMarkets.includes(x.market));
+    if (!creativeFilterChannels.includes('All')) d = d.filter(x => creativeFilterChannels.includes(x.channel));
+    if (!creativeFilterLanguages.includes('All')) d = d.filter(x => creativeFilterLanguages.includes(x.language));
+    if (!creativeFilterTypes.includes('All')) d = d.filter(x => creativeFilterTypes.includes(x.creativeType));
+    if (!creativeFilterObjectives.includes('All')) d = d.filter(x => creativeFilterObjectives.includes(x.objective));
+    if (!creativeFilterWeeks.includes('All')) d = d.filter(x => creativeFilterWeeks.includes(x.weekType));
+    
+    // Group by creative image URL and Name to aggregate
+    let aggregated = d3.groups(d, x => x.adImageUrl + '|' + x.creativeName)
+      .map(([key, values]) => {
+        const v0 = values[0];
+        const impressions = d3.sum(values, v => v.impressions);
+        const clicks = d3.sum(values, v => v.clicks);
+        const cost = d3.sum(values, v => v.cost);
+        const installs = d3.sum(values, v => v.installs);
+        const purchases = d3.sum(values, v => v.purchases);
+        
+        return {
+          adImageUrl: v0.adImageUrl,
+          creativeName: v0.creativeName,
+          channel: v0.channel,
+          creativeType: v0.creativeType,
+          language: v0.language,
+          objective: v0.objective,
+          weekType: v0.weekType,
+          impressions,
+          clicks,
+          ctr: impressions > 0 ? (clicks / impressions) : 0,
+          cost,
+          installs,
+          cpi: installs > 0 ? (cost / installs) : 0,
+          purchases,
+          cpp: purchases > 0 ? (cost / purchases) : 0
+        };
+      });
+      
+    // Apply sorting
+    return aggregated.sort((a, b) => {
+       const aVal = a[creativeSortConfig.key] || 0;
+       const bVal = b[creativeSortConfig.key] || 0;
+       if (creativeSortConfig.direction === 'desc') {
+         return bVal > aVal ? 1 : -1;
+       } else {
+         return aVal > bVal ? 1 : -1;
+       }
+    });
+  }, [creativeData, dateRange, creativeFilterMarkets, creativeFilterChannels, creativeFilterLanguages, creativeFilterTypes, creativeFilterObjectives, creativeFilterWeeks, creativeSortConfig]);
 
   const handleDrillDown = (type, value) => {
     if (type === 'market') {
@@ -1677,6 +1791,221 @@ export default function App() {
     );
   }
 
+  function handleSort(key) {
+    if (creativeSortConfig.key === key) {
+      setCreativeSortConfig({ key, direction: creativeSortConfig.direction === 'desc' ? 'asc' : 'desc' });
+    } else {
+      setCreativeSortConfig({ key, direction: 'desc' });
+    }
+  }
+
+  function renderSortIcon(key) {
+    if (creativeSortConfig.key === key) {
+      return <ArrowUpDown className={`w-3 h-3 ml-1 inline-block ${creativeSortConfig.direction === 'desc' ? 'text-purple-400' : 'text-emerald-400 rotate-180'}`} />;
+    }
+    return <ArrowUpDown className="w-3 h-3 ml-1 inline-block opacity-0 group-hover:opacity-50" />;
+  }
+
+  function renderCreative() {
+    const topCTR = [...creativeTabData].filter(x => x.impressions > 0).sort((a,b) => b.ctr - a.ctr).slice(0, 10);
+    const topCPI = [...creativeTabData].filter(x => x.installs > 0).sort((a,b) => a.cpi - b.cpi).slice(0, 10); // Lowest CPI is best
+    const topCPP = [...creativeTabData].filter(x => x.purchases > 0).sort((a,b) => a.cpp - b.cpp).slice(0, 10); // Lowest CPP is best
+    
+    // Simple AI Insight Logic
+    const bestCPP = topCPP[0];
+    const bestCTR = topCTR[0];
+    let insightText = "Not enough data to generate insights.";
+    if (bestCPP && bestCTR) {
+      insightText = `Creative "${bestCPP.creativeName}" is driving the most cost-efficient purchases at ${formatC(bestCPP.cpp)} CPP. Meanwhile, "${bestCTR.creativeName}" is capturing the highest attention with a ${(bestCTR.ctr*100).toFixed(2)}% CTR.`;
+    }
+
+    return (
+      <div className="animate-in fade-in duration-500">
+        <div className="mb-6 flex justify-between items-end">
+          <div>
+            <h2 className="text-3xl font-black text-white tracking-tight">Creative Performance</h2>
+            <p className="text-slate-400 font-medium italic">Independent creative asset analysis.</p>
+          </div>
+          <div className="flex bg-[#131A2A] rounded-xl border border-white/5 p-1">
+            <button onClick={() => setCreativeViewMode('grid')} className={`px-4 py-2 rounded-lg transition-all flex items-center gap-2 ${creativeViewMode === 'grid' ? 'bg-gradient-to-r from-purple-600 to-rose-500 text-white shadow-md' : 'text-slate-400 hover:text-white'}`}>
+              <Grid className="w-4 h-4"/> Grid
+            </button>
+            <button onClick={() => setCreativeViewMode('list')} className={`px-4 py-2 rounded-lg transition-all flex items-center gap-2 ${creativeViewMode === 'list' ? 'bg-gradient-to-r from-purple-600 to-rose-500 text-white shadow-md' : 'text-slate-400 hover:text-white'}`}>
+              <List className="w-4 h-4"/> List
+            </button>
+          </div>
+        </div>
+        
+        {/* TOP 10 SUMMARY GRAPHS */}
+        <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 mb-8">
+           <div className="bg-[#131A2A] rounded-2xl border border-white/5 p-6 shadow-xl flex flex-col">
+              <h3 className="text-sm font-black text-white uppercase tracking-widest mb-4 flex items-center gap-2"><BarChart3 className="w-4 h-4 text-purple-400"/> Top 10 by CTR</h3>
+              <div className="flex-1 space-y-3">
+                 {topCTR.map((c, i) => (
+                    <div key={i} className="flex flex-col gap-1">
+                       <div className="flex justify-between text-xs text-slate-300">
+                          <span className="truncate w-3/4">{i+1}. {c.creativeName}</span>
+                          <span className="font-bold text-purple-400">{(c.ctr*100).toFixed(2)}%</span>
+                       </div>
+                       <div className="w-full bg-white/5 h-1.5 rounded-full overflow-hidden">
+                          <div className="bg-purple-500 h-full rounded-full" style={{width: `${Math.min(100, (c.ctr / (topCTR[0]?.ctr || 1)) * 100)}%`}}></div>
+                       </div>
+                    </div>
+                 ))}
+              </div>
+           </div>
+           <div className="bg-[#131A2A] rounded-2xl border border-white/5 p-6 shadow-xl flex flex-col">
+              <h3 className="text-sm font-black text-white uppercase tracking-widest mb-4 flex items-center gap-2"><BarChart3 className="w-4 h-4 text-emerald-400"/> Top 10 by CPI (Lowest)</h3>
+              <div className="flex-1 space-y-3">
+                 {topCPI.map((c, i) => (
+                    <div key={i} className="flex flex-col gap-1">
+                       <div className="flex justify-between text-xs text-slate-300">
+                          <span className="truncate w-3/4">{i+1}. {c.creativeName}</span>
+                          <span className="font-bold text-emerald-400">{formatC(c.cpi, 2)}</span>
+                       </div>
+                       <div className="w-full bg-white/5 h-1.5 rounded-full overflow-hidden">
+                          {/* Scale to largest in top 10 */}
+                          <div className="bg-emerald-500 h-full rounded-full" style={{width: `${Math.min(100, (c.cpi / (topCPI[topCPI.length-1]?.cpi || 1)) * 100)}%`}}></div>
+                       </div>
+                    </div>
+                 ))}
+              </div>
+           </div>
+           <div className="bg-[#131A2A] rounded-2xl border border-white/5 p-6 shadow-xl flex flex-col">
+              <h3 className="text-sm font-black text-white uppercase tracking-widest mb-4 flex items-center gap-2"><BarChart3 className="w-4 h-4 text-rose-400"/> Top 10 by CPP (Lowest)</h3>
+              <div className="flex-1 space-y-3">
+                 {topCPP.map((c, i) => (
+                    <div key={i} className="flex flex-col gap-1">
+                       <div className="flex justify-between text-xs text-slate-300">
+                          <span className="truncate w-3/4">{i+1}. {c.creativeName}</span>
+                          <span className="font-bold text-rose-400">{formatC(c.cpp, 2)}</span>
+                       </div>
+                       <div className="w-full bg-white/5 h-1.5 rounded-full overflow-hidden">
+                          <div className="bg-rose-500 h-full rounded-full" style={{width: `${Math.min(100, (c.cpp / (topCPP[topCPP.length-1]?.cpp || 1)) * 100)}%`}}></div>
+                       </div>
+                    </div>
+                 ))}
+              </div>
+           </div>
+        </div>
+
+        <div className="bg-slate-50 p-6 rounded-2xl border border-slate-200 break-inside-avoid mb-8">
+           <h4 className="text-sm font-black text-slate-800 uppercase tracking-widest mb-2 flex items-center gap-2"><Zap className="w-4 h-4 text-indigo-500" /> AI Creative Insights</h4>
+           <p className="text-sm text-slate-700 font-medium">{insightText}</p>
+        </div>
+
+        <div className="grid grid-cols-2 lg:grid-cols-6 gap-4 mb-8 border-b border-white/5 pb-6">
+          <MultiSelectDropdown label="Market" options={uniqueCreativeMarkets} selected={creativeFilterMarkets} onChange={setCreativeFilterMarkets} />
+          <MultiSelectDropdown label="Channel" options={uniqueCreativeChannels} selected={creativeFilterChannels} onChange={setCreativeFilterChannels} />
+          <MultiSelectDropdown label="Language" options={uniqueCreativeLanguages} selected={creativeFilterLanguages} onChange={setCreativeFilterLanguages} />
+          <MultiSelectDropdown label="Creative Type" options={uniqueCreativeTypes} selected={creativeFilterTypes} onChange={setCreativeFilterTypes} />
+          <MultiSelectDropdown label="Objective" options={uniqueCreativeObjectives} selected={creativeFilterObjectives} onChange={setCreativeFilterObjectives} />
+          <MultiSelectDropdown label="Week Type" options={uniqueCreativeWeeks} selected={creativeFilterWeeks} onChange={setCreativeFilterWeeks} />
+        </div>
+
+        {creativeLoading ? (
+          <div className="flex items-center justify-center py-20 text-slate-400">Loading creatives...</div>
+        ) : (
+          creativeViewMode === 'grid' ? (
+            <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-4 gap-6">
+              {creativeTabData.map((c, i) => (
+                <div key={i} className="bg-[#131A2A] rounded-[2rem] border border-white/5 shadow-xl overflow-hidden group flex flex-col">
+                   <a href={c.adImageUrl} target="_blank" rel="noopener noreferrer" className="h-48 bg-[#0B0F19] relative overflow-hidden flex items-center justify-center group-hover:bg-[#1A2235] transition-colors block cursor-pointer">
+                      {c.adImageUrl ? (
+                         <img src={c.adImageUrl} alt={c.creativeName} className="object-contain w-full h-full" onError={(e) => { e.target.onerror = null; e.target.src = 'https://via.placeholder.com/400x300/131A2A/4c1d95?text=Preview+Unavailable'; }} />
+                      ) : (
+                         <div className="text-[10px] font-black uppercase text-slate-500 tracking-widest flex items-center gap-2"><ImageIcon className="w-4 h-4"/> No Preview</div>
+                      )}
+                   </a>
+                   <div className="p-6 flex-1 flex flex-col">
+                      <h4 className="text-sm font-black text-white break-words whitespace-normal mb-4 leading-tight">{c.creativeName || 'Unknown Creative'}</h4>
+                      <div className="grid grid-cols-2 gap-3 mb-4 flex-1">
+                         <div className="bg-white/5 rounded-xl p-3">
+                           <p className="text-[10px] font-black uppercase text-slate-500 tracking-widest mb-1">Spend</p>
+                           <p className="text-sm font-bold text-purple-400">{formatC(c.cost)}</p>
+                         </div>
+                         <div className="bg-white/5 rounded-xl p-3">
+                           <p className="text-[10px] font-black uppercase text-slate-500 tracking-widest mb-1">CTR</p>
+                           <p className="text-sm font-bold text-blue-400">{(c.ctr*100).toFixed(2)}%</p>
+                         </div>
+                         <div className="bg-white/5 rounded-xl p-3">
+                           <p className="text-[10px] font-black uppercase text-slate-500 tracking-widest mb-1">Installs</p>
+                           <p className="text-sm font-bold text-emerald-400">{formatShort(c.installs)}</p>
+                         </div>
+                         <div className="bg-white/5 rounded-xl p-3">
+                           <p className="text-[10px] font-black uppercase text-slate-500 tracking-widest mb-1">Purchases</p>
+                           <p className="text-sm font-bold text-rose-400">{formatShort(c.purchases)}</p>
+                         </div>
+                      </div>
+                      <div className="flex justify-between items-center bg-white/5 p-3 rounded-xl mb-4">
+                         <div>
+                            <p className="text-[10px] font-black uppercase text-slate-500 tracking-widest mb-1">CPI</p>
+                            <p className="text-xs font-bold text-emerald-400">{formatC(c.cpi, 2)}</p>
+                         </div>
+                         <div className="text-right">
+                            <p className="text-[10px] font-black uppercase text-slate-500 tracking-widest mb-1">CPP</p>
+                            <p className="text-xs font-bold text-rose-400">{formatC(c.cpp, 2)}</p>
+                         </div>
+                      </div>
+                      <div className="flex gap-2 flex-wrap">
+                        <span className="text-[9px] font-black uppercase tracking-widest bg-blue-500/10 text-blue-400 px-2 py-1 rounded-md">{c.channel}</span>
+                        <span className="text-[9px] font-black uppercase tracking-widest bg-amber-500/10 text-amber-400 px-2 py-1 rounded-md">{c.language}</span>
+                        <span className="text-[9px] font-black uppercase tracking-widest bg-pink-500/10 text-pink-400 px-2 py-1 rounded-md">{c.creativeType}</span>
+                      </div>
+                   </div>
+                </div>
+              ))}
+            </div>
+          ) : (
+            <div className="overflow-x-auto pb-8">
+              <table className="w-full text-left border-separate border-spacing-y-2">
+                <thead>
+                  <tr className="text-[10px] font-black text-slate-400 uppercase tracking-widest whitespace-nowrap">
+                    <th className="p-4 bg-[#131A2A] rounded-l-2xl">Creative</th>
+                    <th className="p-4 bg-[#131A2A] cursor-pointer group hover:text-white select-none" onClick={() => handleSort('cost')}>Spend {renderSortIcon('cost')}</th>
+                    <th className="p-4 bg-[#131A2A] cursor-pointer group hover:text-white select-none" onClick={() => handleSort('impressions')}>Impr {renderSortIcon('impressions')}</th>
+                    <th className="p-4 bg-[#131A2A] cursor-pointer group hover:text-white select-none" onClick={() => handleSort('clicks')}>Clicks {renderSortIcon('clicks')}</th>
+                    <th className="p-4 bg-[#131A2A] cursor-pointer group hover:text-white select-none" onClick={() => handleSort('ctr')}>CTR {renderSortIcon('ctr')}</th>
+                    <th className="p-4 bg-[#131A2A] cursor-pointer group hover:text-white select-none" onClick={() => handleSort('installs')}>Installs {renderSortIcon('installs')}</th>
+                    <th className="p-4 bg-[#131A2A] cursor-pointer group hover:text-white select-none" onClick={() => handleSort('cpi')}>CPI {renderSortIcon('cpi')}</th>
+                    <th className="p-4 bg-[#131A2A] cursor-pointer group hover:text-white select-none" onClick={() => handleSort('purchases')}>Purchases {renderSortIcon('purchases')}</th>
+                    <th className="p-4 bg-[#131A2A] rounded-r-2xl cursor-pointer group hover:text-white select-none" onClick={() => handleSort('cpp')}>CPP {renderSortIcon('cpp')}</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {creativeTabData.map((c, i) => (
+                    <tr key={i} className="bg-[#0B0F19] hover:bg-[#131A2A] transition-colors border border-white/5 shadow-sm group">
+                      <td className="p-4 rounded-l-2xl flex items-center gap-4 min-w-[300px]">
+                         <a href={c.adImageUrl} target="_blank" rel="noopener noreferrer" className="w-16 h-16 bg-black rounded-lg overflow-hidden flex-shrink-0 border border-white/10 block cursor-pointer">
+                           {c.adImageUrl ? <img src={c.adImageUrl} alt={c.creativeName} className="object-cover w-full h-full" onError={(e) => { e.target.onerror = null; e.target.src = 'https://via.placeholder.com/150/131A2A/4c1d95?text=N/A'; }} /> : <div className="flex items-center justify-center w-full h-full text-[8px]">N/A</div>}
+                         </a>
+                         <div className="flex flex-col gap-1 max-w-[200px]">
+                           <span className="text-sm font-black text-white break-words whitespace-normal leading-tight">{c.creativeName}</span>
+                           <div className="flex gap-1 flex-wrap mt-1">
+                             <span className="text-[8px] uppercase tracking-widest bg-blue-500/10 text-blue-400 px-1.5 py-0.5 rounded">{c.channel}</span>
+                             <span className="text-[8px] uppercase tracking-widest bg-pink-500/10 text-pink-400 px-1.5 py-0.5 rounded">{c.creativeType}</span>
+                           </div>
+                         </div>
+                      </td>
+                      <td className="p-4 text-sm font-bold text-purple-400">{formatC(c.cost)}</td>
+                      <td className="p-4 text-sm font-medium text-slate-300">{formatShort(c.impressions)}</td>
+                      <td className="p-4 text-sm font-medium text-slate-300">{formatShort(c.clicks)}</td>
+                      <td className="p-4 text-sm font-bold text-blue-400">{(c.ctr*100).toFixed(2)}%</td>
+                      <td className="p-4 text-sm font-medium text-emerald-400">{formatShort(c.installs)}</td>
+                      <td className="p-4 text-sm font-bold text-emerald-400">{formatC(c.cpi, 2)}</td>
+                      <td className="p-4 text-sm font-medium text-rose-400">{formatShort(c.purchases)}</td>
+                      <td className="p-4 text-sm font-bold text-rose-400 rounded-r-2xl">{formatC(c.cpp, 2)}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          )
+        )}
+      </div>
+    );
+  }
+
   // Strict bailout: Wait until React has fully mounted in the browser before rendering anything.
   if (!isMounted) {
     return (
@@ -1687,16 +2016,10 @@ export default function App() {
   }
 
   return (
-    <div className="flex h-screen w-full overflow-hidden bg-[#0B0F19] text-slate-200 font-sans selection:bg-purple-500/30 selection:text-purple-100">
-      
-      <SignedOut>
-        <div className="flex w-full items-center justify-center min-h-screen">
-           <SignIn routing="hash" forceRedirectUrl="/" />
-        </div>
-      </SignedOut>
-
+    <>
       <SignedIn>
-        
+        <div className="flex h-screen w-full overflow-hidden bg-[#0B0F19] text-slate-200 font-sans selection:bg-purple-500/30 selection:text-purple-100">
+      
         {/* EXPANDED SIDEBAR NAVIGATION */}
         <aside className="w-[288px] flex-shrink-0 bg-[#0B0F19] border-r border-white/5 flex flex-col z-[100] no-print">
           <div className="p-8 border-b border-white/5 flex items-center gap-4">
@@ -1717,6 +2040,7 @@ export default function App() {
               { id: 'campaign', label: 'Campaign Objectives', icon: Megaphone },
               { id: 'os', label: 'Operating System', icon: Smartphone },
               { id: 'detailed', label: 'Detailed Data Hub', icon: TableProperties },
+              { id: 'creative', label: 'Creative Performance', icon: MonitorPlay },
             ].map(tab => (
               <button
                 key={tab.id}
@@ -1739,7 +2063,7 @@ export default function App() {
           
           {/* STICKY TOP HEADER (Reimagined Master Filters) */}
           <header className="sticky top-0 z-50 bg-[#0B0F19]/90 backdrop-blur-2xl border-b border-white/5 px-8 py-4 flex flex-col xl:flex-row xl:items-center justify-between gap-4 shadow-xl no-print">
-            <div className="flex flex-wrap items-center gap-6">
+            <div className={`flex flex-wrap items-center gap-6 ${activeTab === 'creative' ? 'invisible' : ''}`}>
               
               {/* Traffic Segment */}
               <div className="flex bg-[#131A2A] p-1 rounded-xl border border-white/5">
@@ -1748,14 +2072,6 @@ export default function App() {
                      {type} Traffic
                    </button>
                 ))}
-              </div>
-
-              {/* Date Range */}
-              <div className="flex items-center gap-2 bg-[#131A2A] border border-white/5 rounded-xl px-2 py-1">
-                <CalendarDays className="w-4 h-4 text-slate-400 ml-2" />
-                <input style={{ colorScheme: 'dark' }} type="date" value={dateRange.start} onChange={e => setDateRange(prev => ({...prev, start: e.target.value}))} className="w-32 text-xs font-bold text-slate-200 bg-transparent border-none outline-none cursor-pointer" />
-                <span className="text-slate-500">-</span>
-                <input style={{ colorScheme: 'dark' }} type="date" value={dateRange.end} onChange={e => setDateRange(prev => ({...prev, end: e.target.value}))} className="w-32 text-xs font-bold text-slate-200 bg-transparent border-none outline-none cursor-pointer" />
               </div>
 
               {/* Compare Weeks Dropdown */}
@@ -1795,6 +2111,14 @@ export default function App() {
             </div>
 
             <div className="flex items-center gap-4">
+              {/* Date Range - Now Globally Visible on the Right */}
+              <div className="flex items-center gap-2 bg-[#131A2A] border border-white/5 rounded-xl px-2 py-1 hidden sm:flex">
+                <CalendarDays className="w-4 h-4 text-slate-400 ml-2" />
+                <input style={{ colorScheme: 'dark' }} type="date" value={dateRange.start} onChange={e => setDateRange(prev => ({...prev, start: e.target.value}))} className="w-32 text-xs font-bold text-slate-200 bg-transparent border-none outline-none cursor-pointer" />
+                <span className="text-slate-500">-</span>
+                <input style={{ colorScheme: 'dark' }} type="date" value={dateRange.end} onChange={e => setDateRange(prev => ({...prev, end: e.target.value}))} className="w-32 text-xs font-bold text-slate-200 bg-transparent border-none outline-none cursor-pointer" />
+              </div>
+              
               {(dateRange.start || compareWeeks.length > 0 || trafficFilter !== 'All') && (
                   <button onClick={() => { setDateRange({start:'', end:''}); setCompareWeeks([]); setTrafficFilter('All'); }} className="text-xs font-black uppercase tracking-widest text-rose-400 hover:text-rose-300 mr-2 flex items-center gap-1 transition-colors">
                     <Zap className="w-3 h-3"/> Reset Filters
@@ -1804,7 +2128,7 @@ export default function App() {
                  <DollarSign className="w-4 h-4 text-emerald-400" /> {currency}
               </button>
               <div className="bg-[#131A2A] border border-white/10 rounded-full p-1 shadow-lg shadow-purple-500/10 hover:border-purple-500/50 transition-colors">
-                <UserButton afterSignOutUrl="/" />
+                <UserButton afterSignOutUrl="/"/>
               </div>
             </div>
           </header>
@@ -1820,6 +2144,7 @@ export default function App() {
               {activeTab === 'campaign' && renderCampaign()}
               {activeTab === 'os' && renderOS()}
               {activeTab === 'detailed' && renderDetailed()}
+              {activeTab === 'creative' && renderCreative()}
             </div>
 
             <footer className="max-w-7xl mx-auto px-8 lg:px-12 pb-12 border-t border-white/5 mt-4 pt-8 flex flex-col md:flex-row justify-between items-center gap-6 opacity-60 hover:opacity-100 transition-opacity">
@@ -1936,7 +2261,11 @@ export default function App() {
           .custom-scrollbar::-webkit-scrollbar-thumb { background: rgba(255,255,255,0.1); border-radius: 10px; }
           .custom-scrollbar::-webkit-scrollbar-thumb:hover { background: rgba(168,85,247,0.5); }
         `}} />
+        </div>
       </SignedIn>
-    </div>
+      <SignedOut>
+        <RedirectToSignIn />
+      </SignedOut>
+    </>
   );
 }
