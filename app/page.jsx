@@ -439,6 +439,9 @@ export default function App() {
   
   const [creativeViewMode, setCreativeViewMode] = useState('grid'); // 'grid' or 'list'
   const [creativeSortConfig, setCreativeSortConfig] = useState({ key: 'cost', direction: 'desc' });
+  const [creativeStatusFilter, setCreativeStatusFilter] = useState('All'); // 'All', 'Live', 'Paused'
+  const [creativePage, setCreativePage] = useState(1);
+  const CREATIVES_PER_PAGE = 30;
   
   // --- UNIFIED GLOBAL MULTI-SELECT FILTERS ---
   const [filterMarkets, setFilterMarkets] = useState(['All']);
@@ -741,6 +744,9 @@ export default function App() {
     if (!creativeFilterObjectives.includes('All')) d = d.filter(x => creativeFilterObjectives.includes(x.objective));
     if (!creativeFilterWeeks.includes('All')) d = d.filter(x => creativeFilterWeeks.includes(x.weekType));
     
+    const maxDate = creativeData.length > 0 ? new Date(Math.max(...creativeData.map(e => e.date.getTime()))) : new Date();
+    const twentyFourHoursAgo = new Date(maxDate.getTime() - (24 * 60 * 60 * 1000));
+
     // Group by creative image URL and Name to aggregate
     let aggregated = d3.groups(d, x => x.adImageUrl + '|' + x.creativeName)
       .map(([key, values]) => {
@@ -750,6 +756,7 @@ export default function App() {
         const cost = d3.sum(values, v => v.cost);
         const installs = d3.sum(values, v => v.installs);
         const purchases = d3.sum(values, v => v.purchases);
+        const isLive = values.some(v => v.impressions > 0 && v.date >= twentyFourHoursAgo);
         
         return {
           adImageUrl: v0.adImageUrl,
@@ -759,6 +766,7 @@ export default function App() {
           language: v0.language,
           objective: v0.objective,
           weekType: v0.weekType,
+          isLive,
           impressions,
           clicks,
           ctr: impressions > 0 ? (clicks / impressions) : 0,
@@ -769,6 +777,9 @@ export default function App() {
           cpp: purchases > 0 ? (cost / purchases) : 0
         };
       });
+
+    if (creativeStatusFilter === 'Live') aggregated = aggregated.filter(x => x.isLive);
+    if (creativeStatusFilter === 'Paused') aggregated = aggregated.filter(x => !x.isLive);
       
     // Apply sorting
     return aggregated.sort((a, b) => {
@@ -780,7 +791,11 @@ export default function App() {
          return aVal > bVal ? 1 : -1;
        }
     });
-  }, [creativeData, dateRange, creativeFilterMarkets, creativeFilterChannels, creativeFilterLanguages, creativeFilterTypes, creativeFilterObjectives, creativeFilterWeeks, creativeSortConfig]);
+  }, [creativeData, dateRange, creativeFilterMarkets, creativeFilterChannels, creativeFilterLanguages, creativeFilterTypes, creativeFilterObjectives, creativeFilterWeeks, creativeSortConfig, creativeStatusFilter]);
+
+  useEffect(() => {
+    setCreativePage(1);
+  }, [dateRange, creativeFilterMarkets, creativeFilterChannels, creativeFilterLanguages, creativeFilterTypes, creativeFilterObjectives, creativeFilterWeeks, creativeSortConfig, creativeStatusFilter]);
 
   const handleDrillDown = (type, value) => {
     if (type === 'market') {
@@ -1724,7 +1739,7 @@ export default function App() {
     }
 
     return (
-      <div className="bg-white text-slate-900 min-h-screen p-10 w-[1000px] mx-auto">
+      <div className="bg-white text-slate-900 min-h-screen p-10 w-full max-w-[800px] mx-auto print:max-w-full print:w-full print:p-0">
          <div className="flex justify-between items-end border-b-2 border-slate-200 pb-6 mb-8">
             <div>
                <h1 className="text-4xl font-black tracking-tighter text-slate-900">ROVA PERFORMANCE</h1>
@@ -1826,14 +1841,6 @@ export default function App() {
             <h2 className="text-3xl font-black text-white tracking-tight">Creative Performance</h2>
             <p className="text-slate-400 font-medium italic">Independent creative asset analysis.</p>
           </div>
-          <div className="flex bg-[#131A2A] rounded-xl border border-white/5 p-1">
-            <button onClick={() => setCreativeViewMode('grid')} className={`px-4 py-2 rounded-lg transition-all flex items-center gap-2 ${creativeViewMode === 'grid' ? 'bg-gradient-to-r from-purple-600 to-rose-500 text-white shadow-md' : 'text-slate-400 hover:text-white'}`}>
-              <Grid className="w-4 h-4"/> Grid
-            </button>
-            <button onClick={() => setCreativeViewMode('list')} className={`px-4 py-2 rounded-lg transition-all flex items-center gap-2 ${creativeViewMode === 'list' ? 'bg-gradient-to-r from-purple-600 to-rose-500 text-white shadow-md' : 'text-slate-400 hover:text-white'}`}>
-              <List className="w-4 h-4"/> List
-            </button>
-          </div>
         </div>
         
         {/* TOP 10 SUMMARY GRAPHS */}
@@ -1903,12 +1910,38 @@ export default function App() {
           <MultiSelectDropdown label="Week Type" options={uniqueCreativeWeeks} selected={creativeFilterWeeks} onChange={setCreativeFilterWeeks} />
         </div>
 
+        <div className="flex justify-between items-end mb-6 mt-4">
+           <h3 className="text-lg font-black text-white tracking-tight">Creative Library ({creativeTabData.length})</h3>
+           <div className="flex items-center gap-4">
+             <div className="flex bg-[#131A2A] rounded-xl border border-white/5 p-1">
+               <button onClick={() => setCreativeStatusFilter('All')} className={`px-3 py-1.5 text-xs font-bold uppercase tracking-widest rounded-lg transition-all flex items-center gap-2 ${creativeStatusFilter === 'All' ? 'bg-slate-700 text-white shadow-md' : 'text-slate-400 hover:text-white'}`}>
+                 All
+               </button>
+               <button onClick={() => setCreativeStatusFilter('Live')} className={`px-3 py-1.5 text-xs font-bold uppercase tracking-widest rounded-lg transition-all flex items-center gap-2 ${creativeStatusFilter === 'Live' ? 'bg-emerald-600 text-white shadow-md' : 'text-slate-400 hover:text-white'}`}>
+                 Live
+               </button>
+               <button onClick={() => setCreativeStatusFilter('Paused')} className={`px-3 py-1.5 text-xs font-bold uppercase tracking-widest rounded-lg transition-all flex items-center gap-2 ${creativeStatusFilter === 'Paused' ? 'bg-rose-600 text-white shadow-md' : 'text-slate-400 hover:text-white'}`}>
+                 Paused
+               </button>
+             </div>
+             <div className="flex bg-[#131A2A] rounded-xl border border-white/5 p-1">
+               <button onClick={() => setCreativeViewMode('grid')} className={`px-3 py-1.5 text-xs font-bold uppercase tracking-widest rounded-lg transition-all flex items-center gap-2 ${creativeViewMode === 'grid' ? 'bg-gradient-to-r from-purple-600 to-rose-500 text-white shadow-md' : 'text-slate-400 hover:text-white'}`}>
+                 <Grid className="w-4 h-4"/> Grid
+               </button>
+               <button onClick={() => setCreativeViewMode('list')} className={`px-3 py-1.5 text-xs font-bold uppercase tracking-widest rounded-lg transition-all flex items-center gap-2 ${creativeViewMode === 'list' ? 'bg-gradient-to-r from-purple-600 to-rose-500 text-white shadow-md' : 'text-slate-400 hover:text-white'}`}>
+                 <List className="w-4 h-4"/> List
+               </button>
+             </div>
+           </div>
+        </div>
+
         {creativeLoading ? (
           <div className="flex items-center justify-center py-20 text-slate-400">Loading creatives...</div>
         ) : (
-          creativeViewMode === 'grid' ? (
+          <>
+          {creativeViewMode === 'grid' ? (
             <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-4 gap-6">
-              {creativeTabData.map((c, i) => (
+              {creativeTabData.slice((creativePage - 1) * CREATIVES_PER_PAGE, creativePage * CREATIVES_PER_PAGE).map((c, i) => (
                 <div key={i} className="bg-[#131A2A] rounded-[2rem] border border-white/5 shadow-xl overflow-hidden group flex flex-col">
                    <a href={c.adImageUrl} target="_blank" rel="noopener noreferrer" className="h-48 bg-[#0B0F19] relative overflow-hidden flex items-center justify-center group-hover:bg-[#1A2235] transition-colors block cursor-pointer">
                       {c.adImageUrl ? (
@@ -1918,7 +1951,10 @@ export default function App() {
                       )}
                    </a>
                    <div className="p-6 flex-1 flex flex-col">
-                      <h4 className="text-sm font-black text-white break-words whitespace-normal mb-4 leading-tight">{c.creativeName || 'Unknown Creative'}</h4>
+                      <h4 className="text-sm font-black text-white break-words whitespace-normal mb-4 leading-tight flex items-center gap-2">
+                         <div className={`w-2 h-2 rounded-full flex-shrink-0 ${c.isLive ? 'bg-emerald-500 shadow-[0_0_8px_rgba(16,185,129,0.8)]' : 'bg-red-500 shadow-[0_0_8px_rgba(239,68,68,0.8)]'}`} title={c.isLive ? 'Live' : 'Paused'}></div>
+                         {c.creativeName || 'Unknown Creative'}
+                      </h4>
                       <div className="grid grid-cols-2 gap-3 mb-4 flex-1">
                          <div className="bg-white/5 rounded-xl p-3">
                            <p className="text-[10px] font-black uppercase text-slate-500 tracking-widest mb-1">Spend</p>
@@ -1973,14 +2009,17 @@ export default function App() {
                   </tr>
                 </thead>
                 <tbody>
-                  {creativeTabData.map((c, i) => (
+                  {creativeTabData.slice((creativePage - 1) * CREATIVES_PER_PAGE, creativePage * CREATIVES_PER_PAGE).map((c, i) => (
                     <tr key={i} className="bg-[#0B0F19] hover:bg-[#131A2A] transition-colors border border-white/5 shadow-sm group">
                       <td className="p-4 rounded-l-2xl flex items-center gap-4 min-w-[300px]">
                          <a href={c.adImageUrl} target="_blank" rel="noopener noreferrer" className="w-16 h-16 bg-black rounded-lg overflow-hidden flex-shrink-0 border border-white/10 block cursor-pointer">
                            {c.adImageUrl ? <img src={c.adImageUrl} alt={c.creativeName} className="object-cover w-full h-full" onError={(e) => { e.target.onerror = null; e.target.src = 'https://via.placeholder.com/150/131A2A/4c1d95?text=N/A'; }} /> : <div className="flex items-center justify-center w-full h-full text-[8px]">N/A</div>}
                          </a>
                          <div className="flex flex-col gap-1 max-w-[200px]">
-                           <span className="text-sm font-black text-white break-words whitespace-normal leading-tight">{c.creativeName}</span>
+                           <span className="text-sm font-black text-white break-words whitespace-normal leading-tight flex items-center gap-2">
+                             <div className={`w-2 h-2 rounded-full flex-shrink-0 ${c.isLive ? 'bg-emerald-500 shadow-[0_0_8px_rgba(16,185,129,0.8)]' : 'bg-red-500 shadow-[0_0_8px_rgba(239,68,68,0.8)]'}`} title={c.isLive ? 'Live' : 'Paused'}></div>
+                             {c.creativeName}
+                           </span>
                            <div className="flex gap-1 flex-wrap mt-1">
                              <span className="text-[8px] uppercase tracking-widest bg-blue-500/10 text-blue-400 px-1.5 py-0.5 rounded">{c.channel}</span>
                              <span className="text-[8px] uppercase tracking-widest bg-pink-500/10 text-pink-400 px-1.5 py-0.5 rounded">{c.creativeType}</span>
@@ -2000,7 +2039,30 @@ export default function App() {
                 </tbody>
               </table>
             </div>
-          )
+          )}
+
+          {creativeTabData.length > CREATIVES_PER_PAGE && (
+            <div className="flex justify-center items-center gap-4 mt-8 bg-[#131A2A] rounded-xl border border-white/5 p-4 max-w-fit mx-auto shadow-xl">
+              <button 
+                onClick={() => setCreativePage(p => Math.max(1, p - 1))}
+                disabled={creativePage === 1}
+                className="px-4 py-2 rounded-lg bg-white/5 text-slate-300 hover:bg-white/10 disabled:opacity-50 disabled:cursor-not-allowed transition-colors font-bold text-xs uppercase tracking-widest"
+              >
+                Previous
+              </button>
+              <span className="text-xs font-black text-slate-400 tracking-widest uppercase">
+                Page <span className="text-white">{creativePage}</span> of {Math.ceil(creativeTabData.length / CREATIVES_PER_PAGE)}
+              </span>
+              <button 
+                onClick={() => setCreativePage(p => Math.min(Math.ceil(creativeTabData.length / CREATIVES_PER_PAGE), p + 1))}
+                disabled={creativePage === Math.ceil(creativeTabData.length / CREATIVES_PER_PAGE)}
+                className="px-4 py-2 rounded-lg bg-white/5 text-slate-300 hover:bg-white/10 disabled:opacity-50 disabled:cursor-not-allowed transition-colors font-bold text-xs uppercase tracking-widest"
+              >
+                Next
+              </button>
+            </div>
+          )}
+          </>
         )}
       </div>
     );
@@ -2018,7 +2080,7 @@ export default function App() {
   return (
     <>
       <SignedIn>
-        <div className="flex h-screen w-full overflow-hidden bg-[#0B0F19] text-slate-200 font-sans selection:bg-purple-500/30 selection:text-purple-100">
+        <div className="flex h-screen w-full overflow-hidden print:h-auto print:overflow-visible bg-[#0B0F19] text-slate-200 font-sans selection:bg-purple-500/30 selection:text-purple-100">
       
         {/* EXPANDED SIDEBAR NAVIGATION */}
         <aside className="w-[288px] flex-shrink-0 bg-[#0B0F19] border-r border-white/5 flex flex-col z-[100] no-print">
@@ -2134,7 +2196,7 @@ export default function App() {
           </header>
 
           {/* SCROLLABLE MAIN CONTENT AREA */}
-          <main className="flex-1 overflow-y-auto relative custom-scrollbar scroll-smooth">
+          <main className="flex-1 overflow-y-auto print:overflow-visible relative custom-scrollbar scroll-smooth">
             <div className="absolute top-0 left-1/2 -translate-x-1/2 w-full h-[600px] bg-gradient-to-b from-purple-900/10 via-transparent to-transparent pointer-events-none rounded-full blur-[100px]"></div>
             
             <div className="p-8 lg:p-12 max-w-7xl mx-auto relative z-10">
@@ -2248,8 +2310,8 @@ export default function App() {
 
         <style dangerouslySetInnerHTML={{__html: `
           @media print { 
-            @page { size: A4; margin: 0; } 
-            body { background: white !important; -webkit-print-color-adjust: exact; print-color-adjust: exact; } 
+            @page { size: A4 portrait; margin: 10mm; } 
+            body, html { height: auto !important; overflow: visible !important; background: white !important; -webkit-print-color-adjust: exact; print-color-adjust: exact; } 
             .no-print { display: none !important; } 
             .print-only { display: block !important; } 
           } 
