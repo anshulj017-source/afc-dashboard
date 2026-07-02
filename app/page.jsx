@@ -497,7 +497,7 @@ export default function App() {
             impressions: parseMetric(row['Impression'] || row['Impressions']),
             clicks: parseMetric(row['Clicks'] || row['clicks']),
             installs: 0, logins: 0, purchases: 0, sessions: 0,
-            week, year, date: getDateFromWeek(week, year),
+            week, year, date: row['Date'] ? new Date(row['Date']) : getDateFromWeek(week, year),
             market: normalizeMarket(row['Country'] || row['Channel Country']),
             channel: (!rawS1Channel || rawS1Channel === 'BLANK') ? 'Other' : normalizeChannel(rawS1Channel),
             weekType: parseWeekType(rawWeekTypeS1),
@@ -523,7 +523,7 @@ export default function App() {
           return {
             cost: 0, impressions: 0, clicks: 0,
             installs: parseMetric(row['Installs'] || row['Install'] || row['Total Installs'] || row['Network Installs']),
-            logins, purchases, sessions, week, year, date: getDateFromWeek(week, year),
+            logins, purchases, sessions, week, year, date: row['Date'] ? new Date(row['Date']) : getDateFromWeek(week, year),
             market: normalizeMarket(row['Country'] || row['Geo']),
             channel: (!rawS2Channel || rawS2Channel === 'BLANK' || rawS2Channel === 'Organic') ? 'Other' : normalizeChannel(rawS2Channel),
             weekType: parseWeekType(rawWeekTypeS2),
@@ -584,19 +584,15 @@ export default function App() {
       if (compareWeeks.length > 0) {
         passTime = compareWeeks.includes(d.timeKey);
       } else if (dateRange.start || dateRange.end) {
-        // OVERLAP LOGIC: Expand single d.date into full 7 day week span
-        const wStart = new Date(d.date);
-        const wEnd = new Date(d.date);
-        wEnd.setDate(wEnd.getDate() + 6);
-        wEnd.setHours(23, 59, 59, 999);
+        const dDate = new Date(d.date);
 
         if (dateRange.start) {
           const startDate = new Date(dateRange.start); startDate.setHours(0, 0, 0, 0);
-          passTime = passTime && (wEnd >= startDate);
+          passTime = passTime && (dDate >= startDate);
         }
         if (dateRange.end) {
           const endDate = new Date(dateRange.end); endDate.setHours(23, 59, 59, 999);
-          passTime = passTime && (wStart <= endDate);
+          passTime = passTime && (dDate <= endDate);
         }
       }
       return passTraffic && passTime;
@@ -720,18 +716,15 @@ export default function App() {
          // Creative doesn't have timeKey logic explicitly built yet, fallback to date range.
          // Or just let dateRange govern it.
       } else if (dateRange.start || dateRange.end) {
-        const wStart = new Date(x.date);
-        const wEnd = new Date(x.date);
-        wEnd.setDate(wEnd.getDate() + 6);
-        wEnd.setHours(23, 59, 59, 999);
+        const dDate = new Date(x.date);
 
         if (dateRange.start) {
           const startDate = new Date(dateRange.start); startDate.setHours(0, 0, 0, 0);
-          passTime = passTime && (wEnd >= startDate);
+          passTime = passTime && (dDate >= startDate);
         }
         if (dateRange.end) {
           const endDate = new Date(dateRange.end); endDate.setHours(23, 59, 59, 999);
-          passTime = passTime && (wStart <= endDate);
+          passTime = passTime && (dDate <= endDate);
         }
       }
       return passTime;
