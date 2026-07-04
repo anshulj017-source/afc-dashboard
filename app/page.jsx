@@ -8,6 +8,8 @@ import {
   Download, Target, ShoppingCart, Users, TableProperties, Trophy, ArrowRight, FileText, Megaphone, Search, Smartphone, MonitorPlay, Image as ImageIcon, List, Grid, BarChart3, ArrowUpDown
 } from 'lucide-react';
 
+const LoadingContext = React.createContext(false);
+
 const COMBINED_COUNTRY_CSV_URL = "/api/sheets?type=combined";
 const RAW_ADJUST_CSV_URL = "/api/sheets?type=adjust";
 const CREATIVE_CSV_URL = "/api/sheets?type=creative";
@@ -84,13 +86,25 @@ const parseMetric = (val) => {
 };
 
 // --- STABLE UI COMPONENTS ---
-const MetricCard = ({ label, value, color }) => (
-  <div className="bg-[#131A2A]/80 backdrop-blur-xl p-6 rounded-[1.5rem] border border-white/5 shadow-xl transition-all hover:shadow-[0_0_20px_rgba(168,85,247,0.15)] hover:-translate-y-1 relative overflow-hidden group">
-    <div className="absolute top-0 right-0 w-32 h-32 bg-gradient-to-br from-white/5 to-transparent rounded-full blur-2xl -mr-10 -mt-10 group-hover:bg-purple-500/10 transition-colors duration-500"></div>
-    <p className={`text-[10px] font-black ${color} uppercase tracking-widest mb-2 relative z-10`}>{label}</p>
-    <h3 className="text-2xl font-black text-white truncate relative z-10" title={value}>{value}</h3>
-  </div>
-);
+const MetricCard = ({ label, value, color }) => {
+  const loading = React.useContext(LoadingContext);
+  return (
+    <div className="bg-[#131A2A]/80 backdrop-blur-xl p-6 rounded-[1.5rem] border border-white/5 shadow-xl transition-all hover:shadow-[0_0_20px_rgba(168,85,247,0.15)] hover:-translate-y-1 relative overflow-hidden group">
+      <div className="absolute top-0 right-0 w-32 h-32 bg-gradient-to-br from-white/5 to-transparent rounded-full blur-2xl -mr-10 -mt-10 group-hover:bg-purple-500/10 transition-colors duration-500"></div>
+      {loading ? (
+        <div className="animate-pulse relative z-10 flex flex-col gap-2 mt-1">
+          <div className="h-3 w-1/2 bg-white/10 rounded mb-1"></div>
+          <div className="h-6 w-3/4 bg-white/20 rounded"></div>
+        </div>
+      ) : (
+        <>
+          <p className={`text-[10px] font-black ${color} uppercase tracking-widest mb-2 relative z-10`}>{label}</p>
+          <h3 className="text-2xl font-black text-white truncate relative z-10" title={value}>{value}</h3>
+        </>
+      )}
+    </div>
+  );
+};
 
 const InsightBox = ({ text }) => (
   <div className="bg-gradient-to-br from-[#2D1B69] to-[#1A0B2E] rounded-[2.5rem] p-8 text-white shadow-2xl shadow-purple-900/20 mb-10 relative overflow-hidden border border-purple-500/30">
@@ -265,19 +279,37 @@ const BarChart = ({ chartData, valueKey, labelKey = 'name', color = 'bg-purple-5
   );
 };
 
-const EntityBarChartCard = ({ title, icon: Icon, data, dataKey, color, isCurrency, insight, drillDownType, onDrillDown, exSym, exRate }) => (
+const EntityBarChartCard = ({ title, icon: Icon, data, dataKey, color, isCurrency, insight, drillDownType, onDrillDown, exSym, exRate }) => {
+  const loading = React.useContext(LoadingContext);
+  return (
   <div className="bg-[#131A2A] p-6 rounded-[2rem] border border-white/5 shadow-xl flex flex-col h-full hover:border-purple-500/30 transition-colors group">
       <div className="flex items-center gap-3 mb-6">
          <div className={`p-2 rounded-xl bg-white/5`}><Icon className={`w-4 h-4 ${color.replace('bg-', 'text-')}`} /></div>
          <h4 className="text-sm font-black text-white uppercase tracking-widest">{title}</h4>
       </div>
-      <div className="flex-1 mb-6"><BarChart chartData={data} valueKey={dataKey} color={color} isCurrency={isCurrency} onClickItem={drillDownType ? (name) => onDrillDown(drillDownType, name) : null} exSym={exSym} exRate={exRate} /></div>
+      {loading ? (
+        <div className="flex-1 mb-6 flex flex-col gap-4 animate-pulse">
+           {[...Array(5)].map((_, i) => (
+             <div key={i} className="flex flex-col gap-2">
+               <div className="h-2 w-1/3 bg-white/10 rounded"></div>
+               <div className="h-2.5 w-full bg-white/5 rounded-full"></div>
+             </div>
+           ))}
+        </div>
+      ) : (
+        <div className="flex-1 mb-6"><BarChart chartData={data} valueKey={dataKey} color={color} isCurrency={isCurrency} onClickItem={drillDownType ? (name) => onDrillDown(drillDownType, name) : null} exSym={exSym} exRate={exRate} /></div>
+      )}
       <div className="bg-white/5 p-4 rounded-2xl mt-auto border border-white/5 relative overflow-hidden">
          <Zap className={`w-16 h-16 absolute -right-4 -top-4 opacity-5 ${color.replace('bg-', 'text-')} group-hover:scale-110 transition-transform`} />
-         <p className="text-xs font-bold text-slate-400 relative z-10">"{insight}"</p>
+         {loading ? (
+            <div className="h-3 w-3/4 bg-white/10 rounded animate-pulse"></div>
+         ) : (
+            <p className="text-xs font-bold text-slate-400 relative z-10">"{insight}"</p>
+         )}
       </div>
   </div>
-);
+  );
+};
 
 const DualAxisLineChart = ({ chartData, leftKey, rightKey, leftColorText, rightColorText, leftColorHex, rightColorHex, isLeftCurrency, isRightCurrency, exSym = '$', exRate = 1 }) => {
   if (!chartData || chartData.length < 2) return (
@@ -2071,7 +2103,7 @@ export default function App() {
   }
 
   return (
-    <>
+    <LoadingContext.Provider value={loading || creativeLoading}>
       <SignedIn>
         <div className="flex h-screen w-full overflow-hidden print:h-auto print:overflow-visible bg-[#0B0F19] text-slate-200 font-sans selection:bg-purple-500/30 selection:text-purple-100">
       
@@ -2192,6 +2224,16 @@ export default function App() {
           <main className="flex-1 overflow-y-auto print:overflow-visible relative custom-scrollbar scroll-smooth">
             <div className="absolute top-0 left-1/2 -translate-x-1/2 w-full h-[600px] bg-gradient-to-b from-purple-900/10 via-transparent to-transparent pointer-events-none rounded-full blur-[100px]"></div>
             
+            {/* Global Loader Overlay */}
+            {(loading || creativeLoading) && (
+              <div className="absolute inset-0 z-50 flex items-center justify-center bg-[#0B0F19]/50 backdrop-blur-sm">
+                <div className="flex flex-col items-center gap-4">
+                  <div className="w-12 h-12 border-4 border-purple-500/30 border-t-purple-500 rounded-full animate-spin"></div>
+                  <span className="text-purple-400 font-bold tracking-widest uppercase text-xs">Loading Data...</span>
+                </div>
+              </div>
+            )}
+
             <div className="p-8 lg:p-12 max-w-7xl mx-auto relative z-10">
               {activeTab === 'summary' && renderSummary()}
               {activeTab === 'market' && renderMarket()}
@@ -2321,6 +2363,6 @@ export default function App() {
       <SignedOut>
         <RedirectToSignIn />
       </SignedOut>
-    </>
+    </LoadingContext.Provider>
   );
 }
