@@ -8,9 +8,9 @@ import {
   Download, Target, ShoppingCart, Users, TableProperties, Trophy, ArrowRight, FileText, Megaphone, Search, Smartphone, MonitorPlay, Image as ImageIcon, List, Grid, BarChart3, ArrowUpDown
 } from 'lucide-react';
 
-const COMBINED_COUNTRY_CSV_URL = process.env.NEXT_PUBLIC_COMBINED_COUNTRY_CSV_URL;
-const RAW_ADJUST_CSV_URL = process.env.NEXT_PUBLIC_RAW_ADJUST_CSV_URL;
-const CREATIVE_CSV_URL = process.env.NEXT_PUBLIC_CREATIVE_CSV_URL;
+const COMBINED_COUNTRY_CSV_URL = "/api/sheets?type=combined";
+const RAW_ADJUST_CSV_URL = "/api/sheets?type=adjust";
+const CREATIVE_CSV_URL = "/api/sheets?type=creative";
 
 // --- SSR-SAFE CORE HELPERS ---
 const MONTHS = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
