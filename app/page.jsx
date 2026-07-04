@@ -8,9 +8,9 @@ import {
   Download, Target, ShoppingCart, Users, TableProperties, Trophy, ArrowRight, FileText, Megaphone, Search, Smartphone, MonitorPlay, Image as ImageIcon, List, Grid, BarChart3, ArrowUpDown
 } from 'lucide-react';
 
-const COMBINED_COUNTRY_CSV_URL = "https://docs.google.com/spreadsheets/d/e/2PACX-1vSt_K4Y6h2g2iVm2CDrc33rQGDToGd41a805URte2UEDqMYB_K8V4YKLIJ9rCMoLdmwvbco7uyevE9U/pub?gid=1273221446&single=true&output=csv";
-const RAW_ADJUST_CSV_URL = "https://docs.google.com/spreadsheets/d/e/2PACX-1vSt_K4Y6h2g2iVm2CDrc33rQGDToGd41a805URte2UEDqMYB_K8V4YKLIJ9rCMoLdmwvbco7uyevE9U/pub?gid=588241351&single=true&output=csv";
-const CREATIVE_CSV_URL = "https://docs.google.com/spreadsheets/d/e/2PACX-1vSmrxP52BP6y8mP1iCh2-SxDbtV5eSlgRi-YzL_O36gHtjzWyvTNy-LBVfT1UfD-L1sUkCI_IbKR3Vc/pub?gid=0&single=true&output=csv";
+const COMBINED_COUNTRY_CSV_URL = process.env.NEXT_PUBLIC_COMBINED_COUNTRY_CSV_URL;
+const RAW_ADJUST_CSV_URL = process.env.NEXT_PUBLIC_RAW_ADJUST_CSV_URL;
+const CREATIVE_CSV_URL = process.env.NEXT_PUBLIC_CREATIVE_CSV_URL;
 
 // --- SSR-SAFE CORE HELPERS ---
 const MONTHS = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
