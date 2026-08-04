@@ -543,7 +543,13 @@ export default function App() {
           const week = parseInt(row['Week'] || row['week'] || row['Wk']) || 0;
           const year = parseInt(row['Year'] || row['year']) || 2024;
           const rawClass = Object.values(row)[11] || row['Classification'] || row['Network classification'] || '';
-          const trafficType = rawClass.toString().toLowerCase().includes('organic') ? 'Organic' : 'Paid';
+          let trafficType = 'Paid';
+          const rawClassLower = rawClass.toString().toLowerCase();
+          if (rawClassLower.includes('organic')) {
+            trafficType = 'Organic';
+          } else if (rawClassLower.includes('affiliate')) {
+            trafficType = 'Affiliates';
+          }
           const purchases = parseMetric(Object.values(row)[7] || row['Purchases'] || row['Total Purchases']);
           const logins = parseMetric(Object.values(row)[8] || row['login_success'] || row['Logins']);
           const sessions = parseMetric(row['Sessions'] || row['sessions'] || Object.values(row)[9] || 0);
@@ -2154,7 +2160,7 @@ export default function App() {
               
               {/* Traffic Segment */}
               <div className="flex bg-[#131A2A] p-1 rounded-xl border border-white/5">
-                {['All', 'Paid', 'Organic'].map(type => (
+                {['All', 'Paid', 'Organic', 'Affiliates'].map(type => (
                    <button key={type} onClick={() => setTrafficFilter(type)} className={`px-4 py-1.5 text-xs font-bold rounded-lg transition-all ${trafficFilter === type ? 'bg-gradient-to-r from-purple-600 to-rose-500 text-white shadow-md' : 'text-slate-400 hover:text-white'}`}>
                      {type} Traffic
                    </button>
@@ -2313,9 +2319,10 @@ export default function App() {
                    <div>
                       <label className="text-[10px] font-black uppercase text-slate-400 mb-1.5 block tracking-widest">Traffic Segment</label>
                       <select value={reportModal.traffic} onChange={e=>setReportModal({...reportModal, traffic: e.target.value})} className="w-full px-4 py-3 bg-[#0B0F19] border border-white/10 rounded-xl text-sm font-bold text-white outline-none focus:border-purple-500 cursor-pointer">
-                         <option value="All">Combined (Paid & Organic)</option>
+                         <option value="All">All Traffic</option>
                          <option value="Paid">Paid Only</option>
                          <option value="Organic">Organic Only</option>
+                         <option value="Affiliates">Affiliates Only</option>
                       </select>
                    </div>
                 </div>
