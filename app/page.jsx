@@ -2162,7 +2162,7 @@ export default function App() {
               <div className="flex bg-[#131A2A] p-1 rounded-xl border border-white/5">
                 {['All', 'Paid', 'Organic', 'Affiliates'].map(type => (
                    <button key={type} onClick={() => setTrafficFilter(type)} className={`px-4 py-1.5 text-xs font-bold rounded-lg transition-all ${trafficFilter === type ? 'bg-gradient-to-r from-purple-600 to-rose-500 text-white shadow-md' : 'text-slate-400 hover:text-white'}`}>
-                     {type} Traffic
+                     {type === 'All' ? 'All Traffic' : type}
                    </button>
                 ))}
               </div>
