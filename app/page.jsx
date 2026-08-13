@@ -514,8 +514,18 @@ export default function App() {
   }, [isGeneratingPdf]);
 
   useEffect(() => {
-    Promise.all([d3.csv(COMBINED_COUNTRY_CSV_URL), d3.csv(RAW_ADJUST_CSV_URL), d3.csv(CREATIVE_CSV_URL)])
-      .then(([adData, mmpData, crData]) => {
+    Promise.all([
+      d3.csv(COMBINED_COUNTRY_CSV_URL), 
+      d3.csv(RAW_ADJUST_CSV_URL), 
+      d3.csv(CREATIVE_CSV_URL),
+      fetch('/api/tiktok/creatives')
+        .then(res => res.ok ? res.json() : [])
+        .catch(err => {
+          console.error("TikTok API fetch failed:", err);
+          return [];
+        })
+    ])
+      .then(([adData, mmpData, crData, tiktokData]) => {
         const s1 = adData.map(row => {
           const week = parseInt(row['Week'] || row['week']) || 0;
           const year = parseInt(row['Year'] || row['year']) || 2024;
@@ -570,6 +580,7 @@ export default function App() {
             source: 'Adjust', trafficType
           };
         });
+        
         const s3 = crData.map(row => {
           return {
             date: new Date(row['Date']),
@@ -588,9 +599,71 @@ export default function App() {
             purchases: parseMetric(row['Omni purchases'])
           };
         });
+
+        const s4 = (Array.isArray(tiktokData?.data) ? tiktokData.data : (Array.isArray(tiktokData) ? tiktokData : [])).map(ad => {
+          const rawName = ad.adName || ad.dimensions?.ad_id || 'Unknown';
+          const parts = rawName.split('|').map(p => p.trim());
+          
+          let parsedLanguage = 'Unknown';
+          let parsedCreativeType = 'Video'; // Default for TikTok
+          let parsedObjective = 'Unknown';
+          let shortCreativeName = rawName;
+
+          if (parts.length >= 6) {
+            parsedObjective = parts[1] || 'Unknown';
+            const rawType = parts[4]?.toUpperCase();
+            if (rawType === 'IMG' || rawType === 'IMAGE') parsedCreativeType = 'Image';
+            else if (rawType === 'VID' || rawType === 'VIDEO') parsedCreativeType = 'Video';
+
+            // Find language identifier
+            const langPart = parts.find(p => ['AR', 'EN', 'EN+AR'].includes(p.toUpperCase()));
+            if (langPart) {
+              const langMap = { 'AR': 'Arabic', 'EN': 'English', 'EN+AR': 'Bilingual' };
+              parsedLanguage = langMap[langPart.toUpperCase()] || langPart;
+            }
+            
+            // Core concept is usually part 5, version part 6
+            const concept = parts[5];
+            const version = parts[6] && parts[6].toUpperCase().startsWith('V') ? `(${parts[6]})` : '';
+            shortCreativeName = `${concept} ${version} ${langPart ? '- ' + langPart : ''}`.trim();
+            // Capitalize first letter of shortName
+            shortCreativeName = shortCreativeName.charAt(0).toUpperCase() + shortCreativeName.slice(1);
+          } else {
+            // If it doesn't follow the | format, check if there's a trailing _ or - for the actual name
+            const altParts = rawName.split(/[_]/);
+            if (altParts.length > 1) {
+               shortCreativeName = altParts[altParts.length - 1].trim();
+            } else if (rawName.length > 50) {
+               shortCreativeName = rawName.substring(0, 50) + '...';
+            }
+          }
+
+          // Ensure valid date from TikTok API (format: '2026-08-08 00:00:00' or similar)
+          const adDateStr = ad.dimensions?.stat_time_day;
+          const adDate = adDateStr ? new Date(adDateStr) : new Date();
+
+          return {
+            date: adDate, 
+            market: 'Saudi Arabia',
+            channel: 'TikTok',
+            language: parsedLanguage,
+            creativeType: parsedCreativeType,
+            objective: parsedObjective,
+            weekType: 'Unknown',
+            creativeName: shortCreativeName,
+            adImageUrl: ad.thumbnailUrl || '',
+            videoUrl: ad.videoUrl || '',
+            tiktokItemId: ad.tiktokItemId || '',
+            impressions: parseMetric(ad.metrics?.impressions || 0),
+            clicks: parseMetric(ad.metrics?.clicks || 0),
+            cost: parseMetric(ad.metrics?.spend || 0),
+            installs: parseMetric(ad.metrics?.app_install || 0), 
+            purchases: parseMetric(ad.metrics?.purchase || 0)
+          };
+        });
         
         setData([...s1, ...s2]);
-        setCreativeData(s3);
+        setCreativeData([...s3, ...s4]);
         setLoading(false);
         setCreativeLoading(false);
       })
@@ -776,7 +849,8 @@ export default function App() {
     if (!creativeFilterWeeks.includes('All')) d = d.filter(x => creativeFilterWeeks.includes(x.weekType));
     
     const maxDate = creativeData.length > 0 ? new Date(Math.max(...creativeData.map(e => e.date.getTime()))) : new Date();
-    const twentyFourHoursAgo = new Date(maxDate.getTime() - (24 * 60 * 60 * 1000));
+    // Use a 72-hour (3 day) window to account for ad network API data delays
+    const activeWindowCutoff = new Date(maxDate.getTime() - (3 * 24 * 60 * 60 * 1000));
 
     // Group by creative image URL and Name to aggregate
     let aggregated = d3.groups(d, x => x.adImageUrl + '|' + x.creativeName)
@@ -787,10 +861,12 @@ export default function App() {
         const cost = d3.sum(values, v => v.cost);
         const installs = d3.sum(values, v => v.installs);
         const purchases = d3.sum(values, v => v.purchases);
-        const isLive = values.some(v => v.impressions > 0 && v.date >= twentyFourHoursAgo);
+        const isLive = values.some(v => v.impressions > 0 && v.date >= activeWindowCutoff);
         
         return {
           adImageUrl: v0.adImageUrl,
+          videoUrl: v0.videoUrl,
+          tiktokItemId: v0.tiktokItemId,
           creativeName: v0.creativeName,
           channel: v0.channel,
           creativeType: v0.creativeType,
@@ -1974,13 +2050,21 @@ export default function App() {
             <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-4 gap-6">
               {creativeTabData.slice((creativePage - 1) * CREATIVES_PER_PAGE, creativePage * CREATIVES_PER_PAGE).map((c, i) => (
                 <div key={i} className="bg-[#131A2A] rounded-[2rem] border border-white/5 shadow-xl overflow-hidden group flex flex-col">
-                   <a href={c.adImageUrl} target="_blank" rel="noopener noreferrer" className="h-48 bg-[#0B0F19] relative overflow-hidden flex items-center justify-center group-hover:bg-[#1A2235] transition-colors block cursor-pointer">
-                      {c.adImageUrl ? (
+                   <div onClick={(e) => { 
+                      if(c.videoUrl || c.adImageUrl) window.open(c.videoUrl || c.adImageUrl, '_blank');
+                      else if(c.tiktokItemId) window.open(`https://www.tiktok.com/@any/video/${c.tiktokItemId}`, '_blank');
+                   }} className={`h-48 bg-[#0B0F19] relative overflow-hidden flex items-center justify-center group-hover:bg-[#1A2235] transition-colors block ${c.videoUrl || c.adImageUrl || c.tiktokItemId ? 'cursor-pointer' : 'cursor-default'}`}>
+                      {c.videoUrl ? (
+                        <>
+                          <video src={c.videoUrl} autoPlay loop muted playsInline className="object-contain w-full h-full opacity-0 group-hover:opacity-100 absolute top-0 left-0 transition-opacity z-10" />
+                          <img src={c.adImageUrl} alt={c.creativeName} className="object-contain w-full h-full group-hover:opacity-0 transition-opacity" onError={(e) => { e.target.onerror = null; e.target.src = 'https://via.placeholder.com/400x300/131A2A/4c1d95?text=Preview+Unavailable'; }} />
+                        </>
+                      ) : c.adImageUrl ? (
                          <img src={c.adImageUrl} alt={c.creativeName} className="object-contain w-full h-full" onError={(e) => { e.target.onerror = null; e.target.src = 'https://via.placeholder.com/400x300/131A2A/4c1d95?text=Preview+Unavailable'; }} />
                       ) : (
-                         <div className="text-[10px] font-black uppercase text-slate-500 tracking-widest flex items-center gap-2"><ImageIcon className="w-4 h-4"/> No Preview</div>
+                         <img src={`https://placehold.co/400x300/131A2A/4c1d95?text=${c.channel === 'TikTok' ? 'TikTok+Spark+Ad' : 'No+Preview'}`} alt="No Preview" className="object-cover w-full h-full opacity-50 grayscale" />
                       )}
-                   </a>
+                   </div>
                    <div className="p-6 flex-1 flex flex-col">
                       <h4 className="text-sm font-black text-white break-words whitespace-normal mb-4 leading-tight flex items-center gap-2">
                          <div className={`w-2 h-2 rounded-full flex-shrink-0 ${c.isLive ? 'bg-emerald-500 shadow-[0_0_8px_rgba(16,185,129,0.8)]' : 'bg-red-500 shadow-[0_0_8px_rgba(239,68,68,0.8)]'}`} title={c.isLive ? 'Live' : 'Paused'}></div>
@@ -2043,9 +2127,21 @@ export default function App() {
                   {creativeTabData.slice((creativePage - 1) * CREATIVES_PER_PAGE, creativePage * CREATIVES_PER_PAGE).map((c, i) => (
                     <tr key={i} className="bg-[#0B0F19] hover:bg-[#131A2A] transition-colors border border-white/5 shadow-sm group">
                       <td className="p-4 rounded-l-2xl flex items-center gap-4 min-w-[300px]">
-                         <a href={c.adImageUrl} target="_blank" rel="noopener noreferrer" className="w-16 h-16 bg-black rounded-lg overflow-hidden flex-shrink-0 border border-white/10 block cursor-pointer">
-                           {c.adImageUrl ? <img src={c.adImageUrl} alt={c.creativeName} className="object-cover w-full h-full" onError={(e) => { e.target.onerror = null; e.target.src = 'https://via.placeholder.com/150/131A2A/4c1d95?text=N/A'; }} /> : <div className="flex items-center justify-center w-full h-full text-[8px]">N/A</div>}
-                         </a>
+                         <div onClick={(e) => { 
+                           if(c.videoUrl || c.adImageUrl) window.open(c.videoUrl || c.adImageUrl, '_blank');
+                           else if(c.tiktokItemId) window.open(`https://www.tiktok.com/@any/video/${c.tiktokItemId}`, '_blank');
+                         }} className={`w-16 h-16 bg-black rounded-lg overflow-hidden flex-shrink-0 border border-white/10 block relative group/list ${c.videoUrl || c.adImageUrl || c.tiktokItemId ? 'cursor-pointer' : 'cursor-default'}`}>
+                           {c.videoUrl ? (
+                             <>
+                               <video src={c.videoUrl} autoPlay loop muted playsInline className="object-cover w-full h-full opacity-0 group-hover/list:opacity-100 absolute top-0 left-0 transition-opacity z-10" />
+                               <img src={c.adImageUrl} alt={c.creativeName} className="object-cover w-full h-full group-hover/list:opacity-0 transition-opacity" onError={(e) => { e.target.onerror = null; e.target.src = 'https://via.placeholder.com/150/131A2A/4c1d95?text=N/A'; }} />
+                             </>
+                           ) : c.adImageUrl ? (
+                             <img src={c.adImageUrl} alt={c.creativeName} className="object-cover w-full h-full" onError={(e) => { e.target.onerror = null; e.target.src = 'https://via.placeholder.com/150/131A2A/4c1d95?text=N/A'; }} />
+                           ) : (
+                             <img src={`https://placehold.co/150/131A2A/4c1d95?text=${c.channel === 'TikTok' ? 'Spark+Ad' : 'N/A'}`} alt="No Preview" className="object-cover w-full h-full opacity-50 grayscale" />
+                           )}
+                         </div>
                          <div className="flex flex-col gap-1 max-w-[200px]">
                            <span className="text-sm font-black text-white break-words whitespace-normal leading-tight flex items-center gap-2">
                              <div className={`w-2 h-2 rounded-full flex-shrink-0 ${c.isLive ? 'bg-emerald-500 shadow-[0_0_8px_rgba(16,185,129,0.8)]' : 'bg-red-500 shadow-[0_0_8px_rgba(239,68,68,0.8)]'}`} title={c.isLive ? 'Live' : 'Paused'}></div>
