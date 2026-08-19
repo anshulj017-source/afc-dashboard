@@ -4,7 +4,7 @@ import * as d3 from 'd3';
 import { 
   TrendingUp, Globe, Layers, Activity, DollarSign, MousePointer2, 
   Eye, Zap, LayoutDashboard, ChevronDown, Search, Check, 
-  TableProperties, MonitorPlay, BarChart3, Smartphone, List, Download, RefreshCw
+  TableProperties, MonitorPlay, BarChart3, Smartphone, List, Download, RefreshCw, Users
 } from 'lucide-react';
 import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer, BarChart, Bar, AreaChart, Area } from 'recharts';
 import { ComposableMap, Geographies, Geography, ZoomableGroup } from 'react-simple-maps';
