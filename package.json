@@ -12,6 +12,7 @@
     "@clerk/themes": "^2.0.0",
     "d3": "^7.8.5",
     "d3-scale": "^4.0.2",
+    "firebase": "^12.17.1",
     "lucide-react": "^0.292.0",
     "next": "14.2.4",
     "react": "^18",

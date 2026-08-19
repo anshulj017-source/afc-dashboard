@@ -10,6 +10,9 @@ import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, Legend, Responsi
 import { ComposableMap, Geographies, Geography, ZoomableGroup } from 'react-simple-maps';
 import { Tooltip as ReactTooltip } from 'react-tooltip';
 import 'react-tooltip/dist/react-tooltip.css';
+import { useRouter } from 'next/navigation';
+import { auth } from '../lib/firebase';
+import { onAuthStateChanged, signOut } from 'firebase/auth';
 import { GaChannelTable } from './GaChannelTable';
 
 const GEO_URL = "https://unpkg.com/world-atlas@2.0.2/countries-110m.json";
@@ -167,6 +170,9 @@ const DataTable = ({ data, columns }) => (
 
 // --- MAIN APP ---
 export default function App() {
+  const router = useRouter();
+  const [isAuthenticated, setIsAuthenticated] = useState(false);
+  const [isAuthLoading, setIsAuthLoading] = useState(true);
   const [adData, setAdData] = useState([]);
   const [gaData, setGaData] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -190,6 +196,25 @@ export default function App() {
   const [mapMetric, setMapMetric] = useState('Sessions');
 
   useEffect(() => {
+    const unsubscribe = onAuthStateChanged(auth, (user) => {
+      if (user) {
+        setIsAuthenticated(true);
+        setIsAuthLoading(false);
+      } else {
+        router.push('/login');
+      }
+    });
+    return () => unsubscribe();
+  }, [router]);
+
+  const handleSignOut = async () => {
+    await signOut(auth);
+    router.push('/login');
+  };
+
+  useEffect(() => {
+    if (!isAuthenticated) return;
+
     const fetchPromises = CHANNELS.map(ch => 
       d3.csv(`${BASE_URL}&gid=${ch.gid}`).then(raw => {
         return raw.map(row => {
@@ -415,6 +440,15 @@ export default function App() {
     { id: 'detailed', label: 'Detailed data', icon: TableProperties },
     { id: 'webtraffic', label: 'Web Traffic', icon: MonitorPlay }
   ];
+
+  if (isAuthLoading) {
+    return (
+      <div className="min-h-screen bg-[#0C272D] flex flex-col items-center justify-center text-[#74FA93] font-black text-2xl tracking-widest animate-pulse gap-6">
+        <img src="/logo.png" alt="Loading Logo" className="h-32 object-contain" onError={(e) => e.target.style.display = 'none'} />
+        <span>AUTHENTICATING...</span>
+      </div>
+    );
+  }
 
   if (loading) return (
     <div className="min-h-screen bg-[#0C272D] flex flex-col items-center justify-center text-[#74FA93] font-black text-2xl tracking-widest animate-pulse gap-6">
@@ -738,6 +772,7 @@ export default function App() {
                </div>
              </div>
              <button onClick={resetFilters} className="px-3 py-1.5 bg-[#74FA93]/10 border border-[#74FA93]/50 text-[#74FA93] text-[10px] uppercase font-black rounded-lg hover:bg-[#74FA93]/20 hover:text-white transition-colors flex items-center justify-center gap-1"><RefreshCw className="w-3 h-3"/> Reset</button>
+             <button onClick={handleSignOut} className="px-3 py-1.5 bg-red-500/10 border border-red-500/30 text-red-400 text-[10px] uppercase font-black rounded-lg hover:bg-red-500/20 hover:text-red-300 transition-colors flex items-center justify-center gap-1">Sign Out</button>
           </div>
         </div>
       </header>
