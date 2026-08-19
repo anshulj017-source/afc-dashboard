@@ -10,6 +10,10 @@ export const GaChannelTable = ({ aggData, rawData, formatShort }) => {
   const [sortDir, setSortDir] = useState('desc');
   const [selectedChannels, setSelectedChannels] = useState([]);
   
+  // Pagination state
+  const [rowsPerPage, setRowsPerPage] = useState(10);
+  const [currentPage, setCurrentPage] = useState(1);
+  
   const [modalOpen, setModalOpen] = useState(false);
   const [modalMode, setModalMode] = useState('single');
   const [modalChannels, setModalChannels] = useState([]);
@@ -29,6 +33,13 @@ export const GaChannelTable = ({ aggData, rawData, formatShort }) => {
     if (valA > valB) return sortDir === 'asc' ? 1 : -1;
     return 0;
   });
+
+  useEffect(() => {
+    setCurrentPage(1);
+  }, [searchTerm, sortKey, sortDir, rowsPerPage]);
+
+  const totalPages = Math.ceil(sortedAgg.length / rowsPerPage);
+  const paginatedAgg = sortedAgg.slice((currentPage - 1) * rowsPerPage, currentPage * rowsPerPage);
 
   const handleSort = (key) => {
     if (sortKey === key) {
@@ -145,7 +156,7 @@ export const GaChannelTable = ({ aggData, rawData, formatShort }) => {
             </tr>
           </thead>
           <tbody>
-            {sortedAgg.map((row, i) => (
+            {paginatedAgg.map((row, i) => (
               <tr key={i} onClick={() => openSingle(row.sourceMedium)} className="border-b border-[#74FA93]/10 hover:bg-[#74FA93]/10 transition-colors cursor-pointer group">
                 <td className="px-3 py-3 w-12 text-center" onClick={e => e.stopPropagation()}>
                   <input type="checkbox" checked={selectedChannels.includes(row.sourceMedium)} onChange={(e) => toggleSelect(row.sourceMedium, e)} className="accent-[#74FA93] cursor-pointer" />
@@ -161,6 +172,43 @@ export const GaChannelTable = ({ aggData, rawData, formatShort }) => {
             {sortedAgg.length === 0 && <tr><td colSpan={7} className="px-6 py-8 text-center text-[#CBBB9D] text-sm">No channels found</td></tr>}
           </tbody>
         </table>
+      </div>
+
+      <div className="mt-4 flex flex-wrap items-center justify-between gap-4 px-2">
+        <div className="flex items-center gap-2">
+          <span className="text-xs font-bold text-[#CBBB9D] uppercase tracking-widest">Rows per page:</span>
+          <select 
+            value={rowsPerPage} 
+            onChange={e => setRowsPerPage(Number(e.target.value))}
+            className="bg-[#0C272D] text-[#74FA93] text-xs font-black uppercase tracking-widest px-2 py-1.5 rounded-lg border border-[#74FA93]/30 outline-none cursor-pointer hover:border-[#74FA93] transition-colors"
+          >
+            {[10, 20, 50, 100].map(val => (
+              <option key={val} value={val}>{val}</option>
+            ))}
+          </select>
+        </div>
+        
+        <div className="flex items-center gap-4">
+          <span className="text-xs font-bold text-[#CBBB9D] uppercase tracking-widest">
+            Page {currentPage} of {totalPages || 1}
+          </span>
+          <div className="flex gap-2">
+            <button 
+              onClick={() => setCurrentPage(p => Math.max(1, p - 1))}
+              disabled={currentPage === 1}
+              className={`px-3 py-1.5 rounded-lg text-xs font-black uppercase tracking-widest transition-all ${currentPage === 1 ? 'bg-[#0C272D] border border-gray-700/50 text-gray-600 cursor-not-allowed' : 'bg-[#74FA93]/10 border border-[#74FA93]/30 text-[#74FA93] hover:bg-[#74FA93]/20 hover:text-white'}`}
+            >
+              Prev
+            </button>
+            <button 
+              onClick={() => setCurrentPage(p => Math.min(totalPages, p + 1))}
+              disabled={currentPage === totalPages || totalPages === 0}
+              className={`px-3 py-1.5 rounded-lg text-xs font-black uppercase tracking-widest transition-all ${currentPage === totalPages || totalPages === 0 ? 'bg-[#0C272D] border border-gray-700/50 text-gray-600 cursor-not-allowed' : 'bg-[#74FA93]/10 border border-[#74FA93]/30 text-[#74FA93] hover:bg-[#74FA93]/20 hover:text-white'}`}
+            >
+              Next
+            </button>
+          </div>
+        </div>
       </div>
 
       {mounted && modalOpen && createPortal(
