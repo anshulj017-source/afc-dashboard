@@ -454,9 +454,7 @@ export default function App() {
     { id: 'webtraffic', label: 'Web Traffic', icon: MonitorPlay }
   ];
 
-  if (isAdmin) {
-    NAV_ITEMS.push({ id: 'admin', label: 'Admin', icon: Users });
-  }
+  // Admin button is rendered separately at the bottom left
 
   if (isAuthLoading) {
     return (
@@ -817,6 +815,19 @@ export default function App() {
           })}
           </div>
           <div className="flex-1 min-h-[100px] mt-8 opacity-[0.03] pointer-events-none" style={{ backgroundImage: "url('/pattern-4.png')", backgroundSize: 'contain', backgroundRepeat: 'repeat-y', backgroundPosition: 'center left' }}></div>
+          {isAdmin && (
+            <div className="mt-auto p-6 pt-0 z-30 bg-[#0C272D]">
+              <button 
+                onClick={() => setActiveTab('admin')}
+                className={`flex items-center gap-3 w-full px-4 py-3 rounded-xl font-bold transition-all ${
+                  activeTab === 'admin' ? 'bg-[#74FA93] text-[#0C272D] shadow-[0_0_15px_rgba(116,250,147,0.3)]' : 'text-[#F1EAD8] hover:bg-[#74FA93]/10 hover:text-[#74FA93]'
+                }`}
+              >
+                <Users className="w-5 h-5" />
+                Admin
+              </button>
+            </div>
+          )}
         </div>
         
         {/* TABS CONTENT */}

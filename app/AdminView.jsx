@@ -20,12 +20,15 @@ export default function AdminView() {
     setError(null);
     try {
       const res = await fetch('/api/admin/users');
-      if (!res.ok) throw new Error('Failed to fetch users');
+      if (!res.ok) {
+        const errorData = await res.json().catch(() => ({}));
+        throw new Error(errorData.error || 'Failed to fetch users');
+      }
       const data = await res.json();
       setUsers(data.users || []);
     } catch (err) {
       console.error(err);
-      setError('Could not load users. Make sure you are an admin and the server is running.');
+      setError(err.message || 'Could not load users. Make sure you are an admin and the server is running.');
     } finally {
       setLoading(false);
     }
