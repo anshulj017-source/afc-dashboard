@@ -14,7 +14,7 @@ import { GaChannelTable } from './GaChannelTable';
 
 const GEO_URL = "https://unpkg.com/world-atlas@2.0.2/countries-110m.json";
 
-const BASE_URL = "https://docs.google.com/spreadsheets/d/e/2PACX-1vRZN6bAVfKFdo97WjexoYjk8oi9Or-uxeSpeTreivX3wmgUp5TKx1u_hr53nuBE0zVnQy9TPVHd4pwC/pub?output=csv";
+const BASE_URL = "/api/sheets?type=afc";
 const CHANNELS = [
   { name: 'TikTok', gid: '0', viewsCol: 9, compCol: 11 }, // J=9, L=11 (approx)
   { name: 'Snapchat', gid: '1220368554', viewsCol: 8, compCol: 10 }, // I=8
