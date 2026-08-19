@@ -17,6 +17,9 @@ import { doc, getDoc } from 'firebase/firestore';
 import { GaChannelTable } from './GaChannelTable';
 import AdminView from './AdminView';
 import CampaignView from './CampaignView';
+import ChannelView from './ChannelView';
+import MarketView from './MarketView';
+import CustomView from './CustomView';
 
 const GEO_URL = "https://unpkg.com/world-atlas@2.0.2/countries-110m.json";
 
@@ -25,9 +28,9 @@ const CHANNELS = [
   { name: 'TikTok', gid: '0', viewsCol: 9, compCol: 11 }, // J=9, L=11 (approx)
   { name: 'Snapchat', gid: '1220368554', viewsCol: 8, compCol: 10 }, // I=8
   { name: 'Meta', gid: '796244792', viewsCol: 9, compCol: 11 }, // J=9
-  { name: 'DV360', gid: '357397097', viewsCol: 9, compCol: 11, subCol: 11 }, // J=9, sub=L(11)
+  { name: 'DV360', gid: '357397097', viewsCol: 9, compCol: 10, subCol: 11 }, // J=9, K=10, sub=L(11)
   { name: 'X', gid: '1750570025', viewsCol: 9, compCol: 11 }, // J=9
-  { name: 'Google', gid: '1637892512', viewsCol: 6, compCol: 8, subCol: 12 }, // G=6, sub=M(12)
+  { name: 'Google', gid: '1637892512', viewsCol: 6, compCol: 7, subCol: 12 }, // G=6, H=7, sub=M(12)
   { name: 'Amazon', gid: '770767992', viewsCol: 10, compCol: 10, subCol: 11 } // K=10, sub=L(11)
 ];
 const GA4_GID = '954158669';
@@ -59,6 +62,8 @@ const normalizeMarket = (marketName) => {
     'PH': 'Philippines',
     'TH': 'Thailand',
     'VN': 'Vietnam',
+    'KR': 'South Korea', 'KOR': 'South Korea',
+    'JP': 'Japan', 'JPN': 'Japan',
     'KWT': 'Kuwait', 'KW': 'Kuwait', 'KUWAIT': 'Kuwait',
     'KSA': 'Saudi Arabia', 'SAU': 'Saudi Arabia', 'SA': 'Saudi Arabia', 'SAUDI ARABIA': 'Saudi Arabia',
     'UAE': 'United Arab Emirates', 'ARE': 'United Arab Emirates', 'AE': 'United Arab Emirates', 'UNITED ARAB EMIRATES': 'United Arab Emirates',
@@ -461,9 +466,9 @@ export default function App() {
   const NAV_ITEMS = [
     { id: 'summary', label: 'Summary', icon: LayoutDashboard },
     { id: 'campaign', label: 'Campaign View', icon: Calendar },
-    { id: 'channel', label: 'Channel wise', icon: Activity },
-    { id: 'market', label: 'Market wise', icon: Globe },
-    { id: 'detailed', label: 'Detailed data', icon: TableProperties },
+    { id: 'channel', label: 'Channel View', icon: Activity },
+    { id: 'market', label: 'Market View', icon: Globe },
+    { id: 'detailed', label: 'Custom View', icon: TableProperties },
     { id: 'webtraffic', label: 'Web Traffic', icon: MonitorPlay }
   ];
 
@@ -626,63 +631,24 @@ export default function App() {
     
     if (activeTab === 'channel') {
       return (
-        <div className="space-y-8">
-          <h2 className="text-2xl font-black text-white flex items-center gap-3"><Activity className="text-[#74FA93]" /> Channel Performance</h2>
-          <DataTable 
-            data={groupBy('channel')} 
-            totals={getTotals(groupBy('channel'), 'Total')}
-            columns={[
-              { key: 'name', label: 'Channel' },
-              { key: 'cost', label: 'Spend', format: v => `${exSym}${d3.format(",.2f")(v * exRate)}` },
-              { key: 'impressions', label: 'Impressions', format: v => d3.format(",.0f")(v) },
-              { key: 'clicks', label: 'Clicks', format: v => d3.format(",.0f")(v) },
-              { key: 'views', label: 'Video Views', format: v => d3.format(",.0f")(v) },
-              { key: 'ctr', label: 'CTR', format: (v, row) => row.impressions ? `${((row.clicks/row.impressions)*100).toFixed(2)}%` : '0%' }
-            ]} 
-          />
+        <div className="w-full h-full">
+          <ChannelView adData={filteredAdData} exRate={exRate} exSym={exSym} formatShort={formatShort} />
         </div>
       );
     }
 
     if (activeTab === 'market') {
       return (
-        <div className="space-y-8">
-          <h2 className="text-2xl font-black text-white flex items-center gap-3"><Globe className="text-[#74FA93]" /> Market Performance</h2>
-          <DataTable 
-            data={groupBy('country')} 
-            totals={getTotals(groupBy('country'), 'Total')}
-            columns={[
-              { key: 'name', label: 'Market / Country' },
-              { key: 'cost', label: 'Spend', format: v => `${exSym}${d3.format(",.2f")(v * exRate)}` },
-              { key: 'impressions', label: 'Impressions', format: v => d3.format(",.0f")(v) },
-              { key: 'clicks', label: 'Clicks', format: v => d3.format(",.0f")(v) },
-              { key: 'views', label: 'Video Views', format: v => d3.format(",.0f")(v) }
-            ]} 
-          />
+        <div className="w-full h-full">
+          <MarketView adData={filteredAdData} gaData={filteredGaData} exRate={exRate} exSym={exSym} formatShort={formatShort} />
         </div>
       );
     }
 
     if (activeTab === 'detailed') {
       return (
-        <div className="space-y-8">
-          <h2 className="text-2xl font-black text-white flex items-center gap-3"><TableProperties className="text-[#74FA93]" /> Raw Ad Data</h2>
-          <div className="bg-[#113A42] p-4 rounded-xl border border-[#74FA93]/30 flex justify-between items-center mb-4">
-            <span className="text-[#CBBB9D] font-bold text-sm">Showing top 100 rows</span>
-          </div>
-          <DataTable 
-            data={filteredAdData.slice(0, 100)} 
-            columns={[
-              { key: 'date', label: 'Date' },
-              { key: 'campaignName', label: 'Campaign' },
-              { key: 'channel', label: 'Channel' },
-              { key: 'country', label: 'Country' },
-              { key: 'language', label: 'Language' },
-              { key: 'cost', label: 'Spend', format: v => `${exSym}${d3.format(",.2f")(v * exRate)}` },
-              { key: 'impressions', label: 'Impr.', format: v => d3.format(",.0f")(v) },
-              { key: 'clicks', label: 'Clicks', format: v => d3.format(",.0f")(v) }
-            ]} 
-          />
+        <div className="w-full h-full">
+          <CustomView adData={filteredAdData} exRate={exRate} exSym={exSym} formatShort={formatShort} filterCampaigns={filterCampaigns} dateRange={dateRange} />
         </div>
       );
     }
