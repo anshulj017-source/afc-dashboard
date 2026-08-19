@@ -1,6 +1,8 @@
 import { NextResponse } from 'next/server';
 import { getFirebaseAdmin } from '../../../../lib/firebaseAdmin';
 
+export const dynamic = 'force-dynamic';
+
 export async function GET(req) {
   try {
     const { adminAuth, adminDb } = getFirebaseAdmin();
