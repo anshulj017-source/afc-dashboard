@@ -4,7 +4,7 @@ import * as d3 from 'd3';
 import { 
   TrendingUp, Globe, Layers, Activity, DollarSign, MousePointer2, 
   Eye, Zap, LayoutDashboard, ChevronDown, Search, Check, 
-  TableProperties, MonitorPlay, BarChart3, Smartphone, List, Download, RefreshCw, Users, Calendar
+  TableProperties, MonitorPlay, BarChart3, Smartphone, List, Download, RefreshCw, Users, Calendar, LayoutTemplate, PieChart, Grid, Map
 } from 'lucide-react';
 import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer, BarChart, Bar, AreaChart, Area } from 'recharts';
 import { ComposableMap, Geographies, Geography, ZoomableGroup } from 'react-simple-maps';
@@ -20,6 +20,7 @@ import CampaignView from './CampaignView';
 import ChannelView from './ChannelView';
 import MarketView from './MarketView';
 import CustomView from './CustomView';
+import CreativeView from './CreativeView';
 
 const GEO_URL = "https://unpkg.com/world-atlas@2.0.2/countries-110m.json";
 
@@ -34,6 +35,7 @@ const CHANNELS = [
   { name: 'Amazon', gid: '770767992', viewsCol: 10, compCol: 10, subCol: 11 } // K=10, sub=L(11)
 ];
 const GA4_GID = '954158669';
+const META_CREATIVE_GID = '1841259885';
 
 // --- HELPERS ---
 const formatShort = (num) => {
@@ -195,6 +197,7 @@ export default function App() {
   const [isAuthLoading, setIsAuthLoading] = useState(true);
   const [adData, setAdData] = useState([]);
   const [gaData, setGaData] = useState([]);
+  const [creativeData, setCreativeData] = useState([]);
   const [loading, setLoading] = useState(true);
   const [activeTab, setActiveTab] = useState('summary');
   
@@ -315,11 +318,32 @@ export default function App() {
       });
     });
 
-    Promise.all([...fetchPromises, gaPromise]).then(results => {
+    // Fetch Creative Data
+    const creativePromise = d3.csv(`${BASE_URL}&gid=${META_CREATIVE_GID}`).then(raw => {
+       return raw.map(row => ({
+          date: row['Date'] ? new Date(row['Date']) : null,
+          campaignName: row['Campaign name'] || row['Campaign DB'] || 'Unknown',
+          adName: row['Ad name'] || 'Unknown',
+          creativeName: row['Creative Name'] || row['Ad name'] || 'Unknown',
+          adImageUrl: row['Ad creative image URL'] || '',
+          impressions: parseMetric(row['Impressions']),
+          clicks: parseMetric(row['Link clicks']),
+          views: parseMetric(row['Three-second video views']),
+          thruPlays: parseMetric(row['ThruPlay actions']),
+          cost: parseMetric(row['Cost (USD)']),
+          market: row['Country DB'] || 'Unknown',
+          language: row['Language DB'] || 'Unknown',
+          channel: 'Meta'
+       }));
+    });
+
+    Promise.all([...fetchPromises, gaPromise, creativePromise]).then(results => {
+      const creativeResults = results.pop();
       const gaResults = results.pop();
       const combinedAds = results.flat();
       setAdData(combinedAds);
       setGaData(gaResults);
+      setCreativeData(creativeResults);
       setLoading(false);
     }).catch(err => {
       console.error(err);
@@ -464,51 +488,38 @@ export default function App() {
   })).sort((a,b) => b.cost - a.cost);
 
   const NAV_ITEMS = [
-    { id: 'summary', label: 'Summary', icon: LayoutDashboard },
-    { id: 'campaign', label: 'Campaign View', icon: Calendar },
-    { id: 'channel', label: 'Channel View', icon: Activity },
-    { id: 'market', label: 'Market View', icon: Globe },
-    { id: 'detailed', label: 'Custom View', icon: TableProperties },
-    { id: 'webtraffic', label: 'Web Traffic', icon: MonitorPlay }
+    { id: 'summary', label: 'Summary View', icon: Grid },
+    { id: 'campaign', label: 'Campaign View', icon: Activity },
+    { id: 'channel', label: 'Channel View', icon: MonitorPlay },
+    { id: 'market', label: 'Market View', icon: Map },
+    { id: 'detailed', label: 'Detailed Split', icon: PieChart },
+    { id: 'webtraffic', label: 'Web Traffic', icon: Users },
+    { id: 'creative', label: 'Creative View', icon: LayoutTemplate },
   ];
 
   // Admin button is rendered separately at the bottom left
 
-  const LoadingScreen = ({ message }) => (
-    <div className="min-h-screen bg-[#0C272D] flex flex-col items-center justify-center text-[#74FA93] gap-6 relative overflow-hidden">
-      
-      <div className="relative flex flex-col items-center justify-center animate-pulse">
-        <img src="/logo.png" alt="Loading Logo" className="h-24 md:h-32 object-contain" onError={(e) => e.target.style.display = 'none'} />
-      </div>
-      
-      <div className="flex flex-col items-center gap-2 z-10">
-        <span className="text-sm md:text-base font-bold text-[#74FA93] tracking-[0.2em]">{message}</span>
-        <div className="flex gap-1.5 mt-1">
-          <div className="w-1.5 h-1.5 rounded-full bg-[#74FA93] animate-bounce" style={{ animationDelay: '0s' }}></div>
-          <div className="w-1.5 h-1.5 rounded-full bg-[#74FA93] animate-bounce" style={{ animationDelay: '0.15s' }}></div>
-          <div className="w-1.5 h-1.5 rounded-full bg-[#74FA93] animate-bounce" style={{ animationDelay: '0.3s' }}></div>
+  if (isAuthLoading || loading) {
+    return (
+      <div className="min-h-screen bg-[#0C272D] flex flex-col items-center justify-center text-[#74FA93] gap-6 relative overflow-hidden">
+        <div className="relative flex flex-col items-center justify-center animate-pulse">
+          <img src="/logo.png" alt="Loading Logo" className="h-24 md:h-32 object-contain" onError={(e) => e.target.style.display = 'none'} />
+        </div>
+        <div className="flex flex-col items-center gap-2 z-10">
+          <span className="text-sm md:text-base font-bold text-[#74FA93] tracking-[0.2em]">
+            {isAuthLoading ? "AUTHENTICATING" : "LOADING DATA"}
+          </span>
+          <div className="flex gap-1.5 mt-1">
+            <div className="w-1.5 h-1.5 rounded-full bg-[#74FA93] animate-bounce" style={{ animationDelay: '0s' }}></div>
+            <div className="w-1.5 h-1.5 rounded-full bg-[#74FA93] animate-bounce" style={{ animationDelay: '0.15s' }}></div>
+            <div className="w-1.5 h-1.5 rounded-full bg-[#74FA93] animate-bounce" style={{ animationDelay: '0.3s' }}></div>
+          </div>
         </div>
       </div>
-    </div>
-  );
+    );
+  }
 
-  if (isAuthLoading) return <LoadingScreen message="AUTHENTICATING" />;
-  if (loading) return <LoadingScreen message="LOADING DATA" />;
-
-  // Helper for generating totals row for grouped data
-  const getTotals = (dataArr, label = 'Total') => {
-    if (!dataArr || dataArr.length === 0) return null;
-    const tImp = d3.sum(dataArr, d => d.impressions);
-    const tClicks = d3.sum(dataArr, d => d.clicks);
-    return {
-      name: label,
-      cost: d3.sum(dataArr, d => d.cost),
-      impressions: tImp,
-      clicks: tClicks,
-      views: d3.sum(dataArr, d => d.views),
-      ctr: tImp > 0 ? (tClicks / tImp) * 100 : 0
-    };
-  };
+  // Removed unused getTotals
 
   const renderContent = () => {
     if (activeTab === 'summary') {
@@ -757,6 +768,11 @@ export default function App() {
           
           <GaChannelTable aggData={gaSourceData} rawData={filteredGaData} formatShort={formatShort} />
         </div>
+      );
+    }
+    if (activeTab === 'creative') {
+      return (
+        <CreativeView data={creativeData} exRate={exRate} exSym={exSym} formatShort={formatShort} />
       );
     }
     return null;
