@@ -308,7 +308,7 @@ export default function App() {
       console.error(err);
       setLoading(false);
     });
-  }, []);
+  }, [isAuthenticated]);
 
   const resetFilters = () => {
     setFilterCampaigns(['All']);
