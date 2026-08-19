@@ -754,7 +754,7 @@ export default function App() {
   };
 
   return (
-    <div className="min-h-screen bg-[#0C272D] font-sans selection:bg-[#74FA93]/30 text-white flex flex-col">
+    <div className="h-screen overflow-hidden bg-[#0C272D] font-sans selection:bg-[#74FA93]/30 text-white flex flex-col">
       {/* HEADER */}
       <header className="sticky top-0 z-50 bg-[#0C272D]/95 backdrop-blur-xl border-b border-[#74FA93]/20 px-8 py-4 flex flex-wrap gap-4 items-center justify-between shadow-2xl relative">
         <div className="absolute inset-0 z-0 opacity-5 pointer-events-none" style={{ backgroundImage: "url('/pattern-1.png')", backgroundSize: '100px', backgroundRepeat: 'repeat-x', backgroundPosition: 'center' }}></div>
