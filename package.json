@@ -9,13 +9,16 @@
     "lint": "eslint"
   },
   "dependencies": {
+    "@clerk/themes": "^2.0.0",
     "d3": "^7.8.5",
+    "d3-scale": "^4.0.2",
     "lucide-react": "^0.292.0",
     "next": "14.2.4",
     "react": "^18",
     "react-dom": "^18",
-    "@clerk/nextjs": "^5.0.0",
-    "@clerk/themes": "^2.0.0"
+    "react-simple-maps": "^3.0.0",
+    "react-tooltip": "^6.0.8",
+    "recharts": "^3.10.1"
   },
   "devDependencies": {
     "@tailwindcss/postcss": "^4",

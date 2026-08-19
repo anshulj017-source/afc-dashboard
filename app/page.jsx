@@ -1,33 +1,43 @@
 "use client";
-import React, { useState, useMemo, useEffect } from 'react';
-import { UserButton, SignedIn, SignedOut, RedirectToSignIn } from '@clerk/nextjs';
+import React, { useState, useMemo, useEffect, useRef } from 'react';
 import * as d3 from 'd3';
 import { 
   TrendingUp, Globe, Layers, Activity, DollarSign, MousePointer2, 
-  Eye, Zap, LayoutDashboard, CalendarDays, ChevronDown, Info, Check, 
-  Download, Target, ShoppingCart, Users, TableProperties, Trophy, ArrowRight, FileText, Megaphone, Search, Smartphone, MonitorPlay, Image as ImageIcon, List, Grid, BarChart3, ArrowUpDown
+  Eye, Zap, LayoutDashboard, ChevronDown, Search, Check, 
+  TableProperties, MonitorPlay, BarChart3, Smartphone, List, Download, RefreshCw
 } from 'lucide-react';
+import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer, BarChart, Bar, AreaChart, Area } from 'recharts';
+import { ComposableMap, Geographies, Geography, ZoomableGroup } from 'react-simple-maps';
+import { Tooltip as ReactTooltip } from 'react-tooltip';
+import 'react-tooltip/dist/react-tooltip.css';
+import { GaChannelTable } from './GaChannelTable';
 
-const LoadingContext = React.createContext(false);
+const GEO_URL = "https://unpkg.com/world-atlas@2.0.2/countries-110m.json";
 
-const COMBINED_COUNTRY_CSV_URL = "/api/sheets?type=combined";
-const RAW_ADJUST_CSV_URL = "/api/sheets?type=adjust";
-const CREATIVE_CSV_URL = "/api/sheets?type=creative";
+const BASE_URL = "https://docs.google.com/spreadsheets/d/e/2PACX-1vRZN6bAVfKFdo97WjexoYjk8oi9Or-uxeSpeTreivX3wmgUp5TKx1u_hr53nuBE0zVnQy9TPVHd4pwC/pub?output=csv";
+const CHANNELS = [
+  { name: 'TikTok', gid: '0', viewsCol: 9, compCol: 11 }, // J=9, L=11 (approx)
+  { name: 'Snapchat', gid: '1220368554', viewsCol: 8, compCol: 10 }, // I=8
+  { name: 'Meta', gid: '796244792', viewsCol: 9, compCol: 11 }, // J=9
+  { name: 'DV360', gid: '357397097', viewsCol: 9, compCol: 11, subCol: 11 }, // J=9, sub=L(11)
+  { name: 'X', gid: '1750570025', viewsCol: 9, compCol: 11 }, // J=9
+  { name: 'Google', gid: '1637892512', viewsCol: 6, compCol: 8, subCol: 12 }, // G=6, sub=M(12)
+  { name: 'Amazon', gid: '770767992', viewsCol: 10, compCol: 10, subCol: 11 } // K=10, sub=L(11)
+];
+const GA4_GID = '954158669';
 
-// --- SSR-SAFE CORE HELPERS ---
-const MONTHS = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
-const getDateFromWeek = (week, year = 2024) => {
-  const d = new Date(year, 0, 1 + (week - 1) * 7);
-  d.setHours(12, 0, 0, 0); 
-  return d;
-};
-const getMonthFromWeek = (week, year) => MONTHS[getDateFromWeek(week, year).getMonth()];
-
+// --- HELPERS ---
 const formatShort = (num) => {
   if (num === null || num === undefined) return '0';
   if (num >= 1000000) return (num / 1000000).toFixed(1) + 'M';
-  if (num >= 1000) return (num / 1000).toFixed(0) + 'K';
+  if (num >= 1000) return (num / 1000).toFixed(1) + 'K';
   return d3.format(",.0f")(num);
+};
+
+const parseMetric = (val) => {
+  if (!val) return 0;
+  if (typeof val === 'number') return val;
+  return parseFloat(val.toString().replace(/[$,]/g, '').trim()) || 0;
 };
 
 const normalizeMarket = (marketName) => {
@@ -35,6 +45,14 @@ const normalizeMarket = (marketName) => {
   const cleanName = marketName.trim();
   const upperName = cleanName.toUpperCase();
   const aliases = {
+    'AU': 'Australia',
+    'MY': 'Malaysia',
+    'SG': 'Singapore',
+    'ID': 'Indonesia', 'IDN': 'Indonesia',
+    'IN': 'India',
+    'PH': 'Philippines',
+    'TH': 'Thailand',
+    'VN': 'Vietnam',
     'KWT': 'Kuwait', 'KW': 'Kuwait', 'KUWAIT': 'Kuwait',
     'KSA': 'Saudi Arabia', 'SAU': 'Saudi Arabia', 'SA': 'Saudi Arabia', 'SAUDI ARABIA': 'Saudi Arabia',
     'UAE': 'United Arab Emirates', 'ARE': 'United Arab Emirates', 'AE': 'United Arab Emirates', 'UNITED ARAB EMIRATES': 'United Arab Emirates',
@@ -43,2429 +61,719 @@ const normalizeMarket = (marketName) => {
     'OMN': 'Oman', 'OM': 'Oman', 'OMAN': 'Oman',
     'EGY': 'Egypt', 'EG': 'Egypt', 'EGYPT': 'Egypt',
     'UK': 'United Kingdom', 'GBR': 'United Kingdom', 'GB': 'United Kingdom',
-    'US': 'United States', 'USA': 'United States',
-    'ID': 'Indonesia', 'IDN': 'Indonesia', 'INDONESIA': 'Indonesia'
+    'US': 'United States', 'USA': 'United States'
   };
   return aliases[upperName] || cleanName;
 };
 
-const normalizeChannel = (channelName) => {
-  if (!channelName || channelName === 'BLANK' || channelName === 'Unknown') return 'Other';
-  const cleanName = channelName.toString().trim();
-  const lowerName = cleanName.toLowerCase();
-  if (lowerName.includes('apple')) return 'Apple Search';
-  if (lowerName.includes('facebook') || lowerName.includes('meta')) return 'Facebook';
-  if (lowerName.includes('google') || lowerName.includes('gmp')) return 'Google';
-  if (lowerName.includes('tiktok')) return 'TikTok';
-  if (lowerName.includes('snapchat')) return 'Snapchat';
-  if (lowerName.includes('twitter') || lowerName === 'x') return 'X';
-  return cleanName;
-};
-
-const normalizeOS = (osName) => {
-  if (!osName || osName === 'BLANK' || osName === 'Unknown') return 'Unknown';
-  const clean = osName.toString().toLowerCase().trim();
-  if (clean.includes('ios') || clean.includes('apple') || clean.includes('mac') || clean.includes('iphone')) return 'iOS';
-  if (clean.includes('android')) return 'Android';
-  if (clean.includes('web') || clean.includes('windows')) return 'Web';
-  return osName.trim();
-};
-
-const parseWeekType = (val) => {
-  if (!val || val === 'BLANK' || val === 'Unknown') return 'BAU';
-  const clean = val.toString().toLowerCase().trim();
-  if (clean.includes('salary')) return 'Salary Weeks';
-  if (clean.includes('bau')) return 'BAU';
-  return val.toString().trim() || 'BAU';
-};
-
-const parseMetric = (val) => {
-  if (!val) return 0;
-  if (typeof val === 'number') return val;
-  return parseFloat(val.toString().replace(/,/g, '').trim()) || 0;
-};
-
-// --- STABLE UI COMPONENTS ---
-const MetricCard = ({ label, value, color }) => {
-  const loading = React.useContext(LoadingContext);
-  return (
-    <div className="bg-[#131A2A]/80 backdrop-blur-xl p-6 rounded-[1.5rem] border border-white/5 shadow-xl transition-all hover:shadow-[0_0_20px_rgba(168,85,247,0.15)] hover:-translate-y-1 relative overflow-hidden group">
-      <div className="absolute top-0 right-0 w-32 h-32 bg-gradient-to-br from-white/5 to-transparent rounded-full blur-2xl -mr-10 -mt-10 group-hover:bg-purple-500/10 transition-colors duration-500"></div>
-      {loading ? (
-        <div className="animate-pulse relative z-10 flex flex-col gap-2 mt-1">
-          <div className="h-3 w-1/2 bg-white/10 rounded mb-1"></div>
-          <div className="h-6 w-3/4 bg-white/20 rounded"></div>
-        </div>
-      ) : (
-        <>
-          <p className={`text-[10px] font-black ${color} uppercase tracking-widest mb-2 relative z-10`}>{label}</p>
-          <h3 className="text-2xl font-black text-white truncate relative z-10" title={value}>{value}</h3>
-        </>
-      )}
-    </div>
-  );
-};
-
-const InsightBox = ({ text }) => (
-  <div className="bg-gradient-to-br from-[#2D1B69] to-[#1A0B2E] rounded-[2.5rem] p-8 text-white shadow-2xl shadow-purple-900/20 mb-10 relative overflow-hidden border border-purple-500/30">
-    <div className="absolute top-0 right-0 p-8 opacity-10"><Zap className="w-32 h-32 text-purple-300" /></div>
-    <div className="relative z-10">
-      <div className="flex items-center gap-3 mb-6">
-        <div className="bg-white/10 p-2 rounded-xl backdrop-blur-md"><Zap className="w-4 h-4 text-purple-300" /></div>
-        <span className="text-[10px] font-black uppercase tracking-[0.25em] text-purple-200">AI Detailed Insight</span>
-      </div>
-      <div className="text-base font-medium leading-relaxed max-w-5xl text-purple-50">
-         {typeof text === 'string' ? `"${text}"` : text}
+// --- COMPONENTS ---
+const MetricCard = ({ label, value, color, icon: Icon }) => (
+  <div className="bg-[#113A42] p-6 rounded-2xl border border-[#74FA93]/20 shadow-lg relative overflow-hidden group hover:-translate-y-1 transition-transform">
+    <div className="absolute top-0 right-0 w-24 h-24 bg-[#74FA93]/10 rounded-full blur-2xl -mr-8 -mt-8 group-hover:bg-[#74FA93]/20 transition-colors duration-500"></div>
+    <div className="flex justify-between items-start relative z-10">
+      <div>
+        <p className="text-[10px] font-black text-[#CBBB9D] uppercase tracking-widest mb-2">{label}</p>
+        <h3 className={`text-2xl font-black ${color} truncate`} title={value}>{value}</h3>
       </div>
     </div>
   </div>
 );
 
-// --- REUSABLE MULTI-SELECT DROPDOWN WITH SEARCH ---
-const MultiSelectDropdown = ({ label, options, selected, onChange }) => {
+const MultiSelect = ({ label, options, selected, onChange }) => {
   const [isOpen, setIsOpen] = useState(false);
   const [searchTerm, setSearchTerm] = useState('');
+  const wrapperRef = useRef(null);
+  const filtered = options.filter(o => o.toLowerCase().includes(searchTerm.toLowerCase()));
 
-  const filteredOptions = options.filter(o => o.toLowerCase().includes(searchTerm.toLowerCase()));
+  useEffect(() => {
+    function handleClickOutside(event) {
+      if (wrapperRef.current && !wrapperRef.current.contains(event.target)) {
+        setIsOpen(false);
+        setSearchTerm('');
+      }
+    }
+    document.addEventListener("mousedown", handleClickOutside);
+    return () => document.removeEventListener("mousedown", handleClickOutside);
+  }, []);
 
   return (
-    <div className="flex-1 relative min-w-[180px]">
-      <span className="text-[10px] font-black uppercase text-slate-400 mb-1.5 tracking-widest block">{label}</span>
+    <div ref={wrapperRef} className="relative min-w-[120px] z-30">
+      <span className="text-[10px] font-black text-[#CBBB9D] uppercase tracking-widest mb-1.5 block">{label}</span>
       <div 
         onClick={() => setIsOpen(!isOpen)}
-        className="w-full px-4 py-3 bg-[#131A2A] border border-white/10 rounded-xl text-sm font-black text-purple-400 shadow-sm cursor-pointer flex justify-between items-center transition-colors hover:border-purple-500/50"
+        className="px-2.5 py-1.5 bg-[#113A42] border border-[#74FA93]/30 rounded-lg text-xs font-bold text-[#F1EAD8] cursor-pointer flex justify-between items-center hover:border-[#74FA93] transition-colors"
       >
-        <span className="truncate pr-4">{selected.includes('All') ? 'All Selected' : selected.join(', ')}</span>
+        <span className="truncate pr-2">{selected.includes('All') ? 'All Selected' : selected.join(', ')}</span>
         <ChevronDown className={`w-4 h-4 flex-shrink-0 transition-transform ${isOpen ? 'rotate-180' : ''}`} />
       </div>
       {isOpen && (
-        <>
-          <div className="fixed inset-0 z-40" onClick={(e) => { e.stopPropagation(); setIsOpen(false); setSearchTerm(''); }} />
-          <div className="absolute top-full mt-2 w-full bg-[#131A2A] border border-white/10 rounded-xl shadow-[0_20px_50px_rgba(0,0,0,0.5)] z-50 flex flex-col max-h-80 overflow-hidden">
-            <div className="p-3 border-b border-white/5 bg-[#0B0F19]">
-              <div className="relative">
-                <Search className="w-4 h-4 text-slate-500 absolute left-3 top-1/2 -translate-y-1/2" />
-                <input 
-                  type="text" 
-                  placeholder="Search..." 
-                  autoFocus 
-                  value={searchTerm} 
-                  onChange={e => setSearchTerm(e.target.value)} 
-                  className="w-full bg-[#131A2A] text-white text-xs font-bold pl-9 pr-3 py-2.5 rounded-lg outline-none border border-white/10 focus:border-purple-500 transition-colors" 
-                />
-              </div>
-            </div>
-            <div className="overflow-y-auto custom-scrollbar p-2 flex-1">
-              <div 
-                onClick={() => { onChange(['All']); setIsOpen(false); setSearchTerm(''); }}
-                className={`px-3 py-2.5 rounded-lg text-sm font-bold cursor-pointer flex items-center justify-between ${selected.includes('All') ? 'bg-purple-500/20 text-purple-300' : 'text-slate-300 hover:bg-white/5'}`}
-              >
-                All <Check className={`w-4 h-4 ${selected.includes('All') ? 'opacity-100' : 'opacity-0'}`} />
-              </div>
-              {filteredOptions.map(opt => {
-                const isSel = selected.includes(opt);
-                return (
-                  <div 
-                    key={opt}
-                    onClick={() => {
-                      let next = [...selected];
-                      if (next.includes('All')) next = [];
-                      if (isSel) {
-                        next = next.filter(n => n !== opt);
-                        if (next.length === 0) next = ['All'];
-                      } else {
-                        next.push(opt);
-                      }
-                      onChange(next);
-                    }}
-                    className={`px-3 py-2.5 rounded-lg text-sm font-bold cursor-pointer flex items-center justify-between mt-1 transition-colors ${isSel ? 'bg-purple-500/20 text-purple-300' : 'text-slate-300 hover:bg-white/5'}`}
-                  >
-                    <span className="truncate pr-2">{opt}</span> <Check className={`w-4 h-4 flex-shrink-0 ${isSel ? 'text-purple-400 opacity-100' : 'opacity-0'}`} />
-                  </div>
-                )
-              })}
-              {filteredOptions.length === 0 && (
-                <div className="px-3 py-4 text-center text-xs font-bold text-slate-500 uppercase tracking-widest">No results found</div>
-              )}
-            </div>
+        <div className="absolute top-full mt-2 w-full bg-[#113A42] border border-[#74FA93]/30 rounded-xl shadow-2xl z-50 flex flex-col max-h-64 overflow-hidden">
+          <div className="p-2 border-b border-[#74FA93]/10 relative">
+            <Search className="w-4 h-4 text-[#CBBB9D] absolute left-4 top-1/2 -translate-y-1/2" />
+            <input type="text" placeholder="Search..." autoFocus value={searchTerm} onChange={e => setSearchTerm(e.target.value)} className="w-full bg-[#0C272D] text-[#F1EAD8] text-xs font-bold pl-9 pr-3 py-2 rounded-lg outline-none border border-transparent focus:border-[#74FA93]/50" />
           </div>
-        </>
-      )}
-    </div>
-  );
-};
-
-const DonutChart = ({ chartData, valueKey, labelKey = 'name', isCurrency = false, exSym = '$', exRate = 1 }) => {
-  const [hovered, setHovered] = useState(null);
-  const validData = chartData.filter(d => d[valueKey] > 0);
-  if (validData.length === 0) return <div className="flex h-full w-full min-h-[200px] items-center justify-center text-[10px] text-slate-500 font-black uppercase tracking-widest">No Data Available</div>;
-
-  const width = 250;
-  const height = 250;
-  const margin = 10;
-  const radius = Math.min(width, height) / 2 - margin;
-  
-  const total = d3.sum(validData, d => d[valueKey]);
-  const pie = d3.pie().value(d => d[valueKey]).sort(null);
-  const data_ready = pie(validData);
-  
-  const arc = d3.arc().innerRadius(radius * 0.65).outerRadius(radius);
-  const hoverArc = d3.arc().innerRadius(radius * 0.6).outerRadius(radius * 1.05);
-  const colorScale = d3.scaleOrdinal().range(['#a855f7', '#34d399', '#fb7185', '#fbbf24', '#0ea5e9', '#6366f1', '#8b5cf6', '#ec4899', '#10b981', '#f43f5e']);
-
-  const defaultDisplay = data_ready.length > 0 ? data_ready[0].data : null;
-  const displayData = hovered || defaultDisplay;
-
-  return (
-    <div className="flex flex-col items-center justify-center w-full h-full relative min-h-[250px]">
-      <svg width={width} height={height} viewBox={`0 0 ${width} ${height}`} className="overflow-visible">
-        <g transform={`translate(${width / 2}, ${height / 2})`}>
-          {data_ready.map((d, i) => {
-            const isHovered = hovered && hovered[labelKey] === d.data[labelKey];
-            return (
-              <path 
-                key={i}
-                d={isHovered ? hoverArc(d) : arc(d)} 
-                fill={colorScale(d.data[labelKey])} 
-                stroke="#131A2A" 
-                strokeWidth="3" 
-                className="transition-all duration-300 cursor-pointer"
-                onMouseEnter={() => setHovered(d.data)}
-                onMouseLeave={() => setHovered(null)}
-                style={{ filter: isHovered ? `drop-shadow(0 0 10px ${colorScale(d.data[labelKey])}90)` : 'none' }}
-              />
-            );
-          })}
-          {displayData && (
-            <text textAnchor="middle" dy="-0.8em" className="fill-white font-black text-xs pointer-events-none tracking-wide">
-              {displayData[labelKey].length > 16 ? displayData[labelKey].substring(0,14)+'...' : displayData[labelKey]}
-              <tspan x="0" dy="1.6em" className="fill-slate-300 font-bold text-sm">
-                {isCurrency ? `${exSym}${d3.format(",.0f")(displayData[valueKey] * exRate)}` : d3.format(",.0f")(displayData[valueKey])}
-              </tspan>
-              <tspan x="0" dy="1.4em" className="fill-purple-400 font-black text-sm">
-                {total > 0 ? ((displayData[valueKey] / total) * 100).toFixed(1) : 0}%
-              </tspan>
-            </text>
-          )}
-        </g>
-      </svg>
-    </div>
-  );
-};
-
-const BarChart = ({ chartData, valueKey, labelKey = 'name', color = 'bg-purple-500', isCurrency = false, isPercent = false, onClickItem = null, exSym = '$', exRate = 1 }) => {
-  const maxVal = d3.max(chartData, d => d[valueKey]) || 1;
-  return (
-    <div className="space-y-4">
-      {chartData.slice(0, 8).map((item, i) => {
-        const valStr = isPercent ? `${item[valueKey].toFixed(2)}%` : isCurrency ? `${exSym}${d3.format(",.0f")(item[valueKey] * exRate)}` : formatShort(item[valueKey]);
-        return (
-          <div key={i} onClick={() => onClickItem && onClickItem(item[labelKey])} className={`group relative ${onClickItem ? 'cursor-pointer' : ''}`}>
-            <div className="flex justify-between items-end mb-1.5">
-              <span className={`text-xs font-bold text-white truncate max-w-[150px] ${onClickItem ? 'group-hover:text-purple-300 transition-colors' : ''}`}>{item[labelKey]}</span>
-              <span className="text-[10px] font-black text-slate-400 tabular-nums">{valStr}</span>
+          <div className="overflow-y-auto p-2 flex-1 custom-scrollbar">
+            <div onClick={() => { onChange(['All']); setIsOpen(false); setSearchTerm(''); }} className={`px-3 py-2 rounded-lg text-sm font-bold cursor-pointer flex justify-between ${selected.includes('All') ? 'bg-[#74FA93]/20 text-[#74FA93]' : 'text-[#F1EAD8] hover:bg-[#0C272D]'}`}>
+              All <Check className={`w-4 h-4 ${selected.includes('All') ? 'opacity-100' : 'opacity-0'}`} />
             </div>
-            <div className="h-2.5 bg-[#1e293b] rounded-full overflow-hidden relative">
-              <div className={`h-full ${color} rounded-full transition-all duration-1000 group-hover:brightness-125`} style={{ width: `${(item[valueKey] / maxVal) * 100}%` }} />
-            </div>
-            <div className="absolute -top-10 right-0 bg-[#0f172a] text-white text-[10px] py-1.5 px-3 rounded-lg shadow-2xl opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none z-50 whitespace-nowrap border border-white/10">
-              <span className="font-bold text-purple-300">{item[labelKey]}</span> <span className="text-slate-600 mx-1">|</span> {valStr}
-              {onClickItem && <span className="ml-2 text-emerald-400 font-bold tracking-widest">CLICK TO DRILL</span>}
-            </div>
+            {filtered.map(opt => {
+              const isSel = selected.includes(opt);
+              return (
+                <div key={opt} onClick={() => {
+                  let next = [...selected];
+                  if (next.includes('All')) next = [];
+                  if (isSel) {
+                    next = next.filter(n => n !== opt);
+                    if (next.length === 0) next = ['All'];
+                  } else { next.push(opt); }
+                  onChange(next);
+                }} className={`px-3 py-2 mt-1 rounded-lg text-sm font-bold cursor-pointer flex justify-between ${isSel ? 'bg-[#74FA93]/20 text-[#74FA93]' : 'text-[#F1EAD8] hover:bg-[#0C272D]'}`}>
+                  <span className="truncate pr-2">{opt}</span> <Check className={`w-4 h-4 flex-shrink-0 ${isSel ? 'opacity-100' : 'opacity-0'}`} />
+                </div>
+              )
+            })}
           </div>
-        );
-      })}
-    </div>
-  );
-};
-
-const EntityBarChartCard = ({ title, icon: Icon, data, dataKey, color, isCurrency, insight, drillDownType, onDrillDown, exSym, exRate }) => {
-  const loading = React.useContext(LoadingContext);
-  return (
-  <div className="bg-[#131A2A] p-6 rounded-[2rem] border border-white/5 shadow-xl flex flex-col h-full hover:border-purple-500/30 transition-colors group">
-      <div className="flex items-center gap-3 mb-6">
-         <div className={`p-2 rounded-xl bg-white/5`}><Icon className={`w-4 h-4 ${color.replace('bg-', 'text-')}`} /></div>
-         <h4 className="text-sm font-black text-white uppercase tracking-widest">{title}</h4>
-      </div>
-      {loading ? (
-        <div className="flex-1 mb-6 flex flex-col gap-4 animate-pulse">
-           {[...Array(5)].map((_, i) => (
-             <div key={i} className="flex flex-col gap-2">
-               <div className="h-2 w-1/3 bg-white/10 rounded"></div>
-               <div className="h-2.5 w-full bg-white/5 rounded-full"></div>
-             </div>
-           ))}
         </div>
-      ) : (
-        <div className="flex-1 mb-6"><BarChart chartData={data} valueKey={dataKey} color={color} isCurrency={isCurrency} onClickItem={drillDownType ? (name) => onDrillDown(drillDownType, name) : null} exSym={exSym} exRate={exRate} /></div>
       )}
-      <div className="bg-white/5 p-4 rounded-2xl mt-auto border border-white/5 relative overflow-hidden">
-         <Zap className={`w-16 h-16 absolute -right-4 -top-4 opacity-5 ${color.replace('bg-', 'text-')} group-hover:scale-110 transition-transform`} />
-         {loading ? (
-            <div className="h-3 w-3/4 bg-white/10 rounded animate-pulse"></div>
-         ) : (
-            <p className="text-xs font-bold text-slate-400 relative z-10">"{insight}"</p>
-         )}
-      </div>
+    </div>
+  );
+};
+
+const DataTable = ({ data, columns }) => (
+  <div className="overflow-x-auto bg-[#113A42] rounded-2xl border border-[#74FA93]/20 z-10 relative">
+    <table className="w-full text-left border-collapse">
+      <thead>
+        <tr className="bg-[#0C272D] border-b border-[#74FA93]/20">
+          {columns.map((col, i) => (
+            <th key={i} className="px-6 py-4 text-[10px] font-black text-[#CBBB9D] uppercase tracking-widest whitespace-nowrap">{col.label}</th>
+          ))}
+        </tr>
+      </thead>
+      <tbody>
+        {data.map((row, i) => (
+          <tr key={i} className="border-b border-[#74FA93]/10 hover:bg-[#74FA93]/5 transition-colors">
+            {columns.map((col, j) => (
+              <td key={j} className="px-6 py-4 text-sm font-medium text-[#F1EAD8] whitespace-nowrap">
+                {col.format ? col.format(row[col.key], row) : row[col.key]}
+              </td>
+            ))}
+          </tr>
+        ))}
+        {data.length === 0 && <tr><td colSpan={columns.length} className="px-6 py-8 text-center text-[#CBBB9D] text-sm">No data available</td></tr>}
+      </tbody>
+    </table>
   </div>
-  );
-};
+);
 
-const DualAxisLineChart = ({ chartData, leftKey, rightKey, leftColorText, rightColorText, leftColorHex, rightColorHex, isLeftCurrency, isRightCurrency, exSym = '$', exRate = 1 }) => {
-  if (!chartData || chartData.length < 2) return (
-    <div className="h-full w-full min-h-[250px] flex items-center justify-center bg-white/5 rounded-3xl border border-dashed border-white/10 text-[10px] font-black text-slate-500 uppercase tracking-widest">Select multiple periods</div>
-  );
-  const width = 800; const height = 300;
-  const margin = { top: 20, right: 50, bottom: 40, left: 50 };
-  const iw = width - margin.left - margin.right;
-  const ih = height - margin.top - margin.bottom;
-  const x = d3.scalePoint().domain(chartData.map(d => `W${d.week}`)).range([0, iw]);
-  const yLeft = d3.scaleLinear().domain([0, d3.max(chartData, d => d[leftKey]) * 1.1 || 1]).range([ih, 0]);
-  const yRight = d3.scaleLinear().domain([0, d3.max(chartData, d => d[rightKey]) * 1.1 || 1]).range([ih, 0]);
-  const lineLeft = d3.line().x(d => x(`W${d.week}`)).y(d => yLeft(d[leftKey])).curve(d3.curveMonotoneX);
-  const lineRight = d3.line().x(d => x(`W${d.week}`)).y(d => yRight(d[rightKey])).curve(d3.curveMonotoneX);
-  const skipCount = Math.ceil(chartData.length / 10);
-
-  const fmtT = (t, isC) => isC ? `${exSym}${d3.format(".1s")(t * exRate)}` : d3.format(".1s")(t);
-
-  return (
-    <div className="flex flex-col h-full w-full relative">
-      <svg width="100%" height="100%" viewBox={`0 0 ${width} ${height}`} preserveAspectRatio="xMidYMid meet" className="overflow-visible min-h-[250px] flex-1">
-        <g transform={`translate(${margin.left},${margin.top})`}>
-          {yLeft.ticks(5).map(t => (
-            <g key={`l-${t}`} transform={`translate(0, ${yLeft(t)})`}>
-              <line x2={iw} stroke="#1e293b" strokeWidth="1" />
-              <text x="-10" dy="0.32em" textAnchor="end" className={`text-[9px] ${leftColorText} font-bold`}>{fmtT(t, isLeftCurrency)}</text>
-            </g>
-          ))}
-          {yRight.ticks(5).map(t => (
-             <g key={`r-${t}`} transform={`translate(${iw}, ${yRight(t)})`}>
-               <text x="10" dy="0.32em" textAnchor="start" className={`text-[9px] ${rightColorText} font-bold`}>{fmtT(t, isRightCurrency)}</text>
-             </g>
-          ))}
-          <path d={lineLeft(chartData)} fill="none" stroke={leftColorHex} strokeWidth="4" strokeLinecap="round" style={{ filter: `drop-shadow(0 0 8px ${leftColorHex}60)` }} />
-          <path d={lineRight(chartData)} fill="none" stroke={rightColorHex} strokeWidth="4" strokeLinecap="round" strokeDasharray="6,6" style={{ filter: `drop-shadow(0 0 8px ${rightColorHex}60)` }} />
-          {chartData.map((d, i) => (
-             <g key={`hover-${i}`} className="group cursor-pointer">
-               <rect x={x(`W${d.week}`) - 15} y={0} width={30} height={ih} fill="transparent" />
-               <line x1={x(`W${d.week}`)} x2={x(`W${d.week}`)} y1={0} y2={ih} stroke="#475569" strokeWidth="1" strokeDasharray="4,4" className="opacity-0 group-hover:opacity-100" />
-               <foreignObject x={x(`W${d.week}`) > iw / 2 ? x(`W${d.week}`) - 140 : x(`W${d.week}`) + 10} y={10} width="130" height="90" className="opacity-0 group-hover:opacity-100 pointer-events-none transition-opacity z-50">
-                 <div className="bg-[#0f172a]/90 backdrop-blur-md text-white text-[10px] p-3 rounded-xl shadow-2xl flex flex-col gap-1.5 border border-white/10">
-                   <span className="font-black text-slate-300 border-b border-white/10 pb-1.5 mb-0.5">Week {d.week}, {d.year}</span>
-                   <div className="flex justify-between"><span className={leftColorText.replace('fill-', 'text')}>{leftKey.toUpperCase()}:</span> <span>{isLeftCurrency ? `${exSym}${d3.format(",.2f")(d[leftKey] * exRate)}` : d3.format(",.2f")(d[leftKey])}</span></div>
-                   <div className="flex justify-between"><span className={rightColorText.replace('fill-', 'text')}>{rightKey.toUpperCase()}:</span> <span>{isRightCurrency ? `${exSym}${d3.format(",.2f")(d[rightKey] * exRate)}` : d3.format(",.2f")(d[rightKey])}</span></div>
-                 </div>
-               </foreignObject>
-             </g>
-          ))}
-          {chartData.map((d, i) => ((i % skipCount === 0 || i === chartData.length - 1) && (
-            <g key={`x-${i}`} transform={`translate(${x(`W${d.week}`)}, ${ih})`}>
-              <text y="24" textAnchor="middle" className="text-[10px] fill-slate-500 font-black">W{d.week}</text>
-            </g>
-          )))}
-        </g>
-      </svg>
-    </div>
-  );
-};
-
-const ComparisonLineChart = ({ rawData, metric, colorSW, colorBAU, isCurrency, exSym = '$', exRate = 1, aggregateFn, width = 800, height = 300 }) => {
-  if (!rawData || rawData.length === 0) return (
-    <div className="h-full w-full min-h-[300px] flex items-center justify-center bg-white/5 rounded-3xl border border-dashed border-white/10 text-[10px] font-black text-slate-500 uppercase tracking-widest">Insufficient Data</div>
-  );
-  
-  const margin = { top: 20, right: 30, bottom: 40, left: 50 };
-  const iw = width - margin.left - margin.right;
-  const ih = height - margin.top - margin.bottom;
-
-  const grouped = d3.groups(rawData, d => d.timeKey).sort((a,b) => a[0] - b[0]);
-  const chartData = grouped.map(([key, values]) => {
-     const swRows = values.filter(v => v.weekType === 'Salary Weeks');
-     const bauRows = values.filter(v => v.weekType === 'BAU');
-     const swAgg = swRows.length > 0 ? aggregateFn(swRows) : null;
-     const bauAgg = bauRows.length > 0 ? aggregateFn(bauRows) : null;
-     return {
-        timeKey: key,
-        week: values[0].week,
-        year: values[0].year,
-        sw: swAgg ? swAgg[metric] : null,
-        bau: bauAgg ? bauAgg[metric] : null
-     };
-  });
-
-  const x = d3.scalePoint().domain(chartData.map(d => `W${d.week}`)).range([0, iw]);
-  const maxVal = d3.max(chartData, d => Math.max(d.sw || 0, d.bau || 0)) * 1.1 || 1;
-  const y = d3.scaleLinear().domain([0, maxVal]).range([ih, 0]);
-
-  const lineSW = d3.line().defined(d => d.sw !== null).x(d => x(`W${d.week}`)).y(d => y(d.sw)).curve(d3.curveMonotoneX);
-  const lineBAU = d3.line().defined(d => d.bau !== null).x(d => x(`W${d.week}`)).y(d => y(d.bau)).curve(d3.curveMonotoneX);
-  
-  const skipCount = Math.ceil(chartData.length / 10);
-  const fmtT = (t, isC) => isC ? `${exSym}${d3.format(".1s")(t * exRate)}` : d3.format(".1s")(t);
-
-  return (
-    <div className="flex flex-col h-full w-full relative">
-      <svg width="100%" height="100%" viewBox={`0 0 ${width} ${height}`} preserveAspectRatio="xMidYMid meet" className="overflow-visible min-h-[200px] flex-1">
-        <g transform={`translate(${margin.left},${margin.top})`}>
-          {y.ticks(5).map(t => (
-            <g key={`t-${t}`} transform={`translate(0, ${y(t)})`}>
-              <line x2={iw} stroke="#1e293b" strokeWidth="1" strokeDasharray="2,2" />
-              <text x="-10" dy="0.32em" textAnchor="end" className="text-[9px] fill-slate-400 font-bold">{fmtT(t, isCurrency)}</text>
-            </g>
-          ))}
-          <path d={lineSW(chartData)} fill="none" stroke={colorSW} strokeWidth="3" strokeLinecap="round" style={{ filter: `drop-shadow(0 0 6px ${colorSW}60)` }} />
-          <path d={lineBAU(chartData)} fill="none" stroke={colorBAU} strokeWidth="3" strokeLinecap="round" style={{ filter: `drop-shadow(0 0 6px ${colorBAU}60)` }} />
-          
-          {chartData.map((d, i) => (
-             <g key={`pts-${i}`}>
-               {d.sw !== null && <circle cx={x(`W${d.week}`)} cy={y(d.sw)} r="4" fill="#0f172a" stroke={colorSW} strokeWidth="2" />}
-               {d.bau !== null && <circle cx={x(`W${d.week}`)} cy={y(d.bau)} r="4" fill="#0f172a" stroke={colorBAU} strokeWidth="2" />}
-             </g>
-          ))}
-
-          {chartData.map((d, i) => (
-             <g key={`hover-${i}`} className="group cursor-pointer">
-               <rect x={x(`W${d.week}`) - 15} y={0} width={30} height={ih} fill="transparent" />
-               <line x1={x(`W${d.week}`)} x2={x(`W${d.week}`)} y1={0} y2={ih} stroke="#475569" strokeWidth="1" strokeDasharray="4,4" className="opacity-0 group-hover:opacity-100" />
-               <foreignObject x={x(`W${d.week}`) > iw / 2 ? x(`W${d.week}`) - 130 : x(`W${d.week}`) + 10} y={10} width="120" height="90" className="opacity-0 group-hover:opacity-100 pointer-events-none transition-opacity z-50">
-                 <div className="bg-[#0f172a]/90 backdrop-blur-md text-white text-[10px] p-3 rounded-xl shadow-2xl flex flex-col gap-1.5 border border-white/10">
-                   <span className="font-black text-slate-300 border-b border-white/10 pb-1.5 mb-0.5">Week {d.week}, {d.year}</span>
-                   {d.sw !== null && <div className="flex justify-between"><span style={{color: colorSW}}>Salary Week:</span> <span>{isCurrency ? `${exSym}${d3.format(",.2f")(d.sw * exRate)}` : d3.format(",.2f")(d.sw)}</span></div>}
-                   {d.bau !== null && <div className="flex justify-between"><span style={{color: colorBAU}}>BAU:</span> <span>{isCurrency ? `${exSym}${d3.format(",.2f")(d.bau * exRate)}` : d3.format(",.2f")(d.bau)}</span></div>}
-                 </div>
-               </foreignObject>
-             </g>
-          ))}
-          {chartData.map((d, i) => ((i % skipCount === 0 || i === chartData.length - 1) && (
-            <g key={`x-${i}`} transform={`translate(${x(`W${d.week}`)}, ${ih})`}>
-              <text y="24" textAnchor="middle" className="text-[10px] fill-slate-500 font-black">W{d.week}</text>
-            </g>
-          )))}
-        </g>
-      </svg>
-    </div>
-  );
-};
-
-
-// === MAIN APPLICATION ===
+// --- MAIN APP ---
 export default function App() {
-  const [isMounted, setIsMounted] = useState(false);
-
-  const [data, setData] = useState([]);
+  const [adData, setAdData] = useState([]);
+  const [gaData, setGaData] = useState([]);
   const [loading, setLoading] = useState(true);
-  const [error, setError] = useState(null);
-  const [clientDate, setClientDate] = useState("");
-  
   const [activeTab, setActiveTab] = useState('summary');
   
-  // --- CREATIVE TAB STATES ---
-  const [creativeData, setCreativeData] = useState([]);
-  const [creativeLoading, setCreativeLoading] = useState(true);
-  const [creativeFilterMarkets, setCreativeFilterMarkets] = useState(['All']);
-  const [creativeFilterChannels, setCreativeFilterChannels] = useState(['All']);
-  const [creativeFilterLanguages, setCreativeFilterLanguages] = useState(['All']);
-  const [creativeFilterTypes, setCreativeFilterTypes] = useState(['All']);
-  const [creativeFilterObjectives, setCreativeFilterObjectives] = useState(['All']);
-  const [creativeFilterWeeks, setCreativeFilterWeeks] = useState(['All']);
-  
-  const [creativeViewMode, setCreativeViewMode] = useState('grid'); // 'grid' or 'list'
-  const [creativeSortConfig, setCreativeSortConfig] = useState({ key: 'cost', direction: 'desc' });
-  const [creativeStatusFilter, setCreativeStatusFilter] = useState('All'); // 'All', 'Live', 'Paused'
-  const [creativePage, setCreativePage] = useState(1);
-  const CREATIVES_PER_PAGE = 30;
-  
-  // --- UNIFIED GLOBAL MULTI-SELECT FILTERS ---
-  const [filterMarkets, setFilterMarkets] = useState(['All']);
-  const [filterChannels, setFilterChannels] = useState(['All']);
-  const [filterCampaigns, setFilterCampaigns] = useState(['All']);
-  const [filterOS, setFilterOS] = useState(['All']);
-  const [selectedWeekTypeView, setSelectedWeekTypeView] = useState('');
-
-  // --- TOP BAR MASTER FILTERS ---
+  // State: Global Filters
   const [dateRange, setDateRange] = useState({ start: '', end: '' });
-  const [compareWeeks, setCompareWeeks] = useState([]); 
-  const [trafficFilter, setTrafficFilter] = useState('All'); 
-  const [isWeekDropdownOpen, setIsWeekDropdownOpen] = useState(false);
-
-  const [currency, setCurrency] = useState('USD');
-  const [kpi, setKpi] = useState({ isOpen: false, isSet: false, budget: '', impressions: '', installs: '', purchases: '' });
-
-  const [reportModal, setReportModal] = useState({ isOpen: false, start: '', end: '', market: 'All', channel: 'All', traffic: 'All', campaign: 'All', os: 'All' });
-  const [isGeneratingPdf, setIsGeneratingPdf] = useState(false);
-
-  const exRate = currency === 'BHD' ? 0.377 : 1;
-  const exSym = currency === 'BHD' ? 'BD ' : '$';
-  const formatC = (val, dec = 0) => `${exSym}${d3.format(`,.${dec}f`)(val * exRate)}`;
-
-  useEffect(() => {
-    setIsMounted(true);
-    setClientDate(new Date().toLocaleDateString());
-  }, []);
+  const [filterCampaigns, setFilterCampaigns] = useState(['All']);
+  const [filterMarkets, setFilterMarkets] = useState(['All']);
+  const [filterPaidOrganic, setFilterPaidOrganic] = useState(['All']);
+  
+  // State: Currency
+  const [currency, setCurrency] = useState('USD'); // 'USD' or 'SAR'
+  const exRate = currency === 'SAR' ? 3.75 : 1;
+  const exSym = currency === 'SAR' ? 'SAR ' : '$';
+  
+  // State: Chart Filters
+  const [perfMetric, setPerfMetric] = useState('CPM');
+  const [perfSort, setPerfSort] = useState('Top 5');
+  const [gaMetric, setGaMetric] = useState('Sessions');
+  const [mapMetric, setMapMetric] = useState('Sessions');
 
   useEffect(() => {
-    if (isGeneratingPdf) {
-      const timer = setTimeout(() => {
-        window.print();
-        setIsGeneratingPdf(false);
-      }, 1500);
-      return () => clearTimeout(timer);
-    }
-  }, [isGeneratingPdf]);
-
-  useEffect(() => {
-    Promise.all([
-      d3.csv(COMBINED_COUNTRY_CSV_URL), 
-      d3.csv(RAW_ADJUST_CSV_URL), 
-      d3.csv(CREATIVE_CSV_URL),
-      fetch('/api/tiktok/creatives')
-        .then(res => res.ok ? res.json() : [])
-        .catch(err => {
-          console.error("TikTok API fetch failed:", err);
-          return [];
-        })
-    ])
-      .then(([adData, mmpData, crData, tiktokData]) => {
-        const s1 = adData.map(row => {
-          const week = parseInt(row['Week'] || row['week']) || 0;
-          const year = parseInt(row['Year'] || row['year']) || 2024;
-          const rawS1Channel = Object.values(row)[7] || row['Channel'];
-          const rawWeekTypeS1 = Object.values(row)[12] || row['Week Type'];
-          const rawCampTypeS1 = row['Campaign Objective'] || row['campaign objective'] || Object.values(row)[13] || 'Unknown';
-          const rawOS1 = row['OS'] || row['os'] || Object.values(row)[11] || 'Unknown';
-
-          return {
-            cost: parseMetric(row['Cost'] || row['Spend'] || row['cost']),
-            impressions: parseMetric(row['Impression'] || row['Impressions']),
-            clicks: parseMetric(row['Clicks'] || row['clicks']),
-            installs: 0, logins: 0, purchases: 0, sessions: 0,
-            week, year, date: row['Date'] ? new Date(row['Date']) : getDateFromWeek(week, year),
-            market: normalizeMarket(row['Country'] || row['Channel Country']),
-            channel: (!rawS1Channel || rawS1Channel === 'BLANK') ? 'Other' : normalizeChannel(rawS1Channel),
-            weekType: parseWeekType(rawWeekTypeS1),
-            campaignType: rawCampTypeS1.toString().trim(),
-            os: normalizeOS(rawOS1),
-            source: 'AdNetwork', trafficType: 'Paid' 
-          };
-        });
-
-        const s2 = mmpData.map(row => {
-          const week = parseInt(row['Week'] || row['week'] || row['Wk']) || 0;
-          const year = parseInt(row['Year'] || row['year']) || 2024;
-          const rawClass = Object.values(row)[11] || row['Classification'] || row['Network classification'] || '';
-          let trafficType = 'Paid';
-          const rawClassLower = rawClass.toString().toLowerCase();
-          if (rawClassLower.includes('organic')) {
-            trafficType = 'Organic';
-          } else if (rawClassLower.includes('affiliate')) {
-            trafficType = 'Affiliates';
-          }
-          const purchases = parseMetric(Object.values(row)[7] || row['Purchases'] || row['Total Purchases']);
-          const logins = parseMetric(Object.values(row)[8] || row['login_success'] || row['Logins']);
-          const sessions = parseMetric(row['Sessions'] || row['sessions'] || Object.values(row)[9] || 0);
-          const rawS2Channel = Object.values(row)[3] || row['Network'] || row['Source'];
-          const rawWeekTypeS2 = Object.values(row)[17] || row['Week Type'];
-          const rawCampTypeS2 = row['Campaign Objective'] || row['campaign objective'] || Object.values(row)[18] || 'Unknown';
-          const rawOS2 = row['OS'] || row['os'] || Object.values(row)[12] || 'Unknown';
-
-          return {
-            cost: 0, impressions: 0, clicks: 0,
-            installs: parseMetric(row['Installs'] || row['Install'] || row['Total Installs'] || row['Network Installs']),
-            logins, purchases, sessions, week, year, date: row['Date'] ? new Date(row['Date']) : getDateFromWeek(week, year),
-            market: normalizeMarket(row['Country'] || row['Geo']),
-            channel: (!rawS2Channel || rawS2Channel === 'BLANK' || rawS2Channel === 'Organic') ? 'Other' : normalizeChannel(rawS2Channel),
-            weekType: parseWeekType(rawWeekTypeS2),
-            campaignType: rawCampTypeS2.toString().trim(),
-            os: normalizeOS(rawOS2),
-            source: 'Adjust', trafficType
-          };
-        });
-        
-        const s3 = crData.map(row => {
-          return {
-            date: new Date(row['Date']),
-            market: row['Markets'] || 'Unknown',
-            channel: row['Channel'] || 'Unknown',
-            language: row['Adjusted Creative Language'] || 'Unknown',
-            creativeType: row['Creative Type'] || 'Unknown',
-            objective: row['Adjusted Objective'] || 'Unknown',
-            weekType: row['Salary Week vs BAU'] || 'Unknown',
-            creativeName: row['Adjusted Creative Name'] || 'Unknown',
-            adImageUrl: row['Ad creative image URL'] || '',
-            impressions: parseMetric(row['Impressions']),
-            clicks: parseMetric(row['Link clicks']),
-            cost: parseMetric(row['Cost']),
-            installs: parseMetric(row['Omni app installs']),
-            purchases: parseMetric(row['Omni purchases'])
-          };
-        });
-
-        const s4 = (Array.isArray(tiktokData?.data) ? tiktokData.data : (Array.isArray(tiktokData) ? tiktokData : [])).map(ad => {
-          const rawName = ad.adName || ad.dimensions?.ad_id || 'Unknown';
-          const parts = rawName.split('|').map(p => p.trim());
+    const fetchPromises = CHANNELS.map(ch => 
+      d3.csv(`${BASE_URL}&gid=${ch.gid}`).then(raw => {
+        return raw.map(row => {
+          const vals = Object.values(row);
+          // Find 'DB' prefixed columns dynamically if they exist, otherwise fallback
+          const campDB = row['Campaign DB'] || row['Campaign name'] || row['Campaign Name'] || 'Unknown';
+          const phaseDB = row['Phase DB'] || row['Phase'] || 'Unknown';
+          const countryDB = normalizeMarket(row['Country DB'] || row['Country'] || 'Unknown');
+          const langDB = row['Language DB'] || row['Language'] || 'Unknown';
           
-          let parsedLanguage = 'Unknown';
-          let parsedCreativeType = 'Video'; // Default for TikTok
-          let parsedObjective = 'Unknown';
-          let shortCreativeName = rawName;
-
-          if (parts.length >= 6) {
-            parsedObjective = parts[1] || 'Unknown';
-            const rawType = parts[4]?.toUpperCase();
-            if (rawType === 'IMG' || rawType === 'IMAGE') parsedCreativeType = 'Image';
-            else if (rawType === 'VID' || rawType === 'VIDEO') parsedCreativeType = 'Video';
-
-            // Find language identifier
-            const langPart = parts.find(p => ['AR', 'EN', 'EN+AR'].includes(p.toUpperCase()));
-            if (langPart) {
-              const langMap = { 'AR': 'Arabic', 'EN': 'English', 'EN+AR': 'Bilingual' };
-              parsedLanguage = langMap[langPart.toUpperCase()] || langPart;
-            }
-            
-            // Core concept is usually part 5, version part 6
-            const concept = parts[5];
-            const version = parts[6] && parts[6].toUpperCase().startsWith('V') ? `(${parts[6]})` : '';
-            shortCreativeName = `${concept} ${version} ${langPart ? '- ' + langPart : ''}`.trim();
-            // Capitalize first letter of shortName
-            shortCreativeName = shortCreativeName.charAt(0).toUpperCase() + shortCreativeName.slice(1);
-          } else {
-            // If it doesn't follow the | format, check if there's a trailing _ or - for the actual name
-            const altParts = rawName.split(/[_]/);
-            if (altParts.length > 1) {
-               shortCreativeName = altParts[altParts.length - 1].trim();
-            } else if (rawName.length > 50) {
-               shortCreativeName = rawName.substring(0, 50) + '...';
+          let finalChannel = ch.name;
+          if (ch.subCol !== undefined && vals[ch.subCol] && vals[ch.subCol].trim() !== '') {
+            const rawSub = vals[ch.subCol].trim();
+            if (rawSub.toLowerCase() === 'youtube') {
+              finalChannel = 'Youtube';
+            } else {
+              finalChannel = rawSub;
             }
           }
-
-          // Ensure valid date from TikTok API (format: '2026-08-08 00:00:00' or similar)
-          const adDateStr = ad.dimensions?.stat_time_day;
-          const adDate = adDateStr ? new Date(adDateStr) : new Date();
+          
+          let rawCost = parseMetric(row['Cost (USD)'] || row['Cost'] || row['Total cost'] || row['Total media cost'] || row['Spend']);
+          if (ch.name === 'X') {
+            rawCost = rawCost / 3.75;
+          }
 
           return {
-            date: adDate, 
-            market: 'Saudi Arabia',
-            channel: 'TikTok',
-            language: parsedLanguage,
-            creativeType: parsedCreativeType,
-            objective: parsedObjective,
-            weekType: 'Unknown',
-            creativeName: shortCreativeName,
-            adImageUrl: ad.thumbnailUrl || '',
-            videoUrl: ad.videoUrl || '',
-            tiktokItemId: ad.tiktokItemId || '',
-            impressions: parseMetric(ad.metrics?.impressions || 0),
-            clicks: parseMetric(ad.metrics?.clicks || 0),
-            cost: parseMetric(ad.metrics?.spend || 0),
-            installs: parseMetric(ad.metrics?.app_install || 0), 
-            purchases: parseMetric(ad.metrics?.purchase || 0)
+            date: row['Date'],
+            dateObj: row['Date'] ? new Date(row['Date']) : null,
+            campaignName: campDB,
+            phase: phaseDB,
+            country: countryDB,
+            language: langDB,
+            channel: finalChannel,
+            adName: row['Ad name'] || row['Ad Name'] || 'Unknown',
+            cost: rawCost,
+            impressions: parseMetric(row['Impressions']),
+            clicks: parseMetric(row['Clicks'] || row['Link clicks'] || row['Click-throughs']),
+            videoViews: parseMetric(vals[ch.viewsCol]), // based on user mapping
+            videoViews6s: parseMetric(row['6-second video views'] || row['Three-second video views'] || 0),
+            videoViews15s: parseMetric(row['15-second video views (focused view)'] || row['ThruPlay actions'] || 0),
+            videoCompletions: parseMetric(vals[ch.compCol]) // approx 100% views mapped column
           };
         });
-        
-        setData([...s1, ...s2]);
-        setCreativeData([...s3, ...s4]);
-        setLoading(false);
-        setCreativeLoading(false);
       })
-      .catch((err) => {
-        console.error("Error fetching data:", err);
-        setError("Failed to load data.");
-        setLoading(false);
-        setCreativeLoading(false);
-      });
-  }, []);
+    );
 
-  const { processedData, allTimeKeys } = useMemo(() => {
-    if (!data || data.length === 0) return { processedData: [], allTimeKeys: [] };
-    const rows = data.map(row => ({
-      ...row,
-      timeKey: (row.year === 0 || row.week === 0) ? 0 : (row.year * 100 + row.week)
-    })).filter(r => r.timeKey > 0);
-    const timeKeys = Array.from(new Set(rows.map(d => d.timeKey))).sort((a, b) => a - b);
-    return { processedData: rows, allTimeKeys: timeKeys };
-  }, [data]);
+    // Fetch GA4 Data
+    const gaPromise = d3.csv(`${BASE_URL}&gid=${GA4_GID}`).then(raw => {
+      return raw.map(row => {
+        const rawPaid = row['Paid/Organic'] || 'Unknown';
+        let paidOrganic = 'Unknown';
+        if (rawPaid.toLowerCase() === 'paid') paidOrganic = 'Paid';
+        else if (rawPaid.toLowerCase() === 'organic') paidOrganic = 'Organic';
+        else paidOrganic = rawPaid;
 
-  // Master Level Filter (Date + Traffic) with FULL WEEK OVERLAP LOGIC
-  const filteredData = useMemo(() => {
-    return processedData.filter(d => {
-      let passTraffic = true;
-      if (trafficFilter !== 'All') passTraffic = d.trafficType === trafficFilter;
-      
-      let passTime = true;
-      if (compareWeeks.length > 0) {
-        passTime = compareWeeks.includes(d.timeKey);
-      } else if (dateRange.start || dateRange.end) {
-        const dDate = new Date(d.date);
-
-        if (dateRange.start) {
-          const startDate = new Date(dateRange.start); startDate.setHours(0, 0, 0, 0);
-          passTime = passTime && (dDate >= startDate);
-        }
-        if (dateRange.end) {
-          const endDate = new Date(dateRange.end); endDate.setHours(23, 59, 59, 999);
-          passTime = passTime && (dDate <= endDate);
-        }
-      }
-      return passTraffic && passTime;
-    });
-  }, [processedData, dateRange, compareWeeks, trafficFilter]);
-
-  // Dynamic Options based ONLY on the top bar master filters (Paid/Organic/Dates)
-  const uniqueMarkets = useMemo(() => {
-     let d = filteredData;
-     if (trafficFilter === 'Paid') d = d.filter(x => x.cost >= 1);
-     return Array.from(new Set(d.map(x => x.market))).sort();
-  }, [filteredData, trafficFilter]);
-  
-  const uniqueChannels = useMemo(() => {
-     let d = filteredData;
-     if (trafficFilter === 'Paid') d = d.filter(x => x.cost >= 1);
-     return Array.from(new Set(d.map(x => x.channel))).sort();
-  }, [filteredData, trafficFilter]);
-  
-  const uniqueCampaigns = useMemo(() => {
-     let d = filteredData;
-     if (trafficFilter === 'Paid') d = d.filter(x => x.cost >= 1);
-     return Array.from(new Set(d.map(x => x.campaignType))).sort();
-  }, [filteredData, trafficFilter]);
-
-  const uniqueOS = useMemo(() => {
-     let d = filteredData;
-     if (trafficFilter === 'Paid') d = d.filter(x => x.cost >= 1);
-     return Array.from(new Set(d.map(x => x.os))).sort();
-  }, [filteredData, trafficFilter]);
-
-  // Global Context Filter applying the multi-select dropdowns
-  const tabData = useMemo(() => {
-    let d = filteredData;
-    if (!filterMarkets.includes('All')) d = d.filter(x => filterMarkets.includes(x.market));
-    if (!filterChannels.includes('All')) d = d.filter(x => filterChannels.includes(x.channel));
-    if (!filterCampaigns.includes('All')) d = d.filter(x => filterCampaigns.includes(x.campaignType));
-    if (!filterOS.includes('All')) d = d.filter(x => filterOS.includes(x.os));
-    return d;
-  }, [filteredData, filterMarkets, filterChannels, filterCampaigns, filterOS]);
-
-  const aggregate = (rows) => {
-    const cost = d3.sum(rows, d => d.cost), impressions = d3.sum(rows, d => d.impressions);
-    const clicks = d3.sum(rows, d => d.clicks), installs = d3.sum(rows, d => d.installs);
-    const logins = d3.sum(rows, d => d.logins), purchases = d3.sum(rows, d => d.purchases);
-    const sessions = d3.sum(rows, d => d.sessions || 0);
-    return {
-      cost, impressions, clicks, installs, logins, purchases, sessions,
-      ctr: impressions > 0 ? (clicks / impressions) * 100 : 0,
-      cpc: clicks > 0 ? cost / clicks : 0,
-      cpm: impressions > 0 ? (cost / impressions) * 1000 : 0,
-      cpi: installs > 0 ? cost / installs : 0,
-      cpp: purchases > 0 ? cost / purchases : 0,
-      cvr: clicks > 0 ? (installs / clicks) * 100 : 0,
-      ltr: installs > 0 ? (logins / installs) * 100 : 0, 
-      ltp: logins > 0 ? (purchases / logins) * 100 : 0,
-      ipr: installs > 0 ? (purchases / installs) * 100 : 0 
-    };
-  };
-
-  const metrics = useMemo(() => aggregate(tabData), [tabData]);
-  const weeklyTimeline = useMemo(() => d3.groups(tabData, d => d.timeKey).map(([key, values]) => ({ timeKey: key, week: values[0].week, year: values[0].year, ...aggregate(values) })).sort((a, b) => a.timeKey - b.timeKey), [tabData]);
-  
-  // Breakdown tables base themselves on data BEFORE their specific filter is applied
-  const marketBreakdown = useMemo(() => {
-    let d = filteredData;
-    if (!filterChannels.includes('All')) d = d.filter(x => filterChannels.includes(x.channel));
-    if (!filterCampaigns.includes('All')) d = d.filter(x => filterCampaigns.includes(x.campaignType));
-    if (!filterOS.includes('All')) d = d.filter(x => filterOS.includes(x.os));
-    return d3.groups(d, d => d.market)
-      .map(([name, values]) => ({ name, ...aggregate(values) }))
-      .filter(m => trafficFilter === 'Paid' ? m.cost >= 1 : (m.cost >= 1 || m.purchases >= 1 || m.installs >= 1))
-      .sort((a, b) => b.cost - a.cost);
-  }, [filteredData, filterChannels, filterCampaigns, filterOS, trafficFilter]);
-    
-  const channelBreakdown = useMemo(() => {
-    let d = filteredData;
-    if (!filterMarkets.includes('All')) d = d.filter(x => filterMarkets.includes(x.market));
-    if (!filterCampaigns.includes('All')) d = d.filter(x => filterCampaigns.includes(x.campaignType));
-    if (!filterOS.includes('All')) d = d.filter(x => filterOS.includes(x.os));
-    return d3.groups(d, d => d.channel)
-      .map(([name, values]) => ({ name, ...aggregate(values) }))
-      .filter(c => trafficFilter === 'Paid' ? c.cost >= 1 : (c.cost >= 1 || c.purchases >= 1 || c.installs >= 1))
-      .sort((a, b) => b.cost - a.cost);
-  }, [filteredData, filterMarkets, filterCampaigns, filterOS, trafficFilter]);
-
-  const campaignTypeBreakdown = useMemo(() => {
-    let d = filteredData;
-    if (!filterMarkets.includes('All')) d = d.filter(x => filterMarkets.includes(x.market));
-    if (!filterChannels.includes('All')) d = d.filter(x => filterChannels.includes(x.channel));
-    if (!filterOS.includes('All')) d = d.filter(x => filterOS.includes(x.os));
-    return d3.groups(d, d => d.campaignType)
-      .map(([name, values]) => ({ name, ...aggregate(values) }))
-      .filter(c => trafficFilter === 'Paid' ? c.cost >= 1 : (c.cost >= 1 || c.purchases >= 1 || c.installs >= 1))
-      .sort((a, b) => b.cost - a.cost);
-  }, [filteredData, filterMarkets, filterChannels, filterOS, trafficFilter]);
-
-  const osBreakdown = useMemo(() => {
-    let d = filteredData;
-    if (!filterMarkets.includes('All')) d = d.filter(x => filterMarkets.includes(x.market));
-    if (!filterChannels.includes('All')) d = d.filter(x => filterChannels.includes(x.channel));
-    if (!filterCampaigns.includes('All')) d = d.filter(x => filterCampaigns.includes(x.campaignType));
-    return d3.groups(d, d => d.os)
-      .map(([name, values]) => ({ name, ...aggregate(values) }))
-      .filter(c => trafficFilter === 'Paid' ? c.cost >= 1 : (c.cost >= 1 || c.purchases >= 1 || c.installs >= 1))
-      .sort((a, b) => b.cost - a.cost);
-  }, [filteredData, filterMarkets, filterChannels, filterCampaigns, trafficFilter]);
-
-  // --- CREATIVE TAB LOGIC ---
-  const uniqueCreativeMarkets = useMemo(() => Array.from(new Set(creativeData.map(x => x.market))).filter(Boolean).sort(), [creativeData]);
-  const uniqueCreativeChannels = useMemo(() => Array.from(new Set(creativeData.map(x => x.channel))).filter(Boolean).sort(), [creativeData]);
-  const uniqueCreativeLanguages = useMemo(() => Array.from(new Set(creativeData.map(x => x.language))).filter(Boolean).sort(), [creativeData]);
-  const uniqueCreativeTypes = useMemo(() => Array.from(new Set(creativeData.map(x => x.creativeType))).filter(Boolean).sort(), [creativeData]);
-  const uniqueCreativeObjectives = useMemo(() => Array.from(new Set(creativeData.map(x => x.objective))).filter(Boolean).sort(), [creativeData]);
-  const uniqueCreativeWeeks = useMemo(() => Array.from(new Set(creativeData.map(x => x.weekType))).filter(Boolean).sort(), [creativeData]);
-
-  const creativeTabData = useMemo(() => {
-    let d = creativeData.filter(x => {
-      let passTime = true;
-      if (compareWeeks.length > 0) {
-         // Creative doesn't have timeKey logic explicitly built yet, fallback to date range.
-         // Or just let dateRange govern it.
-      } else if (dateRange.start || dateRange.end) {
-        const dDate = new Date(x.date);
-
-        if (dateRange.start) {
-          const startDate = new Date(dateRange.start); startDate.setHours(0, 0, 0, 0);
-          passTime = passTime && (dDate >= startDate);
-        }
-        if (dateRange.end) {
-          const endDate = new Date(dateRange.end); endDate.setHours(23, 59, 59, 999);
-          passTime = passTime && (dDate <= endDate);
-        }
-      }
-      return passTime;
-    });
-
-    if (!creativeFilterMarkets.includes('All')) d = d.filter(x => creativeFilterMarkets.includes(x.market));
-    if (!creativeFilterChannels.includes('All')) d = d.filter(x => creativeFilterChannels.includes(x.channel));
-    if (!creativeFilterLanguages.includes('All')) d = d.filter(x => creativeFilterLanguages.includes(x.language));
-    if (!creativeFilterTypes.includes('All')) d = d.filter(x => creativeFilterTypes.includes(x.creativeType));
-    if (!creativeFilterObjectives.includes('All')) d = d.filter(x => creativeFilterObjectives.includes(x.objective));
-    if (!creativeFilterWeeks.includes('All')) d = d.filter(x => creativeFilterWeeks.includes(x.weekType));
-    
-    const maxDate = creativeData.length > 0 ? new Date(Math.max(...creativeData.map(e => e.date.getTime()))) : new Date();
-    // Use a 72-hour (3 day) window to account for ad network API data delays
-    const activeWindowCutoff = new Date(maxDate.getTime() - (3 * 24 * 60 * 60 * 1000));
-
-    // Group by creative image URL and Name to aggregate
-    let aggregated = d3.groups(d, x => x.adImageUrl + '|' + x.creativeName)
-      .map(([key, values]) => {
-        const v0 = values[0];
-        const impressions = d3.sum(values, v => v.impressions);
-        const clicks = d3.sum(values, v => v.clicks);
-        const cost = d3.sum(values, v => v.cost);
-        const installs = d3.sum(values, v => v.installs);
-        const purchases = d3.sum(values, v => v.purchases);
-        const isLive = values.some(v => v.impressions > 0 && v.date >= activeWindowCutoff);
-        
         return {
-          adImageUrl: v0.adImageUrl,
-          videoUrl: v0.videoUrl,
-          tiktokItemId: v0.tiktokItemId,
-          creativeName: v0.creativeName,
-          channel: v0.channel,
-          creativeType: v0.creativeType,
-          language: v0.language,
-          objective: v0.objective,
-          weekType: v0.weekType,
-          isLive,
-          impressions,
-          clicks,
-          ctr: impressions > 0 ? (clicks / impressions) : 0,
-          cost,
-          installs,
-          cpi: installs > 0 ? (cost / installs) : 0,
-          purchases,
-          cpp: purchases > 0 ? (cost / purchases) : 0
+          date: row['Date'],
+          dateObj: row['Date'] ? new Date(row['Date']) : null,
+          sourceMedium: row['Session source / medium'],
+          country: normalizeMarket(row['Country']),
+          sessions: parseMetric(row['Sessions']),
+          users: parseMetric(row['Total users']),
+          engagedSessions: parseMetric(row['Engaged sessions']),
+          newUsers: parseMetric(row['New users']),
+          avgSessionDuration: parseMetric(row['Average session length (sec)']),
+          paidOrganic
         };
       });
-
-    if (creativeStatusFilter === 'Live') aggregated = aggregated.filter(x => x.isLive);
-    if (creativeStatusFilter === 'Paused') aggregated = aggregated.filter(x => !x.isLive);
-      
-    // Apply sorting
-    return aggregated.sort((a, b) => {
-       const aVal = a[creativeSortConfig.key] || 0;
-       const bVal = b[creativeSortConfig.key] || 0;
-       if (creativeSortConfig.direction === 'desc') {
-         return bVal > aVal ? 1 : -1;
-       } else {
-         return aVal > bVal ? 1 : -1;
-       }
     });
-  }, [creativeData, dateRange, creativeFilterMarkets, creativeFilterChannels, creativeFilterLanguages, creativeFilterTypes, creativeFilterObjectives, creativeFilterWeeks, creativeSortConfig, creativeStatusFilter]);
 
-  useEffect(() => {
-    setCreativePage(1);
-  }, [dateRange, creativeFilterMarkets, creativeFilterChannels, creativeFilterLanguages, creativeFilterTypes, creativeFilterObjectives, creativeFilterWeeks, creativeSortConfig, creativeStatusFilter]);
+    Promise.all([...fetchPromises, gaPromise]).then(results => {
+      const gaResults = results.pop();
+      const combinedAds = results.flat();
+      setAdData(combinedAds);
+      setGaData(gaResults);
+      setLoading(false);
+    }).catch(err => {
+      console.error(err);
+      setLoading(false);
+    });
+  }, []);
 
-  const handleDrillDown = (type, value) => {
-    if (type === 'market') {
-      setActiveTab('detailed');
-      setFilterMarkets([value]);
-      setFilterChannels(['All']);
-      setFilterCampaigns(['All']);
-      setFilterOS(['All']);
-    } else if (type === 'channel') {
-      setActiveTab('detailed');
-      setFilterChannels([value]);
-      setFilterMarkets(['All']);
-      setFilterCampaigns(['All']);
-      setFilterOS(['All']);
-    } else if (type === 'campaign') {
-      setActiveTab('campaign');
-      setFilterCampaigns([value]);
-    } else if (type === 'os') {
-      setActiveTab('os');
-      setFilterOS([value]);
-    }
-    window.scrollTo({ top: 0, behavior: 'smooth' });
+  const resetFilters = () => {
+    setFilterCampaigns(['All']);
+    setFilterMarkets(['All']);
+    setFilterPaidOrganic(['All']);
+    setDateRange({ start: '', end: '' });
   };
 
-  function getAIInsight(context, activeData = null, marketFilteredData = null, selectedType = 'All Weeks') {
-    if (filteredData.length === 0) return "No data available for the current selection.";
+  const uniqueCampaigns = useMemo(() => Array.from(new Set(adData.map(d => d.campaignName))).sort(), [adData]);
+  const uniqueMarkets = useMemo(() => {
+    const combined = [...adData.map(d => d.country), ...gaData.map(d => d.country)];
+    return Array.from(new Set(combined)).filter(Boolean).sort();
+  }, [adData, gaData]);
+  const uniquePaidOrganic = useMemo(() => Array.from(new Set(gaData.map(d => d.paidOrganic))).sort(), [gaData]);
+
+  // Apply filters to Ad Data
+  const filteredAdData = useMemo(() => {
+    return adData.filter(d => {
+      if (!filterCampaigns.includes('All') && !filterCampaigns.includes(d.campaignName)) return false;
+      if (!filterMarkets.includes('All') && !filterMarkets.includes(d.country)) return false;
+      if (dateRange.start && d.dateObj && d.dateObj < new Date(dateRange.start)) return false;
+      if (dateRange.end && d.dateObj && d.dateObj > new Date(dateRange.end)) return false;
+      return true;
+    });
+  }, [adData, filterCampaigns, filterMarkets, dateRange]);
+
+  // Apply filters to GA Data (only Date and Market apply)
+  const filteredGaData = useMemo(() => {
+    return gaData.filter(d => {
+      if (!filterMarkets.includes('All') && !filterMarkets.includes(d.country)) return false;
+      if (!filterPaidOrganic.includes('All') && !filterPaidOrganic.includes(d.paidOrganic)) return false;
+      if (dateRange.start && d.dateObj && d.dateObj < new Date(dateRange.start)) return false;
+      if (dateRange.end && d.dateObj && d.dateObj > new Date(dateRange.end)) return false;
+      return true;
+    });
+  }, [gaData, filterMarkets, filterPaidOrganic, dateRange]);
+
+  const agg = useMemo(() => {
+    const cost = d3.sum(filteredAdData, d => d.cost);
+    const impressions = d3.sum(filteredAdData, d => d.impressions);
+    const clicks = d3.sum(filteredAdData, d => d.clicks);
+    const views = d3.sum(filteredAdData, d => d.videoViews);
+    const views6s = d3.sum(filteredAdData, d => d.videoViews6s);
+    const views15s = d3.sum(filteredAdData, d => d.videoViews15s);
+    const completions = d3.sum(filteredAdData, d => d.videoCompletions);
+    const sessions = d3.sum(filteredGaData, d => d.sessions);
+    return { cost, impressions, clicks, views, completions, views6s, views15s, sessions };
+  }, [filteredAdData, filteredGaData]);
+
+  const gaSourceData = useMemo(() => {
+    return Array.from(d3.rollup(filteredGaData, 
+      v => ({
+        sessions: d3.sum(v, d => d.sessions),
+        users: d3.sum(v, d => d.users),
+        engagedSessions: d3.sum(v, d => d.engagedSessions),
+        newUsers: d3.sum(v, d => d.newUsers),
+        avgSessionDuration: d3.mean(v.filter(d => d.sessions > 0), d => d.avgSessionDuration) || 0
+      }),
+      d => d.sourceMedium
+    )).map(([sourceMedium, metrics]) => ({
+      sourceMedium,
+      ...metrics
+    }));
+  }, [filteredGaData]);
+
+  // Chart Data preparation
+  const monthlyChartData = useMemo(() => {
+    const getMonthKey = (dateObj) => {
+      if (!dateObj || isNaN(dateObj)) return 'Unknown';
+      return dateObj.toLocaleDateString('en-US', { month: 'short', year: 'numeric' });
+    };
     
-    if (context === 'detailed') {
-      if (!selectedType) return ""; 
-      if (!activeData || activeData.length === 0) return "Analyzing single week data. Select a broader date range or market view to see progression trends over time.";
-      
-      const computeStats = (dataArray) => {
-        const tImps = d3.sum(dataArray, d => d.impressions), tClicks = d3.sum(dataArray, d => d.clicks);
-        const tInstalls = d3.sum(dataArray, d => d.installs), tLogins = d3.sum(dataArray, d => d.logins);
-        const tPurchases = d3.sum(dataArray, d => d.purchases), tCost = d3.sum(dataArray, d => d.cost);
-        return { tImps, tClicks, tInstalls, tLogins, tPurchases, tCost, avgCpi: tInstalls > 0 ? tCost/tInstalls : 0, avgCpp: tPurchases > 0 ? tCost/tPurchases : 0 };
+    const validData = filteredAdData.filter(d => d.dateObj && !isNaN(d.dateObj));
+    const grouped = d3.groups(validData, d => getMonthKey(d.dateObj));
+    
+    return grouped.map(([month, vals]) => {
+      const sortDate = new Date(vals[0].dateObj.getFullYear(), vals[0].dateObj.getMonth(), 1);
+      return {
+        month,
+        sortDate,
+        cost: d3.sum(vals, d => d.cost) * exRate,
+        impressions: d3.sum(vals, d => d.impressions)
       };
-
-      if (selectedType === 'Salary Weeks' || selectedType === 'BAU') {
-        const stats = computeStats(marketFilteredData.filter(d => d.weekType === selectedType));
-        return (
-          <div className="space-y-4 text-sm text-purple-50">
-             <div>
-                <strong className="text-white text-base">Performance Overview ({selectedType}):</strong>
-                <ul className="list-none mt-3 space-y-1.5 bg-white/5 p-5 rounded-xl border border-white/10">
-                  <li><strong>Ad Spend:</strong> {formatC(stats.tCost)}</li>
-                  <li><strong>Impressions:</strong> {formatShort(stats.tImps)}</li>
-                  <li><strong>Clicks:</strong> {formatShort(stats.tClicks)}</li>
-                  <li><strong>Installs:</strong> {d3.format(",.0f")(stats.tInstalls)}</li>
-                  <li><strong>Purchases:</strong> {d3.format(",.0f")(stats.tPurchases)}</li>
-                </ul>
-             </div>
-             <p className="mt-4"><strong className="text-white">Efficiency Metrics:</strong> The average Cost Per Install (CPI) settled at <span className="text-amber-300 font-bold">{formatC(stats.avgCpi, 2)}</span>, with a Cost Per Purchase (CPP) of <span className="text-red-400 font-bold">{formatC(stats.avgCpp, 2)}</span>.</p>
-             <p><strong className="text-white">Action Plan:</strong> {selectedType === 'Salary Weeks' ? 'Consumer purchasing power is at its peak. Maximize daily budget caps, increase bids on high-intent keywords, and prioritize aggressive retargeting to capture immediate conversions.' : 'Focus on top-funnel acquisition and brand awareness. Maintain strict CPP limits, optimize creative assets, and build retargeting pools for the next salary cycle.'}</p>
-          </div>
-        );
-      } else {
-        const sStats = computeStats(marketFilteredData.filter(d => d.weekType === 'Salary Weeks'));
-        const bStats = computeStats(marketFilteredData.filter(d => d.weekType === 'BAU'));
-        const cppDiff = bStats.avgCpp > 0 ? ((sStats.avgCpp - bStats.avgCpp) / bStats.avgCpp) * 100 : 0;
-        const volDiff = bStats.tPurchases > 0 ? ((sStats.tPurchases - bStats.tPurchases) / bStats.tPurchases) * 100 : 0;
-
-        return (
-          <div className="space-y-4 text-sm text-purple-50">
-             <strong className="text-white text-base">Trend Analysis (Salary vs BAU):</strong>
-             <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mt-3">
-                <div className="bg-white/5 p-5 rounded-xl border border-white/10">
-                   <p className="font-bold text-white mb-3 border-b border-white/10 pb-2">Salary Weeks</p>
-                   <ul className="space-y-1.5">
-                     <li><strong>Spend:</strong> {formatC(sStats.tCost)}</li>
-                     <li><strong>Installs:</strong> {d3.format(",.0f")(sStats.tInstalls)}</li>
-                     <li><strong>Purchases:</strong> {d3.format(",.0f")(sStats.tPurchases)}</li>
-                   </ul>
-                   <div className="mt-4 pt-3 border-t border-white/10 text-xs">
-                      <span className="text-amber-300 font-bold">{formatC(sStats.avgCpi, 2)} CPI</span> <span className="mx-2">|</span> <span className="text-red-400 font-bold">{formatC(sStats.avgCpp, 2)} CPP</span>
-                   </div>
-                </div>
-                <div className="bg-white/5 p-5 rounded-xl border border-white/10">
-                   <p className="font-bold text-white mb-3 border-b border-white/10 pb-2">BAU Periods</p>
-                   <ul className="space-y-1.5">
-                     <li><strong>Spend:</strong> {formatC(bStats.tCost)}</li>
-                     <li><strong>Installs:</strong> {d3.format(",.0f")(bStats.tInstalls)}</li>
-                     <li><strong>Purchases:</strong> {d3.format(",.0f")(bStats.tPurchases)}</li>
-                   </ul>
-                   <div className="mt-4 pt-3 border-t border-white/10 text-xs">
-                      <span className="text-amber-300 font-bold">{formatC(bStats.avgCpi, 2)} CPI</span> <span className="mx-2">|</span> <span className="text-red-400 font-bold">{formatC(bStats.avgCpp, 2)} CPP</span>
-                   </div>
-                </div>
-             </div>
-             <p className="mt-4"><strong className="text-white">Observation:</strong> Salary week CPP is {cppDiff > 0 ? `${cppDiff.toFixed(1)}% higher` : `${Math.abs(cppDiff).toFixed(1)}% lower`} than BAU periods, with purchase volume shifting by {volDiff > 0 ? '+' : ''}{volDiff.toFixed(1)}%.</p>
-             <p><strong className="text-white">Action Plan:</strong> The trend lines map directly to behavioral purchasing cycles. Use the visual comparison above to establish aggressive budget pulsing rules during Salary Week windows while maintaining a consistent baseline throughout BAU.</p>
-          </div>
-        );
-      }
-    }
-
-    if (context === 'campaign') {
-       const sortedBySpend = [...activeData].sort((a,b)=>b.cost - a.cost);
-       const sortedByPurchases = [...activeData].sort((a,b)=>b.purchases - a.purchases);
-       const validCPP = [...activeData].filter(d=>d.purchases>0).sort((a,b)=>a.cpp - b.cpp);
-       
-       const topSpend = sortedBySpend[0];
-       const topPurchases = sortedByPurchases[0];
-       const bestCPP = validCPP[0];
-
-       if (!topSpend) return "Insufficient campaign data based on current filters.";
-
-       return (
-          <div className="space-y-3 text-sm text-purple-50">
-             <p className="flex items-start gap-3"><span className="text-purple-400 mt-0.5">●</span> <strong>Investment Focus:</strong> '{topSpend?.name}' is currently the primary driver of ad spend, consuming {formatC(topSpend?.cost)} and generating {formatShort(topSpend?.impressions)} top-funnel impressions.</p>
-             <p className="flex items-start gap-3"><span className="text-rose-400 mt-0.5">●</span> <strong>Volume Leader:</strong> The '{topPurchases?.name}' objective completely dominates bottom-funnel activity, delivering {formatShort(topPurchases?.purchases)} verified purchases.</p>
-             <p className="flex items-start gap-3"><span className="text-amber-400 mt-0.5">●</span> <strong>Efficiency Champion:</strong> The most cost-effective conversion path is '{bestCPP?.name}', achieving a highly efficient CPP of {formatC(bestCPP?.cpp, 2)}.</p>
-             <p className="flex items-start gap-3 mt-4 pt-4 border-t border-white/10"><span className="text-emerald-400 font-bold">Action Plan:</span> Reallocating budget from lower-performing algorithmic segments into the '{bestCPP?.name}' framework could drastically improve overall return on ad spend (ROAS) while maintaining target purchase volume.</p>
-          </div>
-       );
-    }
-    
-    if (context === 'os') {
-       const sortedBySpend = [...activeData].sort((a,b)=>b.cost - a.cost);
-       const sortedByPurchases = [...activeData].sort((a,b)=>b.purchases - a.purchases);
-       const validCPP = [...activeData].filter(d=>d.purchases>0).sort((a,b)=>a.cpp - b.cpp);
-       
-       const topSpend = sortedBySpend[0];
-       const topPurchases = sortedByPurchases[0];
-       const bestCPP = validCPP[0];
-
-       if (!topSpend) return "Insufficient OS data based on current filters.";
-
-       return (
-          <div className="space-y-3 text-sm text-purple-50">
-             <p className="flex items-start gap-3"><span className="text-purple-400 mt-0.5">●</span> <strong>Platform Investment:</strong> '{topSpend?.name}' users capture the majority of the ad spend, utilizing {formatC(topSpend?.cost)}.</p>
-             <p className="flex items-start gap-3"><span className="text-rose-400 mt-0.5">●</span> <strong>Conversion Leader:</strong> The '{topPurchases?.name}' ecosystem drives the highest volume of bottom-funnel intent with {formatShort(topPurchases?.purchases)} verified purchases.</p>
-             <p className="flex items-start gap-3"><span className="text-amber-400 mt-0.5">●</span> <strong>Efficiency Champion:</strong> Acquisitions on '{bestCPP?.name}' are currently the most cost-effective, maintaining a highly efficient CPP of {formatC(bestCPP?.cpp, 2)}.</p>
-             <p className="flex items-start gap-3 mt-4 pt-4 border-t border-white/10"><span className="text-emerald-400 font-bold">Action Plan:</span> Consider adjusting bid modifiers to prioritize traffic from the '{bestCPP?.name}' operating system to lower blended CPP, while investigating funnel drop-offs on less efficient platforms.</p>
-          </div>
-       );
-    }
-    
-    return "";
-  }
-
-  // --- RENDERS ---
-  function renderLeaderboard() {
-    const topInstalls = [...channelBreakdown].sort((a,b)=>b.installs - a.installs)[0];
-    const topCPP = [...channelBreakdown].filter(c=>c.purchases > 0 && c.cost > 0).sort((a,b)=>a.cpp - b.cpp)[0];
-    const topMarket = [...marketBreakdown].sort((a,b)=>b.purchases - a.purchases)[0];
-
-    return (
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-8">
-         <div onClick={() => handleDrillDown('market', topMarket?.name)} className="bg-[#131A2A] p-5 rounded-2xl border border-white/5 flex items-center gap-4 hover:border-purple-500/50 hover:bg-white/5 transition-all cursor-pointer group">
-            <div className="p-3 bg-purple-500/20 text-purple-400 rounded-xl group-hover:scale-110 transition-transform"><Trophy className="w-5 h-5"/></div>
-            <div className="flex-1"><p className="text-[10px] uppercase tracking-widest text-slate-400 flex justify-between">Top Market (Sales) <ArrowRight className="w-3 h-3 opacity-0 group-hover:opacity-100 text-purple-400"/></p><p className="font-black text-white">{topMarket?.name || 'N/A'}</p></div>
-         </div>
-         <div onClick={() => handleDrillDown('channel', topInstalls?.name)} className="bg-[#131A2A] p-5 rounded-2xl border border-white/5 flex items-center gap-4 hover:border-emerald-500/50 hover:bg-white/5 transition-all cursor-pointer group">
-            <div className="p-3 bg-emerald-500/20 text-emerald-400 rounded-xl group-hover:scale-110 transition-transform"><Layers className="w-5 h-5"/></div>
-            <div className="flex-1"><p className="text-[10px] uppercase tracking-widest text-slate-400 flex justify-between">Volume Leader <ArrowRight className="w-3 h-3 opacity-0 group-hover:opacity-100 text-emerald-400"/></p><p className="font-black text-white">{topInstalls?.name || 'N/A'}</p></div>
-         </div>
-         <div onClick={() => handleDrillDown('channel', topCPP?.name)} className="bg-[#131A2A] p-5 rounded-2xl border border-white/5 flex items-center gap-4 hover:border-amber-500/50 hover:bg-white/5 transition-all cursor-pointer group">
-            <div className="p-3 bg-amber-500/20 text-amber-400 rounded-xl group-hover:scale-110 transition-transform"><Zap className="w-5 h-5"/></div>
-            <div className="flex-1"><p className="text-[10px] uppercase tracking-widest text-slate-400 flex justify-between">Most Efficient Paid <ArrowRight className="w-3 h-3 opacity-0 group-hover:opacity-100 text-amber-400"/></p><p className="font-black text-white">{topCPP?.name || 'N/A'} <span className="text-amber-400 text-xs font-bold">({formatC(topCPP?.cpp, 2)} CPP)</span></p></div>
-         </div>
-      </div>
-    );
-  }
-
-  function renderKpiTracker() {
-    const canSetKpi = dateRange.start && dateRange.end && trafficFilter === 'Paid';
-
-    if (!canSetKpi) {
-      return (
-        <div className="mb-8 w-full border border-dashed border-white/10 rounded-2xl p-6 text-slate-500 flex items-center justify-center gap-3 font-bold text-sm bg-[#131A2A]/50 cursor-not-allowed">
-          <Target className="w-5 h-5 opacity-50" /> KPI Tracker (Requires custom Date Range & 'Paid' Traffic filter to activate)
-        </div>
-      );
-    }
-
-    if (kpi.isOpen && !kpi.isSet) {
-      return (
-        <div className="mb-8 bg-[#131A2A] p-8 rounded-[2rem] border border-purple-500/30 shadow-xl relative overflow-hidden animate-in fade-in slide-in-from-top-4">
-           <div className="absolute top-0 right-0 w-32 h-32 bg-purple-500/10 rounded-full blur-3xl"></div>
-           <div className="flex justify-between items-center mb-6 relative z-10">
-             <h4 className="text-sm font-black text-white uppercase tracking-widest flex items-center gap-2"><Target className="w-4 h-4 text-purple-400" /> Configure KPI Targets ({dateRange.start} to {dateRange.end})</h4>
-             <button onClick={() => setKpi({...kpi, isOpen: false})} className="text-slate-400 hover:text-white"><Zap className="w-4 h-4 rotate-45"/></button>
-           </div>
-           <div className="grid grid-cols-2 md:grid-cols-4 gap-4 relative z-10">
-              <input type="number" placeholder={`Budget (${currency})`} value={kpi.budget} onChange={e=>setKpi({...kpi, budget: e.target.value})} className="w-full text-xs font-bold text-white bg-[#0B0F19] border border-white/10 rounded-xl px-4 py-3 outline-none focus:border-purple-500" />
-              <input type="number" placeholder="Target Impressions" value={kpi.impressions} onChange={e=>setKpi({...kpi, impressions: e.target.value})} className="w-full text-xs font-bold text-white bg-[#0B0F19] border border-white/10 rounded-xl px-4 py-3 outline-none focus:border-purple-500" />
-              <input type="number" placeholder="Target Installs" value={kpi.installs} onChange={e=>setKpi({...kpi, installs: e.target.value})} className="w-full text-xs font-bold text-white bg-[#0B0F19] border border-white/10 rounded-xl px-4 py-3 outline-none focus:border-purple-500" />
-              <input type="number" placeholder="Target Purchases" value={kpi.purchases} onChange={e=>setKpi({...kpi, purchases: e.target.value})} className="w-full text-xs font-bold text-white bg-[#0B0F19] border border-white/10 rounded-xl px-4 py-3 outline-none focus:border-purple-500" />
-           </div>
-           <button onClick={() => setKpi({...kpi, isSet: true, isOpen: false})} className="mt-6 w-full bg-gradient-to-r from-purple-600 to-rose-500 text-white rounded-xl py-3 font-black text-sm shadow-lg shadow-purple-500/25 transition-all hover:scale-[1.01] relative z-10">Track Pacing Against Live Data</button>
-        </div>
-      );
-    }
-
-    if (kpi.isSet) {
-      const actuals = metrics; 
-      const bPct = Math.min((actuals.cost / (parseFloat(kpi.budget) / exRate || 1)) * 100, 100);
-      const impPct = Math.min((actuals.impressions / (parseFloat(kpi.impressions) || 1)) * 100, 100);
-      const instPct = Math.min((actuals.installs / (parseFloat(kpi.installs) || 1)) * 100, 100);
-      const purPct = Math.min((actuals.purchases / (parseFloat(kpi.purchases) || 1)) * 100, 100);
-
-      const ProgressBar = ({ label, actual, target, pct, isCurr, color = "bg-purple-500" }) => (
-        <div>
-          <div className="flex justify-between text-xs font-bold text-slate-300 mb-2">
-            <span>{label}</span>
-            <span>{isCurr ? formatC(actual) : d3.format(",.0f")(actual)} / {isCurr ? `${exSym}${d3.format(",.0f")(target)}` : d3.format(",.0f")(target)}</span>
-          </div>
-          <div className="h-2 bg-[#0B0F19] rounded-full overflow-hidden border border-white/5">
-            <div className={`h-full ${color} rounded-full relative`} style={{ width: `${pct}%` }}>
-              <div className="absolute inset-0 bg-white/20 w-full animate-[shimmer_2s_infinite]"></div>
-            </div>
-          </div>
-        </div>
-      );
-
-      return (
-        <div className="mb-8 bg-[#131A2A] p-8 rounded-[2rem] border border-white/5 shadow-xl animate-in fade-in">
-           <div className="flex justify-between items-center mb-6">
-             <h4 className="text-sm font-black text-white uppercase tracking-widest flex items-center gap-2"><Target className="w-4 h-4 text-purple-400" /> Goal Pacing ({dateRange.start} to {dateRange.end})</h4>
-             <button onClick={() => setKpi({...kpi, isSet: false, isOpen: true})} className="text-xs font-black uppercase tracking-widest text-purple-400 hover:text-purple-300">Edit Goals</button>
-           </div>
-           <div className="grid grid-cols-1 md:grid-cols-2 gap-x-8 gap-y-6">
-              <ProgressBar label="Budget Delivery" actual={actuals.cost} target={kpi.budget} pct={bPct} isCurr color="bg-blue-500" />
-              <ProgressBar label="Impressions Generated" actual={actuals.impressions} target={kpi.impressions} pct={impPct} color="bg-cyan-500" />
-              <ProgressBar label="Installs Acquired" actual={actuals.installs} target={kpi.installs} pct={instPct} color="bg-emerald-500" />
-              <ProgressBar label="Purchases Acquired" actual={actuals.purchases} target={kpi.purchases} pct={purPct} color="bg-rose-500" />
-           </div>
-        </div>
-      );
-    }
-
-    return (
-      <button onClick={() => setKpi({...kpi, isOpen: true})} className="mb-8 w-full border border-dashed border-white/10 rounded-2xl p-6 text-slate-400 hover:text-white hover:border-purple-500/50 hover:bg-purple-500/5 transition-all flex items-center justify-center gap-3 font-bold text-sm">
-        <Target className="w-5 h-5 text-purple-400" /> Set Campaign Goal & KPI Pacing Tracker
-      </button>
-    );
-  }
-
-  function renderSummary() {
-    const ltr = metrics.installs > 0 ? ((metrics.logins / metrics.installs) * 100).toFixed(2) : 0;
-    const ltp = metrics.logins > 0 ? ((metrics.purchases / metrics.logins) * 100).toFixed(2) : 0;
-    const cvr = metrics.installs > 0 ? ((metrics.purchases / metrics.installs) * 100).toFixed(2) : 0;
-    const topMarket = marketBreakdown[0]?.name || 'N/A';
-    const topChannel = channelBreakdown[0]?.name || 'N/A';
-
-    const summaryInsights = [
-      `Overall Funnel Efficiency: Out of ${formatShort(metrics.installs)} installs, ${ltr}% successfully logged in, and ${ltp}% of those logins resulted in a confirmed purchase.`,
-      `Cost Dynamics: The blended Cost Per Install (CPI) sits at ${formatC(metrics.cpi, 2)}, scaling to an effective Cost Per Purchase (CPP) of ${formatC(metrics.cpp, 2)}.`,
-      `Platform vs Adjust Sync: A total ad spend of ${formatC(metrics.cost)} generated ${formatShort(metrics.clicks)} clicks, converting to ${formatShort(metrics.purchases)} Adjust-verified purchases (a ${cvr}% install-to-purchase rate).`,
-      `Market & Channel Leaders: '${topMarket}' is currently the most active geographical market, while '${topChannel}' drives the highest measurable bottom-funnel engagement.`
-    ];
-
-    return (
-      <div className="animate-in fade-in duration-700">
-        
-        {renderLeaderboard()}
-
-        <div className="grid grid-cols-2 md:grid-cols-5 gap-4 mb-10">
-          <MetricCard label="Ad Spend" value={formatC(metrics.cost)} color="text-purple-400" />
-          <MetricCard label="Impressions" value={formatShort(metrics.impressions)} color="text-cyan-400" />
-          <MetricCard label="Clicks" value={formatShort(metrics.clicks)} color="text-blue-400" />
-          <MetricCard label="Installs" value={formatShort(metrics.installs)} color="text-emerald-400" />
-          <MetricCard label="Logins" value={formatShort(metrics.logins)} color="text-amber-400" />
-          <MetricCard label="Purchases" value={formatShort(metrics.purchases)} color="text-rose-400" />
-          <MetricCard label="Install-to-Login %" value={`${metrics.ltr.toFixed(2)}%`} color="text-teal-400" />
-          <MetricCard label="Login-to-Purch %" value={`${metrics.ltp.toFixed(2)}%`} color="text-pink-400" />
-          <MetricCard label="CPI" value={formatC(metrics.cpi, 2)} color="text-orange-400" />
-          <MetricCard label="CPP" value={formatC(metrics.cpp, 2)} color="text-red-400" />
-        </div>
-
-        <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
-          <div className="lg:col-span-2 bg-[#131A2A] p-8 rounded-[2.5rem] border border-white/5 shadow-xl flex flex-col relative overflow-hidden">
-            <div className="flex justify-between items-center mb-8 relative z-10">
-              <h4 className="text-sm font-black text-white uppercase tracking-widest flex items-center gap-2"><TrendingUp className="w-4 h-4 text-purple-400" /> Spend vs MMP Installs</h4>
-              <div className="flex gap-4 text-[10px] font-black uppercase text-slate-400">
-                <span className="flex items-center gap-1"><div className="w-2 h-2 rounded-full bg-purple-500"/> Cost</span>
-                <span className="flex items-center gap-1"><div className="w-2 h-2 rounded-full bg-emerald-400"/> Installs</span>
-              </div>
-            </div>
-            <div className="flex-1 min-h-[340px] relative z-10">
-               <DualAxisLineChart chartData={weeklyTimeline} leftKey="cost" rightKey="installs" leftColorText="fill-purple-400" rightColorText="fill-emerald-400" leftColorHex="#a855f7" rightColorHex="#34d399" isLeftCurrency={true} isRightCurrency={false} exSym={exSym} exRate={exRate} />
-            </div>
-          </div>
-          <div className="bg-[#131A2A] p-8 rounded-[2.5rem] border border-white/5 shadow-xl">
-            <h4 className="text-sm font-black text-white mb-6 uppercase tracking-widest flex items-center gap-2"><ShoppingCart className="w-4 h-4 text-rose-400" /> Top Market Purchases</h4>
-            <BarChart chartData={[...marketBreakdown].sort((a,b)=>b.purchases-a.purchases)} valueKey="purchases" color="bg-rose-500" onClickItem={(name) => handleDrillDown('market', name)} exSym={exSym} exRate={exRate} />
-          </div>
-        </div>
-
-        <div className="mt-8 bg-gradient-to-br from-purple-900/40 to-slate-900/40 border border-purple-500/20 p-8 rounded-[2.5rem] shadow-2xl relative overflow-hidden">
-           <div className="absolute top-0 right-0 w-64 h-64 bg-purple-500/10 rounded-full blur-3xl"></div>
-           <div className="flex items-center gap-3 mb-6 relative z-10">
-              <div className="bg-purple-500/20 p-2 rounded-xl"><Zap className="w-5 h-5 text-purple-400" /></div>
-              <h4 className="text-lg font-black text-white tracking-tight">Executive AI Analysis</h4>
-           </div>
-           <ul className="space-y-4 relative z-10">
-              {summaryInsights.map((bullet, idx) => (
-                 <li key={idx} className="flex items-start gap-4 p-4 rounded-2xl bg-white/5 border border-white/5 hover:bg-white/10 transition-colors">
-                    <div className="w-2 h-2 rounded-full bg-purple-400 mt-1.5 flex-shrink-0 shadow-[0_0_8px_rgba(168,85,247,0.8)]" />
-                    <p className="text-sm font-medium text-slate-300 leading-relaxed">{bullet}</p>
-                 </li>
-              ))}
-           </ul>
-        </div>
-      </div>
-    );
-  }
-
-  function renderMarket() {
-    const activeMarketData = filterMarkets.includes('All') 
-      ? null 
-      : d3.groups(tabData, d => d.timeKey).map(([key, values]) => ({ week: values[0].week, year: values[0].year, ...aggregate(values) })).sort((a,b) => a.week - b.week);
-          
-    const activeMarketSummary = filterMarkets.includes('All') ? null : aggregate(tabData);
-
-    const sortedByInstalls = [...marketBreakdown].sort((a, b) => b.installs - a.installs);
-    const sortedByPurchases = [...marketBreakdown].sort((a, b) => b.purchases - a.purchases);
-    const validCPI = [...marketBreakdown].filter(m => m.installs > 0 && m.cost > 0).sort((a, b) => a.cpi - b.cpi);
-    const validCPP = [...marketBreakdown].filter(m => m.purchases > 0 && m.cost > 0).sort((a, b) => a.cpp - b.cpp);
-
-    return (
-      <div className="animate-in fade-in duration-500">
-        <div className="mb-6">
-          <h2 className="text-3xl font-black text-white tracking-tight">Market Intelligence</h2>
-          <p className="text-slate-400 font-medium italic">Geographical footprint filtered dynamically by traffic segment parameters.</p>
-        </div>
-
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 mb-8 border-b border-white/5 pb-6">
-          <MultiSelectDropdown label="Market Filter" options={uniqueMarkets} selected={filterMarkets} onChange={setFilterMarkets} />
-          <MultiSelectDropdown label="Channel Filter" options={uniqueChannels} selected={filterChannels} onChange={setFilterChannels} />
-          <MultiSelectDropdown label="Campaign Type" options={uniqueCampaigns} selected={filterCampaigns} onChange={setFilterCampaigns} />
-          <MultiSelectDropdown label="OS Filter" options={uniqueOS} selected={filterOS} onChange={setFilterOS} />
-        </div>
-
-        {filterMarkets.includes('All') ? (
-          <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
-            <EntityBarChartCard title="Total Installs" icon={Download} data={sortedByInstalls} dataKey="installs" color="bg-emerald-500" insight={`${sortedByInstalls[0]?.name || 'Top market'} leads acquisition volume.`} drillDownType="market" onDrillDown={handleDrillDown} exSym={exSym} exRate={exRate} />
-            <EntityBarChartCard title="Total Purchases" icon={ShoppingCart} data={sortedByPurchases} dataKey="purchases" color="bg-rose-500" insight={`${sortedByPurchases[0]?.name || 'Top market'} drives highest bottom-funnel intent.`} drillDownType="market" onDrillDown={handleDrillDown} exSym={exSym} exRate={exRate} />
-            <EntityBarChartCard title="Cost Per Install (CPI)" icon={Activity} data={validCPI.slice(0, 8)} dataKey="cpi" color="bg-amber-500" isCurrency={true} insight={`${validCPI[0]?.name || 'Top market'} offers most cost-effective top-funnel acquisition.`} drillDownType="market" onDrillDown={handleDrillDown} exSym={exSym} exRate={exRate} />
-            <EntityBarChartCard title="Cost Per Purchase (CPP)" icon={Target} data={validCPP.slice(0, 8)} dataKey="cpp" color="bg-red-500" isCurrency={true} insight={`${validCPP[0]?.name || 'Top market'} delivers best conversion ROI.`} drillDownType="market" onDrillDown={handleDrillDown} exSym={exSym} exRate={exRate} />
-          </div>
-        ) : (
-          <div className="animate-in fade-in zoom-in-95 duration-500">
-            <div className="grid grid-cols-2 lg:grid-cols-5 gap-4 mb-8">
-               <MetricCard label="Ad Spend" value={formatC(activeMarketSummary?.cost || 0)} color="text-purple-400" />
-               <MetricCard label="Installs" value={formatShort(activeMarketSummary?.installs || 0)} color="text-emerald-400" />
-               <MetricCard label="Purchases" value={formatShort(activeMarketSummary?.purchases || 0)} color="text-rose-400" />
-               <MetricCard label="CPI" value={formatC(activeMarketSummary?.cpi || 0, 2)} color="text-amber-400" />
-               <MetricCard label="CPP" value={formatC(activeMarketSummary?.cpp || 0, 2)} color="text-red-400" />
-            </div>
-
-            <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
-               <div className="bg-[#131A2A] p-8 rounded-[2.5rem] border border-white/5 shadow-xl flex flex-col">
-                 <div className="flex justify-between items-center mb-8">
-                   <h4 className="text-sm font-black text-white uppercase tracking-widest flex items-center gap-2"><Layers className="w-4 h-4 text-emerald-400" /> Volume: Installs & Purchases</h4>
-                 </div>
-                 <div className="flex-1 min-h-[300px]">
-                    <DualAxisLineChart chartData={activeMarketData} leftKey="installs" rightKey="purchases" leftColorText="fill-emerald-400" rightColorText="fill-rose-400" leftColorHex="#34d399" rightColorHex="#fb7185" isLeftCurrency={false} isRightCurrency={false} exSym={exSym} exRate={exRate} />
-                 </div>
-               </div>
-
-               <div className="bg-[#131A2A] p-8 rounded-[2.5rem] border border-white/5 shadow-xl flex flex-col">
-                 <div className="flex justify-between items-center mb-8">
-                   <h4 className="text-sm font-black text-white uppercase tracking-widest flex items-center gap-2"><Activity className="w-4 h-4 text-amber-400" /> Efficiency: CPI & CPP</h4>
-                 </div>
-                 <div className="flex-1 min-h-[300px]">
-                    <DualAxisLineChart chartData={activeMarketData} leftKey="cpi" rightKey="cpp" leftColorText="fill-amber-400" rightColorText="fill-red-400" leftColorHex="#fbbf24" rightColorHex="#f87171" isLeftCurrency={true} isRightCurrency={true} exSym={exSym} exRate={exRate} />
-                 </div>
-               </div>
-            </div>
-          </div>
-        )}
-      </div>
-    );
-  }
-
-  function renderChannel() {
-    const sortedByInstalls = [...channelBreakdown].sort((a, b) => b.installs - a.installs);
-    const sortedByPurchases = [...channelBreakdown].sort((a, b) => b.purchases - a.purchases);
-    const validCPI = [...channelBreakdown].filter(c => c.installs > 0 && c.cost > 0).sort((a, b) => a.cpi - b.cpi);
-    const validCPP = [...channelBreakdown].filter(c => c.purchases > 0 && c.cost > 0).sort((a, b) => a.cpp - b.cpp);
-
-    const activeChannelData = filterChannels.includes('All') 
-      ? null 
-      : d3.groups(tabData, d => d.timeKey).map(([key, values]) => ({ week: values[0].week, year: values[0].year, ...aggregate(values) })).sort((a,b) => a.week - b.week);
-          
-    const activeChannelSummary = filterChannels.includes('All') ? null : aggregate(tabData);
-
-    return (
-      <div className="animate-in fade-in duration-500">
-        <div className="mb-6">
-          <h2 className="text-3xl font-black text-white tracking-tight">Channel Attribution</h2>
-          <p className="text-slate-400 font-medium italic">Marketing platform performance filtered dynamically by traffic segment.</p>
-        </div>
-
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 mb-8 border-b border-white/5 pb-6">
-          <MultiSelectDropdown label="Market Filter" options={uniqueMarkets} selected={filterMarkets} onChange={setFilterMarkets} />
-          <MultiSelectDropdown label="Channel Filter" options={uniqueChannels} selected={filterChannels} onChange={setFilterChannels} />
-          <MultiSelectDropdown label="Campaign Type" options={uniqueCampaigns} selected={filterCampaigns} onChange={setFilterCampaigns} />
-          <MultiSelectDropdown label="OS Filter" options={uniqueOS} selected={filterOS} onChange={setFilterOS} />
-        </div>
-
-        {filterChannels.includes('All') ? (
-          <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
-            <EntityBarChartCard title="Total Installs" icon={Download} data={sortedByInstalls} dataKey="installs" color="bg-emerald-500" insight={`${sortedByInstalls[0]?.name || 'Top channel'} drives highest top-funnel acquisition.`} drillDownType="channel" onDrillDown={handleDrillDown} exSym={exSym} exRate={exRate} />
-            <EntityBarChartCard title="Total Purchases" icon={ShoppingCart} data={sortedByPurchases} dataKey="purchases" color="bg-rose-500" insight={`${sortedByPurchases[0]?.name || 'Top channel'} brings in highest volume of paying users.`} drillDownType="channel" onDrillDown={handleDrillDown} exSym={exSym} exRate={exRate} />
-            <EntityBarChartCard title="Cost Per Install (CPI)" icon={Activity} data={validCPI.slice(0, 8)} dataKey="cpi" color="bg-amber-500" isCurrency={true} insight={`${validCPI[0]?.name || 'Top channel'} provides cheapest initial user acquisition.`} drillDownType="channel" onDrillDown={handleDrillDown} exSym={exSym} exRate={exRate} />
-            <EntityBarChartCard title="Cost Per Purchase (CPP)" icon={Target} data={validCPP.slice(0, 8)} dataKey="cpp" color="bg-red-500" isCurrency={true} insight={`${validCPP[0]?.name || 'Top channel'} is your most efficient conversion engine.`} drillDownType="channel" onDrillDown={handleDrillDown} exSym={exSym} exRate={exRate} />
-          </div>
-        ) : (
-          <div className="animate-in fade-in zoom-in-95 duration-500">
-            <div className="grid grid-cols-2 md:grid-cols-4 xl:grid-cols-7 gap-4 mb-8">
-               <MetricCard label="Ad Spend" value={formatC(activeChannelSummary?.cost || 0)} color="text-purple-400" />
-               <MetricCard label="Impressions" value={formatShort(activeChannelSummary?.impressions || 0)} color="text-cyan-400" />
-               <MetricCard label="Clicks" value={formatShort(activeChannelSummary?.clicks || 0)} color="text-blue-400" />
-               <MetricCard label="Installs" value={formatShort(activeChannelSummary?.installs || 0)} color="text-emerald-400" />
-               <MetricCard label="Purchases" value={formatShort(activeChannelSummary?.purchases || 0)} color="text-rose-400" />
-               <MetricCard label="CPI" value={formatC(activeChannelSummary?.cpi || 0, 2)} color="text-amber-400" />
-               <MetricCard label="CPP" value={formatC(activeChannelSummary?.cpp || 0, 2)} color="text-red-400" />
-            </div>
-
-            <div className="grid grid-cols-1 lg:grid-cols-2 gap-8 mb-8">
-               <div className="bg-[#131A2A] p-8 rounded-[2.5rem] border border-white/5 shadow-xl flex flex-col">
-                 <div className="flex justify-between items-center mb-8">
-                   <h4 className="text-sm font-black text-white uppercase tracking-widest flex items-center gap-2"><Layers className="w-4 h-4 text-emerald-400" /> Volume: Installs & Purchases</h4>
-                 </div>
-                 <div className="flex-1 min-h-[300px]">
-                    <DualAxisLineChart chartData={activeChannelData} leftKey="installs" rightKey="purchases" leftColorText="fill-emerald-400" rightColorText="fill-rose-400" leftColorHex="#34d399" rightColorHex="#fb7185" isLeftCurrency={false} isRightCurrency={false} exSym={exSym} exRate={exRate} />
-                 </div>
-               </div>
-               <div className="bg-[#131A2A] p-8 rounded-[2.5rem] border border-white/5 shadow-xl flex flex-col">
-                 <div className="flex justify-between items-center mb-8">
-                   <h4 className="text-sm font-black text-white uppercase tracking-widest flex items-center gap-2"><Activity className="w-4 h-4 text-red-400" /> Efficiency: CPI & CPP</h4>
-                 </div>
-                 <div className="flex-1 min-h-[300px]">
-                    <DualAxisLineChart chartData={activeChannelData} leftKey="cpi" rightKey="cpp" leftColorText="fill-amber-400" rightColorText="fill-red-400" leftColorHex="#fbbf24" rightColorHex="#f87171" isLeftCurrency={true} isRightCurrency={true} exSym={exSym} exRate={exRate} />
-                 </div>
-               </div>
-            </div>
-
-            <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
-               <div className="bg-[#131A2A] p-8 rounded-[2.5rem] border border-white/5 shadow-xl flex flex-col">
-                 <div className="flex justify-between items-center mb-8">
-                   <h4 className="text-sm font-black text-white uppercase tracking-widest flex items-center gap-2"><Eye className="w-4 h-4 text-cyan-400" /> Awareness: Impressions & CPM</h4>
-                 </div>
-                 <div className="flex-1 min-h-[300px]">
-                    <DualAxisLineChart chartData={activeChannelData} leftKey="impressions" rightKey="cpm" leftColorText="fill-cyan-400" rightColorText="fill-purple-400" leftColorHex="#0891b2" rightColorHex="#9333ea" isLeftCurrency={false} isRightCurrency={true} exSym={exSym} exRate={exRate} />
-                 </div>
-               </div>
-               <div className="bg-[#131A2A] p-8 rounded-[2.5rem] border border-white/5 shadow-xl flex flex-col">
-                 <div className="flex justify-between items-center mb-8">
-                   <h4 className="text-sm font-black text-white uppercase tracking-widest flex items-center gap-2"><MousePointer2 className="w-4 h-4 text-blue-400" /> Engagement: Clicks & CPC</h4>
-                 </div>
-                 <div className="flex-1 min-h-[300px]">
-                    <DualAxisLineChart chartData={activeChannelData} leftKey="clicks" rightKey="cpc" leftColorText="fill-blue-400" rightColorText="fill-orange-400" leftColorHex="#2563eb" rightColorHex="#ea580c" isLeftCurrency={false} isRightCurrency={true} exSym={exSym} exRate={exRate} />
-                 </div>
-               </div>
-            </div>
-          </div>
-        )}
-      </div>
-    );
-  }
-
-  function renderCampaign() {
-    const validCPI = [...campaignTypeBreakdown].filter(c => c.installs > 0 && c.cost > 0).sort((a, b) => a.cpi - b.cpi);
-    const validCPP = [...campaignTypeBreakdown].filter(c => c.purchases > 0 && c.cost > 0).sort((a, b) => a.cpp - b.cpp);
-
-    const activeCampaignData = filterCampaigns.includes('All') 
-      ? null 
-      : d3.groups(tabData, d => d.timeKey).map(([key, values]) => ({ week: values[0].week, year: values[0].year, ...aggregate(values) })).sort((a,b) => a.week - b.week);
-          
-    const activeCampaignSummary = filterCampaigns.includes('All') ? null : aggregate(tabData);
-
-    return (
-      <div className="animate-in fade-in duration-500">
-        <div className="mb-6">
-          <h2 className="text-3xl font-black text-white tracking-tight">Campaign Objectives</h2>
-          <p className="text-slate-400 font-medium italic">Attribution and efficiency mapped by creative and strategic intent.</p>
-        </div>
-
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 mb-8 border-b border-white/5 pb-6">
-          <MultiSelectDropdown label="Market Filter" options={uniqueMarkets} selected={filterMarkets} onChange={setFilterMarkets} />
-          <MultiSelectDropdown label="Channel Filter" options={uniqueChannels} selected={filterChannels} onChange={setFilterChannels} />
-          <MultiSelectDropdown label="Campaign Type" options={uniqueCampaigns} selected={filterCampaigns} onChange={setFilterCampaigns} />
-          <MultiSelectDropdown label="OS Filter" options={uniqueOS} selected={filterOS} onChange={setFilterOS} />
-        </div>
-
-        <InsightBox text={getAIInsight('campaign', campaignTypeBreakdown)} />
-
-        {filterCampaigns.includes('All') ? (
-          <>
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-8 mb-8">
-               <div className="bg-[#131A2A] p-6 rounded-[2rem] border border-white/5 shadow-xl flex flex-col hover:border-purple-500/30 transition-colors">
-                  <div className="flex items-center gap-3 mb-6">
-                     <div className="p-2 rounded-xl bg-white/5"><DollarSign className="w-4 h-4 text-purple-400" /></div>
-                     <h4 className="text-sm font-black text-white uppercase tracking-widest">Spends by Objective</h4>
-                  </div>
-                  <div className="flex-1"><DonutChart chartData={campaignTypeBreakdown} valueKey="cost" isCurrency={true} exSym={exSym} exRate={exRate} /></div>
-               </div>
-
-               <div className="bg-[#131A2A] p-6 rounded-[2rem] border border-white/5 shadow-xl flex flex-col hover:border-emerald-500/30 transition-colors">
-                  <div className="flex items-center gap-3 mb-6">
-                     <div className="p-2 rounded-xl bg-white/5"><Download className="w-4 h-4 text-emerald-400" /></div>
-                     <h4 className="text-sm font-black text-white uppercase tracking-widest">Installs by Objective</h4>
-                  </div>
-                  <div className="flex-1"><DonutChart chartData={campaignTypeBreakdown} valueKey="installs" /></div>
-               </div>
-
-               <div className="bg-[#131A2A] p-6 rounded-[2rem] border border-white/5 shadow-xl flex flex-col hover:border-rose-500/30 transition-colors">
-                  <div className="flex items-center gap-3 mb-6">
-                     <div className="p-2 rounded-xl bg-white/5"><ShoppingCart className="w-4 h-4 text-rose-400" /></div>
-                     <h4 className="text-sm font-black text-white uppercase tracking-widest">Purchases by Obj.</h4>
-                  </div>
-                  <div className="flex-1"><DonutChart chartData={campaignTypeBreakdown} valueKey="purchases" /></div>
-               </div>
-            </div>
-
-            <div className="grid grid-cols-1 lg:grid-cols-2 gap-8 mb-8">
-              <EntityBarChartCard title="CPI by Objective" icon={Activity} data={validCPI.slice(0, 8)} dataKey="cpi" color="bg-amber-500" isCurrency={true} insight={`${validCPI[0]?.name || 'Top objective'} offers most cost-effective acquisition.`} drillDownType="campaign" onDrillDown={handleDrillDown} exSym={exSym} exRate={exRate} />
-              <EntityBarChartCard title="CPP by Objective" icon={Target} data={validCPP.slice(0, 8)} dataKey="cpp" color="bg-red-500" isCurrency={true} insight={`${validCPP[0]?.name || 'Top objective'} is your most efficient conversion type.`} drillDownType="campaign" onDrillDown={handleDrillDown} exSym={exSym} exRate={exRate} />
-            </div>
-
-            <div className="bg-[#131A2A] rounded-[2rem] border border-white/5 shadow-xl overflow-hidden mb-8">
-              <div className="overflow-x-auto">
-                <table className="w-full text-left min-w-[1000px]">
-                  <thead className="bg-[#1A2235] border-b border-white/5">
-                    <tr className="text-[10px] font-black uppercase tracking-widest text-slate-400">
-                      <th className="px-6 py-5">Campaign Objective</th>
-                      <th className="px-6 py-5 text-right text-purple-400">Cost</th>
-                      <th className="px-6 py-5 text-right">Impressions</th>
-                      <th className="px-6 py-5 text-right">Clicks</th>
-                      <th className="px-6 py-5 text-right text-emerald-400">Installs</th>
-                      <th className="px-6 py-5 text-right text-indigo-400">Sessions</th>
-                      <th className="px-6 py-5 text-right text-cyan-400">Logins</th>
-                      <th className="px-6 py-5 text-right text-slate-500">Ins-Log %</th>
-                      <th className="px-6 py-5 text-right text-rose-400">Purchases</th>
-                      <th className="px-6 py-5 text-right text-slate-500">Ins-Pur %</th>
-                      <th className="px-6 py-5 text-right text-amber-400">CPI</th>
-                      <th className="px-6 py-5 text-right text-red-400">CPP</th>
-                    </tr>
-                  </thead>
-                  <tbody className="divide-y divide-white/5">
-                    {campaignTypeBreakdown.map((row, i) => (
-                      <tr key={i} onClick={() => setFilterCampaigns([row.name])} className="hover:bg-white/5 transition-colors group cursor-pointer">
-                        <td className="px-6 py-5">
-                          <div className="flex items-center gap-3">
-                            <div className="w-2 h-2 rounded-full bg-purple-500 shadow-[0_0_8px_rgba(168,85,247,0.8)]" />
-                            <span className="font-black text-white group-hover:text-purple-300 transition-colors">{row.name}</span>
-                          </div>
-                        </td>
-                        <td className="px-6 py-5 text-right font-mono font-bold text-slate-300">{formatC(row.cost)}</td>
-                        <td className="px-6 py-5 text-right font-mono text-slate-400">{formatShort(row.impressions)}</td>
-                        <td className="px-6 py-5 text-right font-mono text-slate-400">{formatShort(row.clicks)}</td>
-                        <td className="px-6 py-5 text-right font-mono font-bold text-emerald-400">{formatShort(row.installs)}</td>
-                        <td className="px-6 py-5 text-right font-mono font-bold text-indigo-400">{formatShort(row.sessions)}</td>
-                        <td className="px-6 py-5 text-right font-mono font-bold text-cyan-400">{formatShort(row.logins)}</td>
-                        <td className="px-6 py-5 text-right font-mono font-bold text-slate-500">{row.ltr.toFixed(1)}%</td>
-                        <td className="px-6 py-5 text-right font-mono font-bold text-rose-400">{formatShort(row.purchases)}</td>
-                        <td className="px-6 py-5 text-right font-mono font-bold text-slate-500">{row.ipr.toFixed(1)}%</td>
-                        <td className="px-6 py-5 text-right"><span className="bg-amber-500/10 text-amber-400 px-3 py-1 rounded-full text-[10px] font-black border border-amber-500/20">{formatC(row.cpi, 2)}</span></td>
-                        <td className="px-6 py-5 text-right"><span className="bg-red-500/10 text-red-400 px-3 py-1 rounded-full text-[10px] font-black border border-red-500/20">{formatC(row.cpp, 2)}</span></td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
-              </div>
-            </div>
-          </>
-        ) : (
-          <div className="animate-in fade-in zoom-in-95 duration-500">
-            <div className="grid grid-cols-2 md:grid-cols-4 xl:grid-cols-7 gap-4 mb-8">
-               <MetricCard label="Ad Spend" value={formatC(activeCampaignSummary?.cost || 0)} color="text-purple-400" />
-               <MetricCard label="Impressions" value={formatShort(activeCampaignSummary?.impressions || 0)} color="text-cyan-400" />
-               <MetricCard label="Clicks" value={formatShort(activeCampaignSummary?.clicks || 0)} color="text-blue-400" />
-               <MetricCard label="Installs" value={formatShort(activeCampaignSummary?.installs || 0)} color="text-emerald-400" />
-               <MetricCard label="Purchases" value={formatShort(activeCampaignSummary?.purchases || 0)} color="text-rose-400" />
-               <MetricCard label="CPI" value={formatC(activeCampaignSummary?.cpi || 0, 2)} color="text-amber-400" />
-               <MetricCard label="CPP" value={formatC(activeCampaignSummary?.cpp || 0, 2)} color="text-red-400" />
-            </div>
-
-            <div className="grid grid-cols-1 lg:grid-cols-2 gap-8 mb-8">
-               <div className="bg-[#131A2A] p-8 rounded-[2.5rem] border border-white/5 shadow-xl flex flex-col">
-                 <div className="flex justify-between items-center mb-8">
-                   <h4 className="text-sm font-black text-white uppercase tracking-widest flex items-center gap-2"><Layers className="w-4 h-4 text-emerald-400" /> Volume: Installs & Purchases</h4>
-                 </div>
-                 <div className="flex-1 min-h-[300px]">
-                    <DualAxisLineChart chartData={activeCampaignData} leftKey="installs" rightKey="purchases" leftColorText="fill-emerald-400" rightColorText="fill-rose-400" leftColorHex="#34d399" rightColorHex="#fb7185" isLeftCurrency={false} isRightCurrency={false} exSym={exSym} exRate={exRate} />
-                 </div>
-               </div>
-               <div className="bg-[#131A2A] p-8 rounded-[2.5rem] border border-white/5 shadow-xl flex flex-col">
-                 <div className="flex justify-between items-center mb-8">
-                   <h4 className="text-sm font-black text-white uppercase tracking-widest flex items-center gap-2"><Activity className="w-4 h-4 text-red-400" /> Efficiency: CPI & CPP</h4>
-                 </div>
-                 <div className="flex-1 min-h-[300px]">
-                    <DualAxisLineChart chartData={activeCampaignData} leftKey="cpi" rightKey="cpp" leftColorText="fill-amber-400" rightColorText="fill-red-400" leftColorHex="#fbbf24" rightColorHex="#f87171" isLeftCurrency={true} isRightCurrency={true} exSym={exSym} exRate={exRate} />
-                 </div>
-               </div>
-            </div>
-          </div>
-        )}
-      </div>
-    );
-  }
-
-  function renderOS() {
-    const validCPI = [...osBreakdown].filter(c => c.installs > 0 && c.cost > 0).sort((a, b) => a.cpi - b.cpi);
-    const validCPP = [...osBreakdown].filter(c => c.purchases > 0 && c.cost > 0).sort((a, b) => a.cpp - b.cpp);
-
-    const activeOSData = filterOS.includes('All') 
-      ? null 
-      : d3.groups(tabData, d => d.timeKey).map(([key, values]) => ({ week: values[0].week, year: values[0].year, ...aggregate(values) })).sort((a,b) => a.week - b.week);
-          
-    const activeOSSummary = filterOS.includes('All') ? null : aggregate(tabData);
-
-    return (
-      <div className="animate-in fade-in duration-500">
-        <div className="mb-6">
-          <h2 className="text-3xl font-black text-white tracking-tight">Operating System</h2>
-          <p className="text-slate-400 font-medium italic">Device-level efficiency and conversion behaviors.</p>
-        </div>
-
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 mb-8 border-b border-white/5 pb-6">
-          <MultiSelectDropdown label="Market Filter" options={uniqueMarkets} selected={filterMarkets} onChange={setFilterMarkets} />
-          <MultiSelectDropdown label="Channel Filter" options={uniqueChannels} selected={filterChannels} onChange={setFilterChannels} />
-          <MultiSelectDropdown label="Campaign Type" options={uniqueCampaigns} selected={filterCampaigns} onChange={setFilterCampaigns} />
-          <MultiSelectDropdown label="OS Filter" options={uniqueOS} selected={filterOS} onChange={setFilterOS} />
-        </div>
-
-        <InsightBox text={getAIInsight('os', osBreakdown)} />
-
-        {filterOS.includes('All') ? (
-          <>
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-8 mb-8">
-               <div className="bg-[#131A2A] p-6 rounded-[2rem] border border-white/5 shadow-xl flex flex-col hover:border-purple-500/30 transition-colors">
-                  <div className="flex items-center gap-3 mb-6">
-                     <div className="p-2 rounded-xl bg-white/5"><DollarSign className="w-4 h-4 text-purple-400" /></div>
-                     <h4 className="text-sm font-black text-white uppercase tracking-widest">Spends by OS</h4>
-                  </div>
-                  <div className="flex-1"><DonutChart chartData={osBreakdown} valueKey="cost" isCurrency={true} exSym={exSym} exRate={exRate} /></div>
-               </div>
-
-               <div className="bg-[#131A2A] p-6 rounded-[2rem] border border-white/5 shadow-xl flex flex-col hover:border-emerald-500/30 transition-colors">
-                  <div className="flex items-center gap-3 mb-6">
-                     <div className="p-2 rounded-xl bg-white/5"><Download className="w-4 h-4 text-emerald-400" /></div>
-                     <h4 className="text-sm font-black text-white uppercase tracking-widest">Installs by OS</h4>
-                  </div>
-                  <div className="flex-1"><DonutChart chartData={osBreakdown} valueKey="installs" /></div>
-               </div>
-
-               <div className="bg-[#131A2A] p-6 rounded-[2rem] border border-white/5 shadow-xl flex flex-col hover:border-rose-500/30 transition-colors">
-                  <div className="flex items-center gap-3 mb-6">
-                     <div className="p-2 rounded-xl bg-white/5"><ShoppingCart className="w-4 h-4 text-rose-400" /></div>
-                     <h4 className="text-sm font-black text-white uppercase tracking-widest">Purchases by OS</h4>
-                  </div>
-                  <div className="flex-1"><DonutChart chartData={osBreakdown} valueKey="purchases" /></div>
-               </div>
-            </div>
-
-            <div className="grid grid-cols-1 lg:grid-cols-2 gap-8 mb-8">
-              <EntityBarChartCard title="CPI by OS" icon={Activity} data={validCPI.slice(0, 8)} dataKey="cpi" color="bg-amber-500" isCurrency={true} insight={`${validCPI[0]?.name || 'Top OS'} offers most cost-effective acquisition.`} drillDownType="os" onDrillDown={handleDrillDown} exSym={exSym} exRate={exRate} />
-              <EntityBarChartCard title="CPP by OS" icon={Target} data={validCPP.slice(0, 8)} dataKey="cpp" color="bg-red-500" isCurrency={true} insight={`${validCPP[0]?.name || 'Top OS'} is your most efficient conversion platform.`} drillDownType="os" onDrillDown={handleDrillDown} exSym={exSym} exRate={exRate} />
-            </div>
-
-            <div className="bg-[#131A2A] rounded-[2rem] border border-white/5 shadow-xl overflow-hidden mb-8">
-              <div className="overflow-x-auto">
-                <table className="w-full text-left min-w-[1000px]">
-                  <thead className="bg-[#1A2235] border-b border-white/5">
-                    <tr className="text-[10px] font-black uppercase tracking-widest text-slate-400">
-                      <th className="px-6 py-5">OS / Platform</th>
-                      <th className="px-6 py-5 text-right text-purple-400">Cost</th>
-                      <th className="px-6 py-5 text-right">Impressions</th>
-                      <th className="px-6 py-5 text-right">Clicks</th>
-                      <th className="px-6 py-5 text-right text-emerald-400">Installs</th>
-                      <th className="px-6 py-5 text-right text-indigo-400">Sessions</th>
-                      <th className="px-6 py-5 text-right text-cyan-400">Logins</th>
-                      <th className="px-6 py-5 text-right text-slate-500">Ins-Log %</th>
-                      <th className="px-6 py-5 text-right text-rose-400">Purchases</th>
-                      <th className="px-6 py-5 text-right text-slate-500">Ins-Pur %</th>
-                      <th className="px-6 py-5 text-right text-amber-400">CPI</th>
-                      <th className="px-6 py-5 text-right text-red-400">CPP</th>
-                    </tr>
-                  </thead>
-                  <tbody className="divide-y divide-white/5">
-                    {osBreakdown.map((row, i) => (
-                      <tr key={i} onClick={() => setFilterOS([row.name])} className="hover:bg-white/5 transition-colors group cursor-pointer">
-                        <td className="px-6 py-5">
-                          <div className="flex items-center gap-3">
-                            <div className="w-2 h-2 rounded-full bg-purple-500 shadow-[0_0_8px_rgba(168,85,247,0.8)]" />
-                            <span className="font-black text-white group-hover:text-purple-300 transition-colors">{row.name}</span>
-                          </div>
-                        </td>
-                        <td className="px-6 py-5 text-right font-mono font-bold text-slate-300">{formatC(row.cost)}</td>
-                        <td className="px-6 py-5 text-right font-mono text-slate-400">{formatShort(row.impressions)}</td>
-                        <td className="px-6 py-5 text-right font-mono text-slate-400">{formatShort(row.clicks)}</td>
-                        <td className="px-6 py-5 text-right font-mono font-bold text-emerald-400">{formatShort(row.installs)}</td>
-                        <td className="px-6 py-5 text-right font-mono font-bold text-indigo-400">{formatShort(row.sessions)}</td>
-                        <td className="px-6 py-5 text-right font-mono font-bold text-cyan-400">{formatShort(row.logins)}</td>
-                        <td className="px-6 py-5 text-right font-mono font-bold text-slate-500">{row.ltr.toFixed(1)}%</td>
-                        <td className="px-6 py-5 text-right font-mono font-bold text-rose-400">{formatShort(row.purchases)}</td>
-                        <td className="px-6 py-5 text-right font-mono font-bold text-slate-500">{row.ipr.toFixed(1)}%</td>
-                        <td className="px-6 py-5 text-right"><span className="bg-amber-500/10 text-amber-400 px-3 py-1 rounded-full text-[10px] font-black border border-amber-500/20">{formatC(row.cpi, 2)}</span></td>
-                        <td className="px-6 py-5 text-right"><span className="bg-red-500/10 text-red-400 px-3 py-1 rounded-full text-[10px] font-black border border-red-500/20">{formatC(row.cpp, 2)}</span></td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
-              </div>
-            </div>
-          </>
-        ) : (
-          <div className="animate-in fade-in zoom-in-95 duration-500">
-            <div className="grid grid-cols-2 md:grid-cols-4 xl:grid-cols-7 gap-4 mb-8">
-               <MetricCard label="Ad Spend" value={formatC(activeOSSummary?.cost || 0)} color="text-purple-400" />
-               <MetricCard label="Impressions" value={formatShort(activeOSSummary?.impressions || 0)} color="text-cyan-400" />
-               <MetricCard label="Clicks" value={formatShort(activeOSSummary?.clicks || 0)} color="text-blue-400" />
-               <MetricCard label="Installs" value={formatShort(activeOSSummary?.installs || 0)} color="text-emerald-400" />
-               <MetricCard label="Purchases" value={formatShort(activeOSSummary?.purchases || 0)} color="text-rose-400" />
-               <MetricCard label="CPI" value={formatC(activeOSSummary?.cpi || 0, 2)} color="text-amber-400" />
-               <MetricCard label="CPP" value={formatC(activeOSSummary?.cpp || 0, 2)} color="text-red-400" />
-            </div>
-
-            <div className="grid grid-cols-1 lg:grid-cols-2 gap-8 mb-8">
-               <div className="bg-[#131A2A] p-8 rounded-[2.5rem] border border-white/5 shadow-xl flex flex-col">
-                 <div className="flex justify-between items-center mb-8">
-                   <h4 className="text-sm font-black text-white uppercase tracking-widest flex items-center gap-2"><Layers className="w-4 h-4 text-emerald-400" /> Volume: Installs & Purchases</h4>
-                 </div>
-                 <div className="flex-1 min-h-[300px]">
-                    <DualAxisLineChart chartData={activeOSData} leftKey="installs" rightKey="purchases" leftColorText="fill-emerald-400" rightColorText="fill-rose-400" leftColorHex="#34d399" rightColorHex="#fb7185" isLeftCurrency={false} isRightCurrency={false} exSym={exSym} exRate={exRate} />
-                 </div>
-               </div>
-               <div className="bg-[#131A2A] p-8 rounded-[2.5rem] border border-white/5 shadow-xl flex flex-col">
-                 <div className="flex justify-between items-center mb-8">
-                   <h4 className="text-sm font-black text-white uppercase tracking-widest flex items-center gap-2"><Activity className="w-4 h-4 text-red-400" /> Efficiency: CPI & CPP</h4>
-                 </div>
-                 <div className="flex-1 min-h-[300px]">
-                    <DualAxisLineChart chartData={activeOSData} leftKey="cpi" rightKey="cpp" leftColorText="fill-amber-400" rightColorText="fill-red-400" leftColorHex="#fbbf24" rightColorHex="#f87171" isLeftCurrency={true} isRightCurrency={true} exSym={exSym} exRate={exRate} />
-                 </div>
-               </div>
-            </div>
-          </div>
-        )}
-      </div>
-    );
-  }
-
-  function renderDetailed() {
-    const activeDetailedData = (selectedWeekTypeView === '' || selectedWeekTypeView === 'All Weeks')
-      ? tabData
-      : tabData.filter(d => d.weekType === selectedWeekTypeView);
-
-    const activeTableData = d3.groups(activeDetailedData, d => d.timeKey)
-        .map(([key, values]) => ({ week: values[0].week, year: values[0].year, ...aggregate(values) }))
-        .sort((a,b) => a.week - b.week);
-
-    const isAllWeeks = selectedWeekTypeView === 'All Weeks';
-    const isSpecificWeek = selectedWeekTypeView === 'Salary Weeks' || selectedWeekTypeView === 'BAU';
-    const isDefaultView = selectedWeekTypeView === '';
-    const isAnySelected = selectedWeekTypeView !== '';
-    const shouldShowDefaultCharts = (isSpecificWeek || isDefaultView || compareWeeks.length > 0 || dateRange.start || dateRange.end);
-
-    return (
-      <div className="animate-in fade-in duration-500">
-        
-        <div className="flex justify-between items-start mb-6">
-          <div>
-            <h2 className="text-3xl font-black text-white tracking-tight">Detailed Data Hub</h2>
-            <p className="text-slate-400 font-medium italic">Granular timeline combining upper-funnel ad data with bottom-funnel adjust conversions.</p>
-          </div>
-          <button onClick={() => setReportModal({...reportModal, isOpen: true})} className="flex items-center gap-2 px-5 py-2.5 rounded-xl text-sm font-black transition-all bg-gradient-to-r from-purple-600 to-rose-500 text-white shadow-lg shadow-purple-500/25 border-none hover:scale-105">
-            <FileText className="w-4 h-4" /> Export Report
-          </button>
-        </div>
-
-        {renderKpiTracker()}
-
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 mb-8 border-b border-white/5 pb-6">
-          <MultiSelectDropdown label="Market Filter" options={uniqueMarkets} selected={filterMarkets} onChange={setFilterMarkets} />
-          <MultiSelectDropdown label="Channel Filter" options={uniqueChannels} selected={filterChannels} onChange={setFilterChannels} />
-          <MultiSelectDropdown label="Campaign Type" options={uniqueCampaigns} selected={filterCampaigns} onChange={setFilterCampaigns} />
-          <MultiSelectDropdown label="OS Filter" options={uniqueOS} selected={filterOS} onChange={setFilterOS} />
-        </div>
-        
-        <div className="flex gap-3 overflow-x-auto pb-4 mb-8 border-b border-white/5 hide-scrollbar">
-          {['All Weeks', 'Salary Weeks', 'BAU'].map(type => (
-            <button 
-              key={type} 
-              onClick={() => setSelectedWeekTypeView(prev => prev === type ? '' : type)} 
-              className={`whitespace-nowrap px-6 py-2.5 rounded-xl text-sm font-black transition-all ${selectedWeekTypeView === type ? 'bg-gradient-to-r from-purple-600 to-rose-500 text-white shadow-lg shadow-purple-500/25 border-none' : 'bg-[#131A2A] text-slate-400 border border-white/5 hover:bg-white/5 hover:text-white'}`}
-            >
-              {type}
-            </button>
-          ))}
-        </div>
-
-        {isAnySelected && (
-          <InsightBox text={getAIInsight('detailed', activeTableData, tabData, selectedWeekTypeView)} />
-        )}
-
-        {shouldShowDefaultCharts && !isAllWeeks && activeTableData.length > 0 && (
-          <div className="grid grid-cols-1 lg:grid-cols-2 gap-8 mb-8 animate-in fade-in zoom-in-95 duration-500">
-             <div className="bg-[#131A2A] p-8 rounded-[2.5rem] border border-white/5 shadow-xl flex flex-col">
-               <div className="flex justify-between items-center mb-8">
-                 <h4 className="text-sm font-black text-white uppercase tracking-widest flex items-center gap-2"><Layers className="w-4 h-4 text-emerald-400" /> Volume: Installs vs Purchases</h4>
-               </div>
-               <div className="flex-1 min-h-[300px]">
-                  <DualAxisLineChart chartData={activeTableData} leftKey="installs" rightKey="purchases" leftColorText="fill-emerald-400" rightColorText="fill-rose-400" leftColorHex="#34d399" rightColorHex="#fb7185" isLeftCurrency={false} isRightCurrency={false} exSym={exSym} exRate={exRate} />
-               </div>
-             </div>
-             <div className="bg-[#131A2A] p-8 rounded-[2.5rem] border border-white/5 shadow-xl flex flex-col">
-               <div className="flex justify-between items-center mb-8">
-                 <h4 className="text-sm font-black text-white uppercase tracking-widest flex items-center gap-2"><Activity className="w-4 h-4 text-red-400" /> Efficiency: CPI vs CPP</h4>
-               </div>
-               <div className="flex-1 min-h-[300px]">
-                  <DualAxisLineChart chartData={activeTableData} leftKey="cpi" rightKey="cpp" leftColorText="fill-amber-400" rightColorText="fill-red-400" leftColorHex="#fbbf24" rightColorHex="#f87171" isLeftCurrency={true} isRightCurrency={true} exSym={exSym} exRate={exRate} />
-               </div>
-             </div>
-          </div>
-        )}
-
-        {isAllWeeks && activeTableData.length > 0 && (
-          <div className="grid grid-cols-1 lg:grid-cols-2 gap-8 mb-8 animate-in fade-in zoom-in-95 duration-500">
-             <div className="bg-[#131A2A] p-8 rounded-[2.5rem] border border-white/5 shadow-xl flex flex-col">
-               <h4 className="text-xs font-black text-white uppercase tracking-widest mb-6 flex items-center gap-2"><Layers className="w-4 h-4 text-emerald-400" /> Installs (SW vs BAU)</h4>
-               <div className="flex-1 min-h-[300px]">
-                 <ComparisonLineChart rawData={tabData} metric="installs" colorSW="#34d399" colorBAU="#047857" isCurrency={false} exSym={exSym} exRate={exRate} aggregateFn={aggregate} />
-               </div>
-             </div>
-             
-             <div className="bg-[#131A2A] p-8 rounded-[2.5rem] border border-white/5 shadow-xl flex flex-col">
-               <h4 className="text-xs font-black text-white uppercase tracking-widest mb-6 flex items-center gap-2"><ShoppingCart className="w-4 h-4 text-rose-400" /> Purchases (SW vs BAU)</h4>
-               <div className="flex-1 min-h-[300px]">
-                 <ComparisonLineChart rawData={tabData} metric="purchases" colorSW="#fb7185" colorBAU="#be123c" isCurrency={false} exSym={exSym} exRate={exRate} aggregateFn={aggregate} />
-               </div>
-             </div>
-
-             <div className="bg-[#131A2A] p-8 rounded-[2.5rem] border border-white/5 shadow-xl flex flex-col">
-               <h4 className="text-xs font-black text-white uppercase tracking-widest mb-6 flex items-center gap-2"><Activity className="w-4 h-4 text-amber-400" /> CPI (SW vs BAU)</h4>
-               <div className="flex-1 min-h-[300px]">
-                 <ComparisonLineChart rawData={tabData} metric="cpi" colorSW="#fbbf24" colorBAU="#b45309" isCurrency={true} exSym={exSym} exRate={exRate} aggregateFn={aggregate} />
-               </div>
-             </div>
-
-             <div className="bg-[#131A2A] p-8 rounded-[2.5rem] border border-white/5 shadow-xl flex flex-col">
-               <h4 className="text-xs font-black text-white uppercase tracking-widest mb-6 flex items-center gap-2"><Target className="w-4 h-4 text-red-400" /> CPP (SW vs BAU)</h4>
-               <div className="flex-1 min-h-[300px]">
-                 <ComparisonLineChart rawData={tabData} metric="cpp" colorSW="#f87171" colorBAU="#991b1b" isCurrency={true} exSym={exSym} exRate={exRate} aggregateFn={aggregate} />
-               </div>
-             </div>
-          </div>
-        )}
-        
-        <div className="bg-[#131A2A] rounded-[2rem] border border-white/5 shadow-xl overflow-hidden mb-8">
-          <div className="overflow-x-auto">
-            <table className="w-full text-left min-w-[1000px]">
-              <thead className="bg-[#1A2235] border-b border-white/5">
-                <tr className="text-[10px] font-black uppercase tracking-widest text-slate-400">
-                  <th className="px-6 py-5">Fiscal Window</th>
-                  <th className="px-6 py-5 text-right text-purple-400">Cost</th>
-                  <th className="px-6 py-5 text-right">Clicks</th>
-                  <th className="px-6 py-5 text-right text-emerald-400">Installs</th>
-                  <th className="px-6 py-5 text-right text-indigo-400">Sessions</th>
-                  <th className="px-6 py-5 text-right text-cyan-400">Logins</th>
-                  <th className="px-6 py-5 text-right text-slate-500">Ins-Log %</th>
-                  <th className="px-6 py-5 text-right text-rose-400">Purchases</th>
-                  <th className="px-6 py-5 text-right text-slate-500">Ins-Pur %</th>
-                  <th className="px-6 py-5 text-right text-amber-400">CPI</th>
-                  <th className="px-6 py-5 text-right text-red-400">CPP</th>
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-white/5">
-                {activeTableData.map((w, i) => (
-                  <tr key={i} className="hover:bg-white/5 transition-colors group">
-                    <td className="px-6 py-5">
-                      <div className="flex items-center gap-3">
-                        <div className="w-2 h-2 rounded-full bg-purple-500 shadow-[0_0_8px_rgba(168,85,247,0.8)]" />
-                        <span className="font-black text-white">W{w.week} - {getMonthFromWeek(w.week, w.year)} {w.year}</span>
-                      </div>
-                    </td>
-                    <td className="px-6 py-5 text-right font-mono font-bold text-slate-300">{formatC(w.cost)}</td>
-                    <td className="px-6 py-5 text-right font-mono text-slate-400">{d3.format(",.0f")(w.clicks)}</td>
-                    <td className="px-6 py-5 text-right font-mono font-bold text-emerald-400">{d3.format(",.0f")(w.installs)}</td>
-                    <td className="px-6 py-5 text-right font-mono font-bold text-indigo-400">{d3.format(",.0f")(w.sessions)}</td>
-                    <td className="px-6 py-5 text-right font-mono font-bold text-cyan-400">{d3.format(",.0f")(w.logins)}</td>
-                    <td className="px-6 py-5 text-right font-mono font-bold text-slate-500">{w.ltr.toFixed(1)}%</td>
-                    <td className="px-6 py-5 text-right font-mono font-bold text-rose-400">{d3.format(",.0f")(w.purchases)}</td>
-                    <td className="px-6 py-5 text-right font-mono font-bold text-slate-500">{w.ipr.toFixed(1)}%</td>
-                    <td className="px-6 py-5 text-right"><span className="bg-amber-500/10 text-amber-400 px-3 py-1 rounded-full text-[10px] font-black border border-amber-500/20">{formatC(w.cpi, 2)}</span></td>
-                    <td className="px-6 py-5 text-right"><span className="bg-red-500/10 text-red-400 px-3 py-1 rounded-full text-[10px] font-black border border-red-500/20">{formatC(w.cpp, 2)}</span></td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-        </div>
-      </div>
-    );
-  }
-
-  function renderPrintableReport() {
-    const pData = processedData.filter(d => {
-       let passT = reportModal.traffic === 'All' ? true : d.trafficType === reportModal.traffic;
-       let passM = reportModal.market === 'All' ? true : d.market === reportModal.market;
-       let passC = reportModal.channel === 'All' ? true : d.channel === reportModal.channel;
-       let passCamp = reportModal.campaign === 'All' ? true : d.campaignType === reportModal.campaign;
-       let passOS = reportModal.os === 'All' ? true : d.os === reportModal.os;
-       
-       let passTime = true;
-       if (reportModal.start || reportModal.end) {
-           const wStart = new Date(d.date);
-           const wEnd = new Date(d.date); wEnd.setDate(wEnd.getDate() + 6); wEnd.setHours(23,59,59,999);
-           if (reportModal.start) { const sd = new Date(reportModal.start); sd.setHours(0,0,0,0); passTime = passTime && (wEnd >= sd); }
-           if (reportModal.end) { const ed = new Date(reportModal.end); ed.setHours(23,59,59,999); passTime = passTime && (wStart <= ed); }
-       }
-       return passT && passM && passC && passCamp && passOS && passTime;
+    }).sort((a,b) => a.sortDate - b.sortDate);
+  }, [filteredAdData, exRate]);
+
+  const topCountriesGa = useMemo(() => {
+    const grouped = d3.groups(filteredGaData, d => d.country);
+    return grouped.map(([country, vals]) => ({
+      country,
+      sessions: d3.sum(vals, d => d.sessions),
+      users: d3.sum(vals, d => d.users),
+      engagedSessions: d3.sum(vals, d => d.engagedSessions)
+    })).sort((a,b) => {
+      if (gaMetric === 'Users') return b.users - a.users;
+      if (gaMetric === 'Engaged Sessions') return b.engagedSessions - a.engagedSessions;
+      return b.sessions - a.sessions;
+    }).slice(0, 10);
+  }, [filteredGaData, gaMetric]);
+
+  const channelPerformance = useMemo(() => {
+    const grouped = d3.groups(filteredAdData, d => d.channel);
+    let data = grouped.map(([channel, vals]) => {
+      const totalCost = d3.sum(vals, d => d.cost) * exRate;
+      const totalImpressions = d3.sum(vals, d => d.impressions);
+      const totalClicks = d3.sum(vals, d => d.clicks);
+      return {
+        channel,
+        cpm: totalImpressions > 0 ? (totalCost / totalImpressions) * 1000 : 0,
+        cpc: totalClicks > 0 ? (totalCost / totalClicks) : 0
+      };
     });
 
-    const reportMetrics = aggregate(pData);
-    const reportTimeline = d3.groups(pData, d => d.timeKey).map(([key, values]) => ({ week: values[0].week, year: values[0].year, ...aggregate(values) })).sort((a,b) => a.week - b.week);
-
-    const ltr = reportMetrics.installs > 0 ? ((reportMetrics.logins / reportMetrics.installs) * 100).toFixed(1) : 0;
-    const ltp = reportMetrics.logins > 0 ? ((reportMetrics.purchases / reportMetrics.logins) * 100).toFixed(1) : 0;
-    const cvr = reportMetrics.installs > 0 ? ((reportMetrics.purchases / reportMetrics.installs) * 100).toFixed(1) : 0;
-
-    let advancedInsight = "";
-    let actionPlan = "";
+    const metricKey = perfMetric.toLowerCase();
     
-    if (reportTimeline.length > 1) {
-        const sortedByCPP = [...reportTimeline].filter(w => w.purchases > 0).sort((a,b)=>a.cpp-b.cpp);
-        const bestWeek = sortedByCPP[0];
-        const worstWeek = sortedByCPP[sortedByCPP.length - 1];
-        
-        advancedInsight = `Over the selected period, a total investment of ${formatC(reportMetrics.cost)} yielded ${d3.format(",.0f")(reportMetrics.purchases)} verified purchases. The funnel demonstrates a ${ltr}% Install-to-Login rate and a strong ${ltp}% Login-to-Purchase conversion rate (a ${cvr}% overall install-to-purchase conversion rate). Performance peaked during Week ${bestWeek?.week} ('${bestWeek?.year}'), which delivered the most cost-effective conversions at ${formatC(bestWeek?.cpp, 2)} CPP. Conversely, Week ${worstWeek?.week} experienced the highest acquisition costs at ${formatC(worstWeek?.cpp, 2)} CPP.`;
-
-        actionPlan = `The blended Cost Per Purchase (CPP) stabilized at ${formatC(reportMetrics.cpp, 2)} alongside an average CPI of ${formatC(reportMetrics.cpi, 2)}. Based on these trends, optimizing ad placements toward the performance patterns of Week ${bestWeek?.week} could yield significant efficiency gains. Re-allocating 15-20% of the budget from lower-converting demographic sets toward this specific market/channel combination during peak 'Salary Week' periods will further suppress this CPP while scaling overall volume. Monitor the drop-off between clicks (${formatShort(reportMetrics.clicks)}) and installs (${formatShort(reportMetrics.installs)}) to identify potential landing page friction.`;
-    } else {
-        advancedInsight = `Over the selected period, a total investment of ${formatC(reportMetrics.cost)} yielded ${d3.format(",.0f")(reportMetrics.purchases)} verified purchases. The funnel demonstrates a ${ltr}% Install-to-Login rate and a strong ${ltp}% Login-to-Purchase conversion rate.`;
-        
-        actionPlan = `The blended Cost Per Purchase (CPP) stands at ${formatC(reportMetrics.cpp, 2)}. With ${formatShort(reportMetrics.impressions)} impressions generated, focus on retargeting strategies to push more users through the funnel from login to purchase. Expanding the date range of this report will unlock deeper trend analyses and predictive pacing insights.`;
-    }
-
-    return (
-      <div className="bg-white text-slate-900 min-h-screen p-10 w-full max-w-[800px] mx-auto print:max-w-full print:w-full print:p-0">
-         <div className="flex justify-between items-end border-b-2 border-slate-200 pb-6 mb-8">
-            <div>
-               <h1 className="text-4xl font-black tracking-tighter text-slate-900">ROVA PERFORMANCE</h1>
-               <p className="text-sm font-bold text-slate-500 uppercase tracking-widest mt-1">Detailed Intelligence Report</p>
-            </div>
-            <div className="text-right">
-               <p className="text-xs font-bold text-slate-500">Generated: {clientDate}</p>
-               <div className="mt-2 text-xs font-bold text-slate-700 space-y-1 flex gap-4 text-right">
-                 <div>
-                   <p>Market: <span className="text-indigo-600">{reportModal.market}</span></p>
-                   <p>Channel: <span className="text-indigo-600">{reportModal.channel}</span></p>
-                   <p>Campaign: <span className="text-indigo-600">{reportModal.campaign}</span></p>
-                 </div>
-                 <div>
-                   <p>OS: <span className="text-indigo-600">{reportModal.os}</span></p>
-                   <p>Traffic: <span className="text-indigo-600">{reportModal.traffic}</span></p>
-                   <p>Dates: <span className="text-indigo-600">{reportModal.start || 'All Time'} to {reportModal.end || 'All Time'}</span></p>
-                 </div>
-               </div>
-            </div>
-         </div>
-
-         <div className="grid grid-cols-4 gap-4 mb-4">
-            <div className="p-4 border border-slate-200 rounded-2xl"><p className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-1">Ad Spend</p><h3 className="text-xl font-black text-slate-900">{formatC(reportMetrics.cost)}</h3></div>
-            <div className="p-4 border border-slate-200 rounded-2xl"><p className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-1">Impressions</p><h3 className="text-xl font-black text-slate-900">{formatShort(reportMetrics.impressions)}</h3></div>
-            <div className="p-4 border border-slate-200 rounded-2xl"><p className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-1">Clicks</p><h3 className="text-xl font-black text-slate-900">{formatShort(reportMetrics.clicks)}</h3></div>
-            <div className="p-4 border border-slate-200 rounded-2xl"><p className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-1">Installs</p><h3 className="text-xl font-black text-slate-900">{formatShort(reportMetrics.installs)}</h3></div>
-         </div>
-         <div className="grid grid-cols-4 gap-4 mb-8">
-            <div className="p-4 border border-slate-200 rounded-2xl"><p className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-1">Logins</p><h3 className="text-xl font-black text-slate-900">{formatShort(reportMetrics.logins)}</h3></div>
-            <div className="p-4 border border-slate-200 rounded-2xl"><p className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-1">Purchases</p><h3 className="text-xl font-black text-slate-900">{formatShort(reportMetrics.purchases)}</h3></div>
-            <div className="p-4 border border-slate-200 rounded-2xl"><p className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-1">CPI</p><h3 className="text-xl font-black text-amber-500">{formatC(reportMetrics.cpi, 2)}</h3></div>
-            <div className="p-4 border border-slate-200 rounded-2xl"><p className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-1">CPP</p><h3 className="text-xl font-black text-red-500">{formatC(reportMetrics.cpp, 2)}</h3></div>
-         </div>
-
-         <div className="grid grid-cols-2 gap-8 mb-8">
-           <div>
-              <h4 className="text-sm font-black text-slate-800 uppercase tracking-widest mb-4 border-b border-slate-100 pb-2">Volume Trend (Installs vs Purchases)</h4>
-              <div className="h-[250px]"><DualAxisLineChart chartData={reportTimeline} leftKey="installs" rightKey="purchases" leftColorText="fill-emerald-600" rightColorText="fill-rose-600" leftColorHex="#10b981" rightColorHex="#f43f5e" isLeftCurrency={false} isRightCurrency={false} exSym={exSym} exRate={exRate} /></div>
-           </div>
-           <div>
-              <h4 className="text-sm font-black text-slate-800 uppercase tracking-widest mb-4 border-b border-slate-100 pb-2">Efficiency Trend (CPI vs CPP)</h4>
-              <div className="h-[250px]"><DualAxisLineChart chartData={reportTimeline} leftKey="cpi" rightKey="cpp" leftColorText="fill-amber-600" rightColorText="fill-red-600" leftColorHex="#f59e0b" rightColorHex="#ef4444" isLeftCurrency={true} isRightCurrency={true} exSym={exSym} exRate={exRate} /></div>
-           </div>
-           <div>
-              <h4 className="text-sm font-black text-slate-800 uppercase tracking-widest mb-4 border-b border-slate-100 pb-2">Awareness (Impressions vs CPM)</h4>
-              <div className="h-[250px]"><DualAxisLineChart chartData={reportTimeline} leftKey="impressions" rightKey="cpm" leftColorText="fill-cyan-600" rightColorText="fill-purple-600" leftColorHex="#0891b2" rightColorHex="#9333ea" isLeftCurrency={false} isRightCurrency={true} exSym={exSym} exRate={exRate} /></div>
-           </div>
-           <div>
-              <h4 className="text-sm font-black text-slate-800 uppercase tracking-widest mb-4 border-b border-slate-100 pb-2">Engagement (Clicks vs CPC)</h4>
-              <div className="h-[250px]"><DualAxisLineChart chartData={reportTimeline} leftKey="clicks" rightKey="cpc" leftColorText="fill-blue-600" rightColorText="fill-orange-600" leftColorHex="#2563eb" rightColorHex="#ea580c" isLeftCurrency={false} isRightCurrency={true} exSym={exSym} exRate={exRate} /></div>
-           </div>
-         </div>
-
-         <div className="bg-slate-50 p-6 rounded-2xl border border-slate-200 break-inside-avoid">
-            <h4 className="text-sm font-black text-slate-800 uppercase tracking-widest mb-4 flex items-center gap-2"><Zap className="w-4 h-4 text-indigo-500" /> AI Executive Summary & Action Plan</h4>
-            <div className="text-sm text-slate-700 space-y-3 font-medium">
-               <p>This report isolates performance for <strong>{reportModal.market}</strong> across <strong>{reportModal.channel}</strong> campaigns ({reportModal.traffic} traffic).</p>
-               <p>{advancedInsight}</p>
-               <p><strong>Strategic Recommendations:</strong> {actionPlan}</p>
-            </div>
-         </div>
-      </div>
-    );
-  }
-
-  function handleSort(key) {
-    if (creativeSortConfig.key === key) {
-      setCreativeSortConfig({ key, direction: creativeSortConfig.direction === 'desc' ? 'asc' : 'desc' });
-    } else {
-      setCreativeSortConfig({ key, direction: 'desc' });
-    }
-  }
-
-  function renderSortIcon(key) {
-    if (creativeSortConfig.key === key) {
-      return <ArrowUpDown className={`w-3 h-3 ml-1 inline-block ${creativeSortConfig.direction === 'desc' ? 'text-purple-400' : 'text-emerald-400 rotate-180'}`} />;
-    }
-    return <ArrowUpDown className="w-3 h-3 ml-1 inline-block opacity-0 group-hover:opacity-50" />;
-  }
-
-  function renderCreative() {
-    const topCTR = [...creativeTabData].filter(x => x.impressions > 0).sort((a,b) => b.ctr - a.ctr).slice(0, 10);
-    const topCPI = [...creativeTabData].filter(x => x.installs > 0).sort((a,b) => a.cpi - b.cpi).slice(0, 10); // Lowest CPI is best
-    const topCPP = [...creativeTabData].filter(x => x.purchases > 0).sort((a,b) => a.cpp - b.cpp).slice(0, 10); // Lowest CPP is best
+    // Filter out 0s
+    data = data.filter(d => d[metricKey] > 0);
     
-    // Simple AI Insight Logic
-    const bestCPP = topCPP[0];
-    const bestCTR = topCTR[0];
-    let insightText = "Not enough data to generate insights.";
-    if (bestCPP && bestCTR) {
-      insightText = `Creative "${bestCPP.creativeName}" is driving the most cost-efficient purchases at ${formatC(bestCPP.cpp)} CPP. Meanwhile, "${bestCTR.creativeName}" is capturing the highest attention with a ${(bestCTR.ctr*100).toFixed(2)}% CTR.`;
+    // Sort descending (Highest first)
+    data.sort((a,b) => b[metricKey] - a[metricKey]);
+    
+    if (perfSort === 'Top 5') {
+      return data.slice(0, 5);
+    } else {
+      // Bottom 5 (Lowest first, so we take the last 5 and reverse them)
+      return data.slice(-5).reverse();
     }
+  }, [filteredAdData, exRate, perfMetric, perfSort]);
 
-    return (
-      <div className="animate-in fade-in duration-500">
-        <div className="mb-6 flex justify-between items-end">
-          <div>
-            <h2 className="text-3xl font-black text-white tracking-tight">Creative Performance</h2>
-            <p className="text-slate-400 font-medium italic">Independent creative asset analysis.</p>
+  const groupBy = (key) => d3.groups(filteredAdData, d => d[key]).map(([name, vals]) => ({
+    name,
+    cost: d3.sum(vals, d => d.cost),
+    impressions: d3.sum(vals, d => d.impressions),
+    clicks: d3.sum(vals, d => d.clicks),
+    views: d3.sum(vals, d => d.videoViews),
+  })).sort((a,b) => b.cost - a.cost);
+
+  const tabs = [
+    { id: 'summary', label: 'Summary', icon: LayoutDashboard },
+    { id: 'channel', label: 'Channel wise', icon: Activity },
+    { id: 'market', label: 'Market wise', icon: Globe },
+    { id: 'detailed', label: 'Detailed data', icon: TableProperties },
+    { id: 'webtraffic', label: 'Web Traffic', icon: MonitorPlay }
+  ];
+
+  if (loading) return (
+    <div className="min-h-screen bg-[#0C272D] flex flex-col items-center justify-center text-[#74FA93] font-black text-2xl tracking-widest animate-pulse gap-6">
+      <img src="/logo.png" alt="Loading Logo" className="h-32 object-contain" />
+      <span>LOADING DATA...</span>
+    </div>
+  );
+
+  const renderContent = () => {
+    if (activeTab === 'summary') {
+      return (
+        <div className="space-y-8">
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
+            <MetricCard label="Total Spend" value={`${exSym}${formatShort(agg.cost * exRate)}`} color="text-white" icon={DollarSign} />
+            <MetricCard label="Impressions" value={formatShort(agg.impressions)} color="text-[#74FA93]" icon={Eye} />
+            <MetricCard label="Clicks" value={formatShort(agg.clicks)} color="text-[#CBBB9D]" icon={MousePointer2} />
+            <MetricCard label="Video Views" value={formatShort(agg.views)} color="text-[#736BED]" icon={MonitorPlay} />
+            <MetricCard label="6s Video Views" value={formatShort(agg.views6s)} color="text-[#F1EAD8]" />
+            <MetricCard label="15s Video Views" value={formatShort(agg.views15s)} color="text-[#F1EAD8]" />
+            <MetricCard label="Video Completions (100%)" value={formatShort(agg.completions)} color="text-white" icon={Check} />
+            <MetricCard label="Total Web Sessions" value={formatShort(agg.sessions)} color="text-[#74FA93]" icon={Globe} />
           </div>
-        </div>
-        
-        {/* TOP 10 SUMMARY GRAPHS */}
-        <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 mb-8">
-           <div className="bg-[#131A2A] rounded-2xl border border-white/5 p-6 shadow-xl flex flex-col">
-              <h3 className="text-sm font-black text-white uppercase tracking-widest mb-4 flex items-center gap-2"><BarChart3 className="w-4 h-4 text-purple-400"/> Top 10 by CTR</h3>
-              <div className="flex-1 space-y-3">
-                 {topCTR.map((c, i) => (
-                    <div key={i} className="flex flex-col gap-1">
-                       <div className="flex justify-between text-xs text-slate-300">
-                          <span className="truncate w-3/4">{i+1}. {c.creativeName}</span>
-                          <span className="font-bold text-purple-400">{(c.ctr*100).toFixed(2)}%</span>
-                       </div>
-                       <div className="w-full bg-white/5 h-1.5 rounded-full overflow-hidden">
-                          <div className="bg-purple-500 h-full rounded-full" style={{width: `${Math.min(100, (c.ctr / (topCTR[0]?.ctr || 1)) * 100)}%`}}></div>
-                       </div>
-                    </div>
-                 ))}
-              </div>
-           </div>
-           <div className="bg-[#131A2A] rounded-2xl border border-white/5 p-6 shadow-xl flex flex-col">
-              <h3 className="text-sm font-black text-white uppercase tracking-widest mb-4 flex items-center gap-2"><BarChart3 className="w-4 h-4 text-emerald-400"/> Top 10 by CPI (Lowest)</h3>
-              <div className="flex-1 space-y-3">
-                 {topCPI.map((c, i) => (
-                    <div key={i} className="flex flex-col gap-1">
-                       <div className="flex justify-between text-xs text-slate-300">
-                          <span className="truncate w-3/4">{i+1}. {c.creativeName}</span>
-                          <span className="font-bold text-emerald-400">{formatC(c.cpi, 2)}</span>
-                       </div>
-                       <div className="w-full bg-white/5 h-1.5 rounded-full overflow-hidden">
-                          {/* Scale to largest in top 10 */}
-                          <div className="bg-emerald-500 h-full rounded-full" style={{width: `${Math.min(100, (c.cpi / (topCPI[topCPI.length-1]?.cpi || 1)) * 100)}%`}}></div>
-                       </div>
-                    </div>
-                 ))}
-              </div>
-           </div>
-           <div className="bg-[#131A2A] rounded-2xl border border-white/5 p-6 shadow-xl flex flex-col">
-              <h3 className="text-sm font-black text-white uppercase tracking-widest mb-4 flex items-center gap-2"><BarChart3 className="w-4 h-4 text-rose-400"/> Top 10 by CPP (Lowest)</h3>
-              <div className="flex-1 space-y-3">
-                 {topCPP.map((c, i) => (
-                    <div key={i} className="flex flex-col gap-1">
-                       <div className="flex justify-between text-xs text-slate-300">
-                          <span className="truncate w-3/4">{i+1}. {c.creativeName}</span>
-                          <span className="font-bold text-rose-400">{formatC(c.cpp, 2)}</span>
-                       </div>
-                       <div className="w-full bg-white/5 h-1.5 rounded-full overflow-hidden">
-                          <div className="bg-rose-500 h-full rounded-full" style={{width: `${Math.min(100, (c.cpp / (topCPP[topCPP.length-1]?.cpp || 1)) * 100)}%`}}></div>
-                       </div>
-                    </div>
-                 ))}
-              </div>
-           </div>
-        </div>
-
-        <div className="bg-slate-50 p-6 rounded-2xl border border-slate-200 break-inside-avoid mb-8">
-           <h4 className="text-sm font-black text-slate-800 uppercase tracking-widest mb-2 flex items-center gap-2"><Zap className="w-4 h-4 text-indigo-500" /> AI Creative Insights</h4>
-           <p className="text-sm text-slate-700 font-medium">{insightText}</p>
-        </div>
-
-        <div className="grid grid-cols-2 lg:grid-cols-6 gap-4 mb-8 border-b border-white/5 pb-6">
-          <MultiSelectDropdown label="Market" options={uniqueCreativeMarkets} selected={creativeFilterMarkets} onChange={setCreativeFilterMarkets} />
-          <MultiSelectDropdown label="Channel" options={uniqueCreativeChannels} selected={creativeFilterChannels} onChange={setCreativeFilterChannels} />
-          <MultiSelectDropdown label="Language" options={uniqueCreativeLanguages} selected={creativeFilterLanguages} onChange={setCreativeFilterLanguages} />
-          <MultiSelectDropdown label="Creative Type" options={uniqueCreativeTypes} selected={creativeFilterTypes} onChange={setCreativeFilterTypes} />
-          <MultiSelectDropdown label="Objective" options={uniqueCreativeObjectives} selected={creativeFilterObjectives} onChange={setCreativeFilterObjectives} />
-          <MultiSelectDropdown label="Week Type" options={uniqueCreativeWeeks} selected={creativeFilterWeeks} onChange={setCreativeFilterWeeks} />
-        </div>
-
-        <div className="flex justify-between items-end mb-6 mt-4">
-           <h3 className="text-lg font-black text-white tracking-tight">Creative Library ({creativeTabData.length})</h3>
-           <div className="flex items-center gap-4">
-             <div className="flex bg-[#131A2A] rounded-xl border border-white/5 p-1">
-               <button onClick={() => setCreativeStatusFilter('All')} className={`px-3 py-1.5 text-xs font-bold uppercase tracking-widest rounded-lg transition-all flex items-center gap-2 ${creativeStatusFilter === 'All' ? 'bg-slate-700 text-white shadow-md' : 'text-slate-400 hover:text-white'}`}>
-                 All
-               </button>
-               <button onClick={() => setCreativeStatusFilter('Live')} className={`px-3 py-1.5 text-xs font-bold uppercase tracking-widest rounded-lg transition-all flex items-center gap-2 ${creativeStatusFilter === 'Live' ? 'bg-emerald-600 text-white shadow-md' : 'text-slate-400 hover:text-white'}`}>
-                 Live
-               </button>
-               <button onClick={() => setCreativeStatusFilter('Paused')} className={`px-3 py-1.5 text-xs font-bold uppercase tracking-widest rounded-lg transition-all flex items-center gap-2 ${creativeStatusFilter === 'Paused' ? 'bg-rose-600 text-white shadow-md' : 'text-slate-400 hover:text-white'}`}>
-                 Paused
-               </button>
-             </div>
-             <div className="flex bg-[#131A2A] rounded-xl border border-white/5 p-1">
-               <button onClick={() => setCreativeViewMode('grid')} className={`px-3 py-1.5 text-xs font-bold uppercase tracking-widest rounded-lg transition-all flex items-center gap-2 ${creativeViewMode === 'grid' ? 'bg-gradient-to-r from-purple-600 to-rose-500 text-white shadow-md' : 'text-slate-400 hover:text-white'}`}>
-                 <Grid className="w-4 h-4"/> Grid
-               </button>
-               <button onClick={() => setCreativeViewMode('list')} className={`px-3 py-1.5 text-xs font-bold uppercase tracking-widest rounded-lg transition-all flex items-center gap-2 ${creativeViewMode === 'list' ? 'bg-gradient-to-r from-purple-600 to-rose-500 text-white shadow-md' : 'text-slate-400 hover:text-white'}`}>
-                 <List className="w-4 h-4"/> List
-               </button>
-             </div>
-           </div>
-        </div>
-
-        {creativeLoading ? (
-          <div className="flex items-center justify-center py-20 text-slate-400">Loading creatives...</div>
-        ) : (
-          <>
-          {creativeViewMode === 'grid' ? (
-            <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-4 gap-6">
-              {creativeTabData.slice((creativePage - 1) * CREATIVES_PER_PAGE, creativePage * CREATIVES_PER_PAGE).map((c, i) => (
-                <div key={i} className="bg-[#131A2A] rounded-[2rem] border border-white/5 shadow-xl overflow-hidden group flex flex-col">
-                   <div onClick={(e) => { 
-                      if(c.videoUrl || c.adImageUrl) window.open(c.videoUrl || c.adImageUrl, '_blank');
-                      else if(c.tiktokItemId) window.open(`https://www.tiktok.com/@any/video/${c.tiktokItemId}`, '_blank');
-                   }} className={`h-48 bg-[#0B0F19] relative overflow-hidden flex items-center justify-center group-hover:bg-[#1A2235] transition-colors block ${c.videoUrl || c.adImageUrl || c.tiktokItemId ? 'cursor-pointer' : 'cursor-default'}`}>
-                      {c.videoUrl ? (
-                        <>
-                          <video src={c.videoUrl} autoPlay loop muted playsInline className="object-contain w-full h-full opacity-0 group-hover:opacity-100 absolute top-0 left-0 transition-opacity z-10" />
-                          <img src={c.adImageUrl} alt={c.creativeName} className="object-contain w-full h-full group-hover:opacity-0 transition-opacity" onError={(e) => { e.target.onerror = null; e.target.src = 'https://via.placeholder.com/400x300/131A2A/4c1d95?text=Preview+Unavailable'; }} />
-                        </>
-                      ) : c.adImageUrl ? (
-                         <img src={c.adImageUrl} alt={c.creativeName} className="object-contain w-full h-full" onError={(e) => { e.target.onerror = null; e.target.src = 'https://via.placeholder.com/400x300/131A2A/4c1d95?text=Preview+Unavailable'; }} />
-                      ) : (
-                         <img src={`https://placehold.co/400x300/131A2A/4c1d95?text=${c.channel === 'TikTok' ? 'TikTok+Spark+Ad' : 'No+Preview'}`} alt="No Preview" className="object-cover w-full h-full opacity-50 grayscale" />
-                      )}
-                   </div>
-                   <div className="p-6 flex-1 flex flex-col">
-                      <h4 className="text-sm font-black text-white break-words whitespace-normal mb-4 leading-tight flex items-center gap-2">
-                         <div className={`w-2 h-2 rounded-full flex-shrink-0 ${c.isLive ? 'bg-emerald-500 shadow-[0_0_8px_rgba(16,185,129,0.8)]' : 'bg-red-500 shadow-[0_0_8px_rgba(239,68,68,0.8)]'}`} title={c.isLive ? 'Live' : 'Paused'}></div>
-                         {c.creativeName || 'Unknown Creative'}
-                      </h4>
-                      <div className="grid grid-cols-2 gap-3 mb-4 flex-1">
-                         <div className="bg-white/5 rounded-xl p-3">
-                           <p className="text-[10px] font-black uppercase text-slate-500 tracking-widest mb-1">Spend</p>
-                           <p className="text-sm font-bold text-purple-400">{formatC(c.cost)}</p>
-                         </div>
-                         <div className="bg-white/5 rounded-xl p-3">
-                           <p className="text-[10px] font-black uppercase text-slate-500 tracking-widest mb-1">CTR</p>
-                           <p className="text-sm font-bold text-blue-400">{(c.ctr*100).toFixed(2)}%</p>
-                         </div>
-                         <div className="bg-white/5 rounded-xl p-3">
-                           <p className="text-[10px] font-black uppercase text-slate-500 tracking-widest mb-1">Installs</p>
-                           <p className="text-sm font-bold text-emerald-400">{formatShort(c.installs)}</p>
-                         </div>
-                         <div className="bg-white/5 rounded-xl p-3">
-                           <p className="text-[10px] font-black uppercase text-slate-500 tracking-widest mb-1">Purchases</p>
-                           <p className="text-sm font-bold text-rose-400">{formatShort(c.purchases)}</p>
-                         </div>
-                      </div>
-                      <div className="flex justify-between items-center bg-white/5 p-3 rounded-xl mb-4">
-                         <div>
-                            <p className="text-[10px] font-black uppercase text-slate-500 tracking-widest mb-1">CPI</p>
-                            <p className="text-xs font-bold text-emerald-400">{formatC(c.cpi, 2)}</p>
-                         </div>
-                         <div className="text-right">
-                            <p className="text-[10px] font-black uppercase text-slate-500 tracking-widest mb-1">CPP</p>
-                            <p className="text-xs font-bold text-rose-400">{formatC(c.cpp, 2)}</p>
-                         </div>
-                      </div>
-                      <div className="flex gap-2 flex-wrap">
-                        <span className="text-[9px] font-black uppercase tracking-widest bg-blue-500/10 text-blue-400 px-2 py-1 rounded-md">{c.channel}</span>
-                        <span className="text-[9px] font-black uppercase tracking-widest bg-amber-500/10 text-amber-400 px-2 py-1 rounded-md">{c.language}</span>
-                        <span className="text-[9px] font-black uppercase tracking-widest bg-pink-500/10 text-pink-400 px-2 py-1 rounded-md">{c.creativeType}</span>
-                      </div>
-                   </div>
-                </div>
-              ))}
-            </div>
-          ) : (
-            <div className="overflow-x-auto pb-8">
-              <table className="w-full text-left border-separate border-spacing-y-2">
-                <thead>
-                  <tr className="text-[10px] font-black text-slate-400 uppercase tracking-widest whitespace-nowrap">
-                    <th className="p-4 bg-[#131A2A] rounded-l-2xl">Creative</th>
-                    <th className="p-4 bg-[#131A2A] cursor-pointer group hover:text-white select-none" onClick={() => handleSort('cost')}>Spend {renderSortIcon('cost')}</th>
-                    <th className="p-4 bg-[#131A2A] cursor-pointer group hover:text-white select-none" onClick={() => handleSort('impressions')}>Impr {renderSortIcon('impressions')}</th>
-                    <th className="p-4 bg-[#131A2A] cursor-pointer group hover:text-white select-none" onClick={() => handleSort('clicks')}>Clicks {renderSortIcon('clicks')}</th>
-                    <th className="p-4 bg-[#131A2A] cursor-pointer group hover:text-white select-none" onClick={() => handleSort('ctr')}>CTR {renderSortIcon('ctr')}</th>
-                    <th className="p-4 bg-[#131A2A] cursor-pointer group hover:text-white select-none" onClick={() => handleSort('installs')}>Installs {renderSortIcon('installs')}</th>
-                    <th className="p-4 bg-[#131A2A] cursor-pointer group hover:text-white select-none" onClick={() => handleSort('cpi')}>CPI {renderSortIcon('cpi')}</th>
-                    <th className="p-4 bg-[#131A2A] cursor-pointer group hover:text-white select-none" onClick={() => handleSort('purchases')}>Purchases {renderSortIcon('purchases')}</th>
-                    <th className="p-4 bg-[#131A2A] rounded-r-2xl cursor-pointer group hover:text-white select-none" onClick={() => handleSort('cpp')}>CPP {renderSortIcon('cpp')}</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {creativeTabData.slice((creativePage - 1) * CREATIVES_PER_PAGE, creativePage * CREATIVES_PER_PAGE).map((c, i) => (
-                    <tr key={i} className="bg-[#0B0F19] hover:bg-[#131A2A] transition-colors border border-white/5 shadow-sm group">
-                      <td className="p-4 rounded-l-2xl flex items-center gap-4 min-w-[300px]">
-                         <div onClick={(e) => { 
-                           if(c.videoUrl || c.adImageUrl) window.open(c.videoUrl || c.adImageUrl, '_blank');
-                           else if(c.tiktokItemId) window.open(`https://www.tiktok.com/@any/video/${c.tiktokItemId}`, '_blank');
-                         }} className={`w-16 h-16 bg-black rounded-lg overflow-hidden flex-shrink-0 border border-white/10 block relative group/list ${c.videoUrl || c.adImageUrl || c.tiktokItemId ? 'cursor-pointer' : 'cursor-default'}`}>
-                           {c.videoUrl ? (
-                             <>
-                               <video src={c.videoUrl} autoPlay loop muted playsInline className="object-cover w-full h-full opacity-0 group-hover/list:opacity-100 absolute top-0 left-0 transition-opacity z-10" />
-                               <img src={c.adImageUrl} alt={c.creativeName} className="object-cover w-full h-full group-hover/list:opacity-0 transition-opacity" onError={(e) => { e.target.onerror = null; e.target.src = 'https://via.placeholder.com/150/131A2A/4c1d95?text=N/A'; }} />
-                             </>
-                           ) : c.adImageUrl ? (
-                             <img src={c.adImageUrl} alt={c.creativeName} className="object-cover w-full h-full" onError={(e) => { e.target.onerror = null; e.target.src = 'https://via.placeholder.com/150/131A2A/4c1d95?text=N/A'; }} />
-                           ) : (
-                             <img src={`https://placehold.co/150/131A2A/4c1d95?text=${c.channel === 'TikTok' ? 'Spark+Ad' : 'N/A'}`} alt="No Preview" className="object-cover w-full h-full opacity-50 grayscale" />
-                           )}
-                         </div>
-                         <div className="flex flex-col gap-1 max-w-[200px]">
-                           <span className="text-sm font-black text-white break-words whitespace-normal leading-tight flex items-center gap-2">
-                             <div className={`w-2 h-2 rounded-full flex-shrink-0 ${c.isLive ? 'bg-emerald-500 shadow-[0_0_8px_rgba(16,185,129,0.8)]' : 'bg-red-500 shadow-[0_0_8px_rgba(239,68,68,0.8)]'}`} title={c.isLive ? 'Live' : 'Paused'}></div>
-                             {c.creativeName}
-                           </span>
-                           <div className="flex gap-1 flex-wrap mt-1">
-                             <span className="text-[8px] uppercase tracking-widest bg-blue-500/10 text-blue-400 px-1.5 py-0.5 rounded">{c.channel}</span>
-                             <span className="text-[8px] uppercase tracking-widest bg-pink-500/10 text-pink-400 px-1.5 py-0.5 rounded">{c.creativeType}</span>
-                           </div>
-                         </div>
-                      </td>
-                      <td className="p-4 text-sm font-bold text-purple-400">{formatC(c.cost)}</td>
-                      <td className="p-4 text-sm font-medium text-slate-300">{formatShort(c.impressions)}</td>
-                      <td className="p-4 text-sm font-medium text-slate-300">{formatShort(c.clicks)}</td>
-                      <td className="p-4 text-sm font-bold text-blue-400">{(c.ctr*100).toFixed(2)}%</td>
-                      <td className="p-4 text-sm font-medium text-emerald-400">{formatShort(c.installs)}</td>
-                      <td className="p-4 text-sm font-bold text-emerald-400">{formatC(c.cpi, 2)}</td>
-                      <td className="p-4 text-sm font-medium text-rose-400">{formatShort(c.purchases)}</td>
-                      <td className="p-4 text-sm font-bold text-rose-400 rounded-r-2xl">{formatC(c.cpp, 2)}</td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
-          )}
-
-          {creativeTabData.length > CREATIVES_PER_PAGE && (
-            <div className="flex justify-center items-center gap-4 mt-8 bg-[#131A2A] rounded-xl border border-white/5 p-4 max-w-fit mx-auto shadow-xl">
-              <button 
-                onClick={() => setCreativePage(p => Math.max(1, p - 1))}
-                disabled={creativePage === 1}
-                className="px-4 py-2 rounded-lg bg-white/5 text-slate-300 hover:bg-white/10 disabled:opacity-50 disabled:cursor-not-allowed transition-colors font-bold text-xs uppercase tracking-widest"
-              >
-                Previous
-              </button>
-              <span className="text-xs font-black text-slate-400 tracking-widest uppercase">
-                Page <span className="text-white">{creativePage}</span> of {Math.ceil(creativeTabData.length / CREATIVES_PER_PAGE)}
-              </span>
-              <button 
-                onClick={() => setCreativePage(p => Math.min(Math.ceil(creativeTabData.length / CREATIVES_PER_PAGE), p + 1))}
-                disabled={creativePage === Math.ceil(creativeTabData.length / CREATIVES_PER_PAGE)}
-                className="px-4 py-2 rounded-lg bg-white/5 text-slate-300 hover:bg-white/10 disabled:opacity-50 disabled:cursor-not-allowed transition-colors font-bold text-xs uppercase tracking-widest"
-              >
-                Next
-              </button>
-            </div>
-          )}
-          </>
-        )}
-      </div>
-    );
-  }
-
-  // Strict bailout: Wait until React has fully mounted in the browser before rendering anything.
-  if (!isMounted) {
-    return (
-      <div className="min-h-screen bg-[#0B0F19] flex items-center justify-center">
-        <div className="w-8 h-8 border-4 border-purple-500/30 border-t-purple-500 rounded-full animate-spin" />
-      </div>
-    );
-  }
-
-  return (
-    <LoadingContext.Provider value={loading || creativeLoading}>
-      <SignedIn>
-        <div className="flex h-screen w-full overflow-hidden print:h-auto print:overflow-visible bg-[#0B0F19] text-slate-200 font-sans selection:bg-purple-500/30 selection:text-purple-100">
-      
-        {/* EXPANDED SIDEBAR NAVIGATION */}
-        <aside className="w-[288px] flex-shrink-0 bg-[#0B0F19] border-r border-white/5 flex flex-col z-[100] no-print">
-          <div className="p-8 border-b border-white/5 flex items-center gap-4">
-            <div className="bg-white w-10 h-10 rounded-xl flex items-center justify-center shadow-[0_0_20px_rgba(168,85,247,0.3)]">
-              <span className="text-xl font-black text-[#0B0F19] tracking-tighter">stc</span>
-            </div>
-            <div className="leading-none">
-              <h1 className="text-lg font-black tracking-tight text-white">ROVA PERFORMANCE</h1>
-              <p className="text-[9px] font-black text-purple-400 uppercase tracking-[0.25em] mt-1">Intelligence Hub</p>
-            </div>
-          </div>
-
-          <nav className="flex-1 p-6 space-y-2 overflow-y-auto custom-scrollbar">
-            {[
-              { id: 'summary', label: 'Summary Overview', icon: LayoutDashboard },
-              { id: 'market', label: 'Market Intelligence', icon: Globe },
-              { id: 'channel', label: 'Channel Attribution', icon: Layers },
-              { id: 'campaign', label: 'Campaign Objectives', icon: Megaphone },
-              { id: 'os', label: 'Operating System', icon: Smartphone },
-              { id: 'detailed', label: 'Detailed Data Hub', icon: TableProperties },
-              { id: 'creative', label: 'Creative Performance', icon: MonitorPlay },
-            ].map(tab => (
-              <button
-                key={tab.id}
-                onClick={() => { setActiveTab(tab.id); }}
-                className={`w-full flex items-center gap-3 px-4 py-3 rounded-xl text-sm font-black transition-all ${
-                  activeTab === tab.id 
-                  ? 'bg-gradient-to-r from-purple-600 to-rose-500 text-white shadow-lg shadow-purple-500/25 border-none' 
-                  : 'text-slate-400 hover:text-white hover:bg-white/5'
-                }`}
-              >
-                <tab.icon className="w-4 h-4" />
-                <span>{tab.label}</span>
-              </button>
-            ))}
-          </nav>
-        </aside>
-
-        {/* MAIN CONTENT WRAPPER */}
-        <div className="flex-1 flex flex-col h-screen overflow-hidden relative">
           
-          {/* STICKY TOP HEADER (Reimagined Master Filters) */}
-          <header className="sticky top-0 z-50 bg-[#0B0F19]/90 backdrop-blur-2xl border-b border-white/5 px-8 py-4 flex flex-col xl:flex-row xl:items-center justify-between gap-4 shadow-xl no-print">
-            <div className={`flex flex-wrap items-center gap-6 ${activeTab === 'creative' ? 'invisible' : ''}`}>
-              
-              {/* Traffic Segment */}
-              <div className="flex bg-[#131A2A] p-1 rounded-xl border border-white/5">
-                {['All', 'Paid', 'Organic', 'Affiliates'].map(type => (
-                   <button key={type} onClick={() => setTrafficFilter(type)} className={`px-4 py-1.5 text-xs font-bold rounded-lg transition-all ${trafficFilter === type ? 'bg-gradient-to-r from-purple-600 to-rose-500 text-white shadow-md' : 'text-slate-400 hover:text-white'}`}>
-                     {type === 'All' ? 'All Traffic' : type}
-                   </button>
+          <div className="grid grid-cols-1 lg:grid-cols-2 gap-8 mb-8">
+             {/* Chart 1: Monthly Spend vs Impressions */}
+             <div className="bg-[#113A42] p-6 rounded-3xl border border-[#74FA93]/20 shadow-xl h-[400px]">
+                <h3 className="text-[#F1EAD8] font-black mb-4">Monthly Spend vs Impressions</h3>
+                <ResponsiveContainer width="100%" height="90%">
+                  <AreaChart data={monthlyChartData}>
+                    <defs>
+                      <linearGradient id="colorCost" x1="0" y1="0" x2="0" y2="1">
+                        <stop offset="5%" stopColor="#74FA93" stopOpacity={0.8}/>
+                        <stop offset="95%" stopColor="#74FA93" stopOpacity={0}/>
+                      </linearGradient>
+                    </defs>
+                    <CartesianGrid strokeDasharray="3 3" stroke="#ffffff10" />
+                    <XAxis dataKey="month" stroke="#CBBB9D" fontSize={10} />
+                    <YAxis yAxisId="left" stroke="#74FA93" fontSize={10} tickFormatter={(t) => `${exSym}${d3.format(",.2f")(t)}`} />
+                    <YAxis yAxisId="right" orientation="right" stroke="#CBBB9D" fontSize={10} tickFormatter={(t) => d3.format(",")(t)} />
+                    <Tooltip 
+                      contentStyle={{ backgroundColor: '#0C272D', borderColor: '#74FA9320', color: '#fff' }} 
+                      formatter={(value, name) => [name === 'Spend' ? `${exSym}${d3.format(",.2f")(value)}` : d3.format(",")(value), name]}
+                    />
+                    <Legend />
+                    <Area yAxisId="left" type="monotone" dataKey="cost" name="Spend" stroke="#74FA93" fillOpacity={1} fill="url(#colorCost)" />
+                    <Line yAxisId="right" type="monotone" dataKey="impressions" name="Impressions" stroke="#CBBB9D" strokeWidth={3} dot={false} />
+                  </AreaChart>
+                </ResponsiveContainer>
+             </div>
+             
+             {/* Chart 2: Performance by Channel */}
+             <div className="bg-[#113A42] p-6 rounded-3xl border border-[#74FA93]/20 shadow-xl h-[400px] flex flex-col">
+                <div className="flex justify-between items-start mb-4">
+                  <h3 className="text-[#F1EAD8] font-black">{perfMetric} by Channel</h3>
+                  <div className="flex gap-2">
+                    <div className="flex bg-[#0C272D] p-1 rounded-lg border border-[#74FA93]/20">
+                      <button onClick={() => setPerfMetric('CPM')} className={`px-2 py-1 text-[10px] font-bold rounded transition-colors ${perfMetric === 'CPM' ? 'bg-[#74FA93] text-[#0C272D]' : 'text-slate-400 hover:text-white'}`}>CPM</button>
+                      <button onClick={() => setPerfMetric('CPC')} className={`px-2 py-1 text-[10px] font-bold rounded transition-colors ${perfMetric === 'CPC' ? 'bg-[#74FA93] text-[#0C272D]' : 'text-slate-400 hover:text-white'}`}>CPC</button>
+                    </div>
+                    <div className="flex bg-[#0C272D] p-1 rounded-lg border border-[#74FA93]/20">
+                      <button onClick={() => setPerfSort('Top 5')} className={`px-2 py-1 text-[10px] font-bold rounded transition-colors ${perfSort === 'Top 5' ? 'bg-[#736BED] text-white' : 'text-slate-400 hover:text-white'}`}>Top 5</button>
+                      <button onClick={() => setPerfSort('Bottom 5')} className={`px-2 py-1 text-[10px] font-bold rounded transition-colors ${perfSort === 'Bottom 5' ? 'bg-[#736BED] text-white' : 'text-slate-400 hover:text-white'}`}>Bottom 5</button>
+                    </div>
+                  </div>
+                </div>
+                <ResponsiveContainer width="100%" height="90%">
+                  <BarChart data={channelPerformance} margin={{ left: 20 }}>
+                    <CartesianGrid strokeDasharray="3 3" stroke="#ffffff10" vertical={false} />
+                    <XAxis dataKey="channel" stroke="#CBBB9D" fontSize={10} />
+                    <YAxis stroke="#CBBB9D" fontSize={10} tickFormatter={(t) => `${exSym}${d3.format(",.2f")(t)}`} />
+                    <Tooltip 
+                      contentStyle={{ backgroundColor: '#0C272D', borderColor: '#74FA9320', color: '#fff' }} 
+                      cursor={{fill: '#ffffff10'}} 
+                      formatter={(value) => [`${exSym}${d3.format(",.2f")(value)}`, perfMetric]}
+                    />
+                    <Bar dataKey={perfMetric.toLowerCase()} name={perfMetric} fill="#736BED" radius={[4, 4, 0, 0]} />
+                  </BarChart>
+                </ResponsiveContainer>
+             </div>
+          </div>
+
+          {/* Chart 3: Top Countries Web Traffic (Full Width) */}
+          <div className="bg-[#113A42] p-6 rounded-3xl border border-[#74FA93]/20 shadow-xl h-[400px] mb-8 flex flex-col">
+            <div className="flex justify-between items-start mb-4">
+              <h3 className="text-[#F1EAD8] font-black">Top Countries by Web Traffic</h3>
+              <div className="flex bg-[#0C272D] p-1 rounded-lg border border-[#74FA93]/20">
+                <button onClick={() => setGaMetric('Sessions')} className={`px-2 py-1 text-[10px] font-bold rounded transition-colors ${gaMetric === 'Sessions' ? 'bg-[#74FA93] text-[#0C272D]' : 'text-slate-400 hover:text-white'}`}>Sessions</button>
+                <button onClick={() => setGaMetric('Users')} className={`px-2 py-1 text-[10px] font-bold rounded transition-colors ${gaMetric === 'Users' ? 'bg-[#74FA93] text-[#0C272D]' : 'text-slate-400 hover:text-white'}`}>Users</button>
+                <button onClick={() => setGaMetric('Engaged Sessions')} className={`px-2 py-1 text-[10px] font-bold rounded transition-colors ${gaMetric === 'Engaged Sessions' ? 'bg-[#74FA93] text-[#0C272D]' : 'text-slate-400 hover:text-white'}`}>Engaged</button>
+              </div>
+            </div>
+            <ResponsiveContainer width="100%" height="90%">
+              <BarChart data={topCountriesGa} layout="vertical" margin={{ left: 20 }}>
+                <CartesianGrid strokeDasharray="3 3" stroke="#ffffff10" horizontal={false} />
+                <XAxis type="number" stroke="#CBBB9D" fontSize={10} tickFormatter={(t) => d3.format(",")(t)} />
+                <YAxis dataKey="country" type="category" stroke="#CBBB9D" fontSize={10} width={80} />
+                <Tooltip 
+                  contentStyle={{ backgroundColor: '#0C272D', borderColor: '#74FA9320', color: '#fff' }} 
+                  cursor={{fill: '#ffffff10'}} 
+                  formatter={(value) => [d3.format(",")(value), gaMetric]}
+                />
+                <Bar dataKey={gaMetric === 'Users' ? 'users' : gaMetric === 'Engaged Sessions' ? 'engagedSessions' : 'sessions'} name={gaMetric} fill="#74FA93" radius={[0, 4, 4, 0]} />
+              </BarChart>
+            </ResponsiveContainer>
+          </div>
+
+          <div className="bg-gradient-to-br from-[#26085C] to-[#0C272D] p-8 rounded-3xl border border-[#74FA93]/30 shadow-2xl relative overflow-hidden">
+            <div className="absolute top-0 right-0 p-8 opacity-10"><Zap className="w-32 h-32 text-[#74FA93]" /></div>
+            <h3 className="text-xl font-black text-white mb-4 flex items-center gap-3"><Zap className="text-[#74FA93] w-6 h-6"/> AI Performance Insights</h3>
+            <div className="text-[#F1EAD8] leading-relaxed max-w-4xl space-y-2 relative z-10 font-medium">
+              <p>• The top performing channel generated <strong>{formatShort(agg.views)}</strong> total video views.</p>
+              <p>• We saw a total of <strong>{formatShort(agg.sessions)}</strong> web sessions based on GA4 data across the selected period.</p>
+              <p>• The overall cost per view stands at <strong>{agg.views > 0 ? `${exSym}${((agg.cost * exRate) / agg.views).toFixed(4)}` : `${exSym}0`}</strong>, indicating highly efficient media delivery.</p>
+            </div>
+          </div>
+        </div>
+      );
+    }
+    
+    if (activeTab === 'channel') {
+      return (
+        <div className="space-y-8">
+          <h2 className="text-2xl font-black text-white flex items-center gap-3"><Activity className="text-[#74FA93]" /> Channel Performance</h2>
+          <DataTable 
+            data={groupBy('channel')} 
+            columns={[
+              { key: 'name', label: 'Channel' },
+              { key: 'cost', label: 'Spend', format: v => `${exSym}${d3.format(",.2f")(v * exRate)}` },
+              { key: 'impressions', label: 'Impressions', format: v => d3.format(",.0f")(v) },
+              { key: 'clicks', label: 'Clicks', format: v => d3.format(",.0f")(v) },
+              { key: 'views', label: 'Video Views', format: v => d3.format(",.0f")(v) },
+              { key: 'ctr', label: 'CTR', format: (v, row) => row.impressions ? `${((row.clicks/row.impressions)*100).toFixed(2)}%` : '0%' }
+            ]} 
+          />
+        </div>
+      );
+    }
+
+    if (activeTab === 'market') {
+      return (
+        <div className="space-y-8">
+          <h2 className="text-2xl font-black text-white flex items-center gap-3"><Globe className="text-[#74FA93]" /> Market Performance</h2>
+          <DataTable 
+            data={groupBy('country')} 
+            columns={[
+              { key: 'name', label: 'Market / Country' },
+              { key: 'cost', label: 'Spend', format: v => `${exSym}${d3.format(",.2f")(v * exRate)}` },
+              { key: 'impressions', label: 'Impressions', format: v => d3.format(",.0f")(v) },
+              { key: 'clicks', label: 'Clicks', format: v => d3.format(",.0f")(v) },
+              { key: 'views', label: 'Video Views', format: v => d3.format(",.0f")(v) }
+            ]} 
+          />
+        </div>
+      );
+    }
+
+    if (activeTab === 'detailed') {
+      return (
+        <div className="space-y-8">
+          <h2 className="text-2xl font-black text-white flex items-center gap-3"><TableProperties className="text-[#74FA93]" /> Raw Ad Data</h2>
+          <div className="bg-[#113A42] p-4 rounded-xl border border-[#74FA93]/30 flex justify-between items-center mb-4">
+            <span className="text-[#CBBB9D] font-bold text-sm">Showing top 100 rows</span>
+          </div>
+          <DataTable 
+            data={filteredAdData.slice(0, 100)} 
+            columns={[
+              { key: 'date', label: 'Date' },
+              { key: 'campaignName', label: 'Campaign' },
+              { key: 'channel', label: 'Channel' },
+              { key: 'country', label: 'Country' },
+              { key: 'language', label: 'Language' },
+              { key: 'cost', label: 'Spend', format: v => `${exSym}${d3.format(",.2f")(v * exRate)}` },
+              { key: 'impressions', label: 'Impr.', format: v => d3.format(",.0f")(v) },
+              { key: 'clicks', label: 'Clicks', format: v => d3.format(",.0f")(v) }
+            ]} 
+          />
+        </div>
+      );
+    }
+
+    if (activeTab === 'webtraffic') {
+      const totalGaSessions = d3.sum(filteredGaData, d => d.sessions);
+      const totalGaUsers = d3.sum(filteredGaData, d => d.users);
+      const totalGaEngaged = d3.sum(filteredGaData, d => d.engagedSessions);
+      const totalGaNewUsers = d3.sum(filteredGaData, d => d.newUsers);
+      
+      const gaWithSessions = filteredGaData.filter(d => d.sessions > 0);
+      const totalGaMarkets = new Set(gaWithSessions.map(d => d.country)).size;
+      
+      const avgDuration = gaWithSessions.length > 0 
+        ? d3.mean(gaWithSessions, d => d.avgSessionDuration) 
+        : 0;
+
+      const mapDataGrouped = d3.groups(filteredGaData, d => d.country).map(([country, vals]) => ({
+        country,
+        sessions: d3.sum(vals, d => d.sessions),
+        users: d3.sum(vals, d => d.users),
+        engagedSessions: d3.sum(vals, d => d.engagedSessions)
+      }));
+      const mapDataDict = Object.fromEntries(mapDataGrouped.map(d => [d.country, d]));
+      
+      const getMapVal = (d) => {
+        if (!d) return 0;
+        if (mapMetric === 'Engaged Sessions') return d.engagedSessions;
+        if (mapMetric === 'Total Users') return d.users;
+        return d.sessions;
+      };
+
+      const maxVal = d3.max(mapDataGrouped, getMapVal) || 1;
+      const colorScale = d3.scaleSequential(d3.interpolate('#113A42', '#74FA93')).domain([0, maxVal]);
+
+      return (
+        <div className="space-y-8">
+          <div className="flex justify-between items-center bg-[#113A42] p-6 rounded-3xl border border-[#74FA93]/20 shadow-xl mb-4 flex-wrap gap-4">
+            <h2 className="text-2xl font-black text-white flex items-center gap-3"><MonitorPlay className="text-[#74FA93]" /> Web Traffic (GA4)</h2>
+            <div className="flex gap-4 items-end">
+              <MultiSelect label="Paid / Organic" options={uniquePaidOrganic} selected={filterPaidOrganic} onChange={setFilterPaidOrganic} />
+            </div>
+          </div>
+
+          <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-4">
+            <MetricCard label="Sessions" value={formatShort(totalGaSessions)} icon={Eye} color="text-white" />
+            <MetricCard label="Total Markets" value={d3.format(",")(totalGaMarkets)} icon={Globe} color="text-[#74FA93]" />
+            <MetricCard label="Engaged Sessions" value={formatShort(totalGaEngaged)} icon={Activity} color="text-[#CBBB9D]" />
+            <MetricCard label="New Users" value={formatShort(totalGaNewUsers)} icon={TrendingUp} color="text-white" />
+            <MetricCard label="Total Users" value={formatShort(totalGaUsers)} icon={MousePointer2} color="text-[#74FA93]" />
+            <MetricCard label="Avg Session (s)" value={d3.format(",.1f")(avgDuration)} icon={List} color="text-[#CBBB9D]" />
+          </div>
+
+          <div className="bg-[#113A42] p-6 rounded-3xl border border-[#74FA93]/20 shadow-xl relative">
+            <div className="flex justify-between items-center mb-6">
+              <h3 className="text-[#F1EAD8] font-black">Global Web Traffic</h3>
+              <div className="flex gap-2">
+                {['Sessions', 'Engaged Sessions', 'Total Users'].map(m => (
+                  <button
+                    key={m}
+                    onClick={() => setMapMetric(m)}
+                    className={`px-3 py-1 rounded-full text-xs font-bold transition-colors ${mapMetric === m ? 'bg-[#74FA93] text-[#0C272D]' : 'bg-[#0C272D] text-[#74FA93] border border-[#74FA93]/30 hover:bg-[#74FA93]/20'}`}
+                  >
+                    {m}
+                  </button>
                 ))}
               </div>
-
-              {/* Compare Weeks Dropdown */}
-              <div className="relative">
-                <button onClick={() => setIsWeekDropdownOpen(!isWeekDropdownOpen)} className={`flex items-center gap-2 px-4 py-2 rounded-xl text-xs font-bold transition-all border ${compareWeeks.length > 0 ? 'bg-purple-500/20 border-purple-500/50 text-purple-300' : 'bg-[#131A2A] border-white/5 text-slate-400 hover:text-white'}`}>
-                   <Layers className="w-4 h-4" />
-                   Compare Weeks {compareWeeks.length > 0 && `(${compareWeeks.length})`}
-                   <ChevronDown className={`w-3 h-3 transition-transform ${isWeekDropdownOpen ? 'rotate-180' : ''}`} />
-                </button>
-                {isWeekDropdownOpen && (
-                  <>
-                    <div className="fixed inset-0 z-40" onClick={(e) => { e.stopPropagation(); setIsWeekDropdownOpen(false); }} />
-                    <div className="absolute top-full left-0 mt-2 w-64 bg-[#131A2A] border border-white/10 rounded-xl shadow-[0_20px_50px_rgba(0,0,0,0.5)] z-50 max-h-80 flex flex-col">
-                      <div className="p-3 border-b border-white/5 flex justify-between items-center bg-[#0B0F19]">
-                        <span className="text-[10px] font-black uppercase tracking-widest text-slate-400">Select Weeks</span>
-                        {compareWeeks.length > 0 && (
-                          <button onClick={() => setCompareWeeks([])} className="text-[10px] font-black uppercase text-purple-400 hover:text-purple-300 tracking-widest">Clear</button>
-                        )}
-                      </div>
-                      <div className="flex-1 overflow-y-auto custom-scrollbar p-2 grid grid-cols-2 gap-2">
-                        {allTimeKeys.map(key => {
-                          const year = Math.floor(key / 100);
-                          const week = key % 100;
-                          const isSelected = compareWeeks.includes(key);
-                          return (
-                              <button key={key} onClick={() => setCompareWeeks(prev => isSelected ? prev.filter(k => k !== key) : [...prev, key])} className={`flex items-center justify-between px-3 py-2 rounded-lg border text-xs font-bold transition-all ${isSelected ? 'bg-purple-500/20 border-purple-500/50 text-purple-300' : 'border-white/5 hover:bg-white/5 text-slate-400 hover:text-white'}`}>
-                                W{week} '{year.toString().slice(2)}
-                                {isSelected && <Check className="w-3 h-3 text-purple-400" />}
-                              </button>
-                          );
-                        })}
-                      </div>
-                    </div>
-                  </>
-                )}
-              </div>
             </div>
-
-            <div className="flex items-center gap-4">
-              {/* Date Range - Now Globally Visible on the Right */}
-              <div className="flex items-center gap-2 bg-[#131A2A] border border-white/5 rounded-xl px-2 py-1 hidden sm:flex">
-                <CalendarDays className="w-4 h-4 text-slate-400 ml-2" />
-                <input style={{ colorScheme: 'dark' }} type="date" value={dateRange.start} onChange={e => setDateRange(prev => ({...prev, start: e.target.value}))} className="w-32 text-xs font-bold text-slate-200 bg-transparent border-none outline-none cursor-pointer" />
-                <span className="text-slate-500">-</span>
-                <input style={{ colorScheme: 'dark' }} type="date" value={dateRange.end} onChange={e => setDateRange(prev => ({...prev, end: e.target.value}))} className="w-32 text-xs font-bold text-slate-200 bg-transparent border-none outline-none cursor-pointer" />
-              </div>
-              
-              {(dateRange.start || compareWeeks.length > 0 || trafficFilter !== 'All') && (
-                  <button onClick={() => { setDateRange({start:'', end:''}); setCompareWeeks([]); setTrafficFilter('All'); }} className="text-xs font-black uppercase tracking-widest text-rose-400 hover:text-rose-300 mr-2 flex items-center gap-1 transition-colors">
-                    <Zap className="w-3 h-3"/> Reset Filters
-                  </button>
-              )}
-              <button onClick={() => setCurrency(c => c === 'USD' ? 'BHD' : 'USD')} className="flex items-center gap-2 px-4 py-2 rounded-xl border transition-all font-black text-xs tracking-widest uppercase bg-[#131A2A] border-white/5 text-slate-300 hover:border-purple-500/50 hover:text-white">
-                 <DollarSign className="w-4 h-4 text-emerald-400" /> {currency}
-              </button>
-              <div className="bg-[#131A2A] border border-white/10 rounded-full p-1 shadow-lg shadow-purple-500/10 hover:border-purple-500/50 transition-colors">
-                <UserButton afterSignOutUrl="/"/>
-              </div>
-            </div>
-          </header>
-
-          {/* SCROLLABLE MAIN CONTENT AREA */}
-          <main className="flex-1 overflow-y-auto print:overflow-visible relative custom-scrollbar scroll-smooth">
-            <div className="absolute top-0 left-1/2 -translate-x-1/2 w-full h-[600px] bg-gradient-to-b from-purple-900/10 via-transparent to-transparent pointer-events-none rounded-full blur-[100px]"></div>
             
-            {/* Global Loader Overlay */}
-            {(loading || creativeLoading) && (
-              <div className="absolute inset-0 z-50 flex items-center justify-center bg-[#0B0F19]/50 backdrop-blur-sm">
-                <div className="flex flex-col items-center gap-4">
-                  <div className="w-12 h-12 border-4 border-purple-500/30 border-t-purple-500 rounded-full animate-spin"></div>
-                  <span className="text-purple-400 font-bold tracking-widest uppercase text-xs">Loading Data...</span>
-                </div>
-              </div>
-            )}
-
-            <div className="p-8 lg:p-12 max-w-7xl mx-auto relative z-10">
-              {activeTab === 'summary' && renderSummary()}
-              {activeTab === 'market' && renderMarket()}
-              {activeTab === 'channel' && renderChannel()}
-              {activeTab === 'campaign' && renderCampaign()}
-              {activeTab === 'os' && renderOS()}
-              {activeTab === 'detailed' && renderDetailed()}
-              {activeTab === 'creative' && renderCreative()}
+            <div className="w-full h-[500px] bg-[#0C272D]/50 rounded-2xl overflow-hidden border border-[#74FA93]/10">
+              <ComposableMap projection="geoMercator" projectionConfig={{ scale: 100 }} width={800} height={400}>
+                <ZoomableGroup>
+                  <Geographies geography={GEO_URL}>
+                    {({ geographies }) =>
+                      geographies.map((geo) => {
+                        const countryName = geo.properties.name;
+                        const normName = normalizeMarket(countryName);
+                        const data = mapDataDict[normName];
+                        const val = getMapVal(data);
+                        const fill = val > 0 ? colorScale(val) : '#1A4D57';
+                        
+                        return (
+                          <Geography
+                            key={geo.rsmKey}
+                            geography={geo}
+                            fill={fill}
+                            stroke="#0C272D"
+                            strokeWidth={0.5}
+                            style={{
+                              default: { outline: 'none' },
+                              hover: { fill: '#F1EAD8', outline: 'none', cursor: 'pointer' },
+                              pressed: { outline: 'none' },
+                            }}
+                            data-tooltip-id="map-tooltip"
+                            data-tooltip-content={`${countryName}: ${d3.format(",")(val)} ${mapMetric}`}
+                          />
+                        );
+                      })
+                    }
+                  </Geographies>
+                </ZoomableGroup>
+              </ComposableMap>
+              <ReactTooltip id="map-tooltip" style={{ backgroundColor: '#0C272D', color: '#74FA93', fontWeight: 'bold' }} />
             </div>
-
-            <footer className="max-w-7xl mx-auto px-8 lg:px-12 pb-12 border-t border-white/5 mt-4 pt-8 flex flex-col md:flex-row justify-between items-center gap-6 opacity-60 hover:opacity-100 transition-opacity">
-              <div className="flex items-center gap-4">
-                <Info className="w-4 h-4 text-slate-400" />
-                <span className="text-[10px] font-black uppercase tracking-widest text-slate-500">MMP Cross-Engine v7.4 | Full Logic Engine Fixed</span>
-              </div>
-              <div className="flex gap-4 items-center bg-[#131A2A] px-4 py-2 rounded-full border border-white/5">
-                <div className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse shadow-[0_0_8px_rgba(52,211,153,0.8)]" />
-                <span className="text-[10px] font-black uppercase tracking-widest text-emerald-400">Live Secure Connect</span>
-              </div>
-            </footer>
-          </main>
-
-        </div>
-
-        {/* REPORT MODAL & PDF OVERLAYS */}
-        {reportModal.isOpen && (
-          <div className="fixed inset-0 z-[9999] flex items-center justify-center px-4 no-print">
-             <div className="absolute inset-0 bg-[#0B0F19]/80 backdrop-blur-sm" onClick={() => setReportModal({...reportModal, isOpen: false})}></div>
-             <div className="bg-[#131A2A] w-full max-w-lg rounded-[2.5rem] border border-white/10 shadow-[0_20px_50px_rgba(0,0,0,0.5)] p-8 relative z-10 animate-in zoom-in-95">
-                <div className="flex justify-between items-center mb-8">
-                   <h3 className="text-xl font-black text-white flex items-center gap-3"><FileText className="text-purple-400 w-6 h-6"/> Report Configuration</h3>
-                   <button onClick={() => setReportModal({...reportModal, isOpen: false})} className="text-slate-500 hover:text-white"><Zap className="w-5 h-5 rotate-45"/></button>
-                </div>
-                <div className="space-y-5">
-                   {/* RESTORED DATE RANGE ROW */}
-                   <div>
-                      <label className="text-[10px] font-black uppercase text-slate-400 mb-1.5 block tracking-widest">Date Range</label>
-                      <div className="flex gap-3">
-                         <input style={{ colorScheme: 'dark' }} type="date" value={reportModal.start} onChange={e=>setReportModal({...reportModal, start: e.target.value})} className="w-full text-sm font-bold text-white bg-[#0B0F19] border border-white/10 rounded-xl px-4 py-3 outline-none focus:border-purple-500 cursor-pointer" />
-                         <input style={{ colorScheme: 'dark' }} type="date" value={reportModal.end} onChange={e=>setReportModal({...reportModal, end: e.target.value})} className="w-full text-sm font-bold text-white bg-[#0B0F19] border border-white/10 rounded-xl px-4 py-3 outline-none focus:border-purple-500 cursor-pointer" />
-                      </div>
-                   </div>
-                   
-                   {/* GRID LAYOUT FOR FILTERS */}
-                   <div className="grid grid-cols-2 gap-4">
-                      <div>
-                         <label className="text-[10px] font-black uppercase text-slate-400 mb-1.5 block tracking-widest">Market Filter</label>
-                         <select value={reportModal.market} onChange={e=>setReportModal({...reportModal, market: e.target.value})} className="w-full px-4 py-3 bg-[#0B0F19] border border-white/10 rounded-xl text-sm font-bold text-white outline-none focus:border-purple-500 cursor-pointer">
-                            <option value="All">Global</option>
-                            {uniqueMarkets.map(m => <option key={m} value={m}>{m}</option>)}
-                         </select>
-                      </div>
-                      <div>
-                         <label className="text-[10px] font-black uppercase text-slate-400 mb-1.5 block tracking-widest">Channel Filter</label>
-                         <select value={reportModal.channel} onChange={e=>setReportModal({...reportModal, channel: e.target.value})} className="w-full px-4 py-3 bg-[#0B0F19] border border-white/10 rounded-xl text-sm font-bold text-white outline-none focus:border-purple-500 cursor-pointer">
-                            <option value="All">All</option>
-                            {uniqueChannels.map(c => <option key={c} value={c}>{c}</option>)}
-                         </select>
-                      </div>
-                   </div>
-                   <div className="grid grid-cols-2 gap-4">
-                      <div>
-                         <label className="text-[10px] font-black uppercase text-slate-400 mb-1.5 block tracking-widest">Campaign</label>
-                         <select value={reportModal.campaign} onChange={e=>setReportModal({...reportModal, campaign: e.target.value})} className="w-full px-4 py-3 bg-[#0B0F19] border border-white/10 rounded-xl text-sm font-bold text-white outline-none focus:border-purple-500 cursor-pointer">
-                            <option value="All">All</option>
-                            {uniqueCampaigns.map(c => <option key={c} value={c}>{c}</option>)}
-                         </select>
-                      </div>
-                      <div>
-                         <label className="text-[10px] font-black uppercase text-slate-400 mb-1.5 block tracking-widest">OS System</label>
-                         <select value={reportModal.os} onChange={e=>setReportModal({...reportModal, os: e.target.value})} className="w-full px-4 py-3 bg-[#0B0F19] border border-white/10 rounded-xl text-sm font-bold text-white outline-none focus:border-purple-500 cursor-pointer">
-                            <option value="All">All</option>
-                            {uniqueOS.map(o => <option key={o} value={o}>{o}</option>)}
-                         </select>
-                      </div>
-                   </div>
-                   <div>
-                      <label className="text-[10px] font-black uppercase text-slate-400 mb-1.5 block tracking-widest">Traffic Segment</label>
-                      <select value={reportModal.traffic} onChange={e=>setReportModal({...reportModal, traffic: e.target.value})} className="w-full px-4 py-3 bg-[#0B0F19] border border-white/10 rounded-xl text-sm font-bold text-white outline-none focus:border-purple-500 cursor-pointer">
-                         <option value="All">All Traffic</option>
-                         <option value="Paid">Paid Only</option>
-                         <option value="Organic">Organic Only</option>
-                         <option value="Affiliates">Affiliates Only</option>
-                      </select>
-                   </div>
-                </div>
-                <button 
-                  onClick={() => { setReportModal({...reportModal, isOpen: false}); setIsGeneratingPdf(true); }} 
-                  className="mt-8 w-full bg-gradient-to-r from-purple-600 to-rose-500 text-white rounded-xl py-4 font-black text-sm shadow-lg shadow-purple-500/25 transition-all hover:scale-[1.02]"
-                >
-                  Compile & Download PDF
-                </button>
-             </div>
           </div>
-        )}
-
-        {/* PDF OVERLAY & HIDDEN RENDER */}
-        {isGeneratingPdf && (
-          <div className="fixed inset-0 bg-[#0B0F19] z-[99998] flex items-center justify-center no-print">
-             <div className="flex flex-col items-center gap-4">
-               <div className="w-8 h-8 border-4 border-emerald-500/30 border-t-emerald-500 rounded-full animate-spin" />
-               <p className="text-sm font-bold text-emerald-400 tracking-widest uppercase">Compiling PDF Report...</p>
-             </div>
-          </div>
-        )}
-
-        <div className="print-only">
-           {renderPrintableReport()}
-        </div>
-
-        <style dangerouslySetInnerHTML={{__html: `
-          @media print { 
-            @page { size: A4 portrait; margin: 10mm; } 
-            body, html { height: auto !important; overflow: visible !important; background: white !important; -webkit-print-color-adjust: exact; print-color-adjust: exact; } 
-            .no-print { display: none !important; } 
-            .print-only { display: block !important; } 
-          } 
-          @media screen { .print-only { display: none !important; } }
           
-          /* Custom scrollbar matching the dark theme */
-          .custom-scrollbar::-webkit-scrollbar { width: 6px; height: 6px; }
-          .custom-scrollbar::-webkit-scrollbar-track { background: transparent; }
-          .custom-scrollbar::-webkit-scrollbar-thumb { background: rgba(255,255,255,0.1); border-radius: 10px; }
-          .custom-scrollbar::-webkit-scrollbar-thumb:hover { background: rgba(168,85,247,0.5); }
-        `}} />
+          <GaChannelTable aggData={gaSourceData} rawData={filteredGaData} formatShort={formatShort} />
         </div>
-      </SignedIn>
-      <SignedOut>
-        <RedirectToSignIn />
-      </SignedOut>
-    </LoadingContext.Provider>
+      );
+    }
+  };
+
+  return (
+    <div className="min-h-screen bg-[#0C272D] font-sans selection:bg-[#74FA93]/30 text-white flex flex-col">
+      {/* HEADER */}
+      <header className="sticky top-0 z-50 bg-[#0C272D]/95 backdrop-blur-xl border-b border-[#74FA93]/20 px-8 py-4 flex flex-wrap gap-4 items-center justify-between shadow-2xl relative">
+        <div className="absolute inset-0 z-0 opacity-5 pointer-events-none" style={{ backgroundImage: "url('/pattern-1.png')", backgroundSize: '100px', backgroundRepeat: 'repeat-x', backgroundPosition: 'center' }}></div>
+        <div className="flex items-center gap-4 relative z-10">
+          <img src="/logo.png" alt="AFC Logo" className="h-10 object-contain" onError={(e) => e.target.style.display = 'none'} />
+          <div>
+            <h1 className="text-xl font-black text-white tracking-tight uppercase">Asia Cup 2027 Dashboard</h1>
+            <p className="text-[10px] font-black text-[#74FA93] uppercase tracking-[0.2em]">Asia Cup LOC Overview</p>
+          </div>
+        </div>
+        
+        <div className="flex gap-3 flex-wrap flex-1 justify-end items-end relative">
+          <div className="flex flex-col gap-1">
+             <span className="text-[10px] font-black text-[#CBBB9D] uppercase tracking-widest block">Start Date</span>
+             <input type="date" value={dateRange.start} onClick={e => e.target.showPicker && e.target.showPicker()} onChange={e => setDateRange(prev => ({...prev, start: e.target.value}))} className="cursor-pointer px-2.5 py-1.5 bg-[#113A42] border border-[#74FA93]/30 rounded-lg text-xs font-bold text-[#F1EAD8] outline-none focus:border-[#74FA93] [&::-webkit-calendar-picker-indicator]:cursor-pointer [&::-webkit-calendar-picker-indicator]:opacity-50" />
+          </div>
+          <div className="flex flex-col gap-1">
+             <span className="text-[10px] font-black text-[#CBBB9D] uppercase tracking-widest block">End Date</span>
+             <input type="date" value={dateRange.end} onClick={e => e.target.showPicker && e.target.showPicker()} onChange={e => setDateRange(prev => ({...prev, end: e.target.value}))} className="cursor-pointer px-2.5 py-1.5 bg-[#113A42] border border-[#74FA93]/30 rounded-lg text-xs font-bold text-[#F1EAD8] outline-none focus:border-[#74FA93] [&::-webkit-calendar-picker-indicator]:cursor-pointer [&::-webkit-calendar-picker-indicator]:opacity-50" />
+          </div>
+
+          <MultiSelect label="Campaign" options={uniqueCampaigns} selected={filterCampaigns} onChange={setFilterCampaigns} />
+          <MultiSelect label="Market" options={uniqueMarkets} selected={filterMarkets} onChange={setFilterMarkets} />
+          
+          <div className="flex items-end gap-3 ml-2">
+             <div className="flex flex-col gap-1">
+               <span className="text-[10px] font-black text-[#CBBB9D] uppercase tracking-widest block">Currency</span>
+               <div className="flex bg-[#113A42] p-0.5 rounded-lg border border-[#74FA93]/30">
+                 <button onClick={() => setCurrency('USD')} className={`px-2.5 py-1 text-xs font-bold rounded-md transition-colors ${currency === 'USD' ? 'bg-[#74FA93] text-[#0C272D]' : 'text-slate-400 hover:text-white'}`}>USD</button>
+                 <button onClick={() => setCurrency('SAR')} className={`px-2.5 py-1 text-xs font-bold rounded-md transition-colors ${currency === 'SAR' ? 'bg-[#74FA93] text-[#0C272D]' : 'text-slate-400 hover:text-white'}`}>SAR</button>
+               </div>
+             </div>
+             <button onClick={resetFilters} className="px-3 py-1.5 bg-[#74FA93]/10 border border-[#74FA93]/50 text-[#74FA93] text-[10px] uppercase font-black rounded-lg hover:bg-[#74FA93]/20 hover:text-white transition-colors flex items-center justify-center gap-1"><RefreshCw className="w-3 h-3"/> Reset</button>
+          </div>
+        </div>
+      </header>
+
+      <div className="flex flex-1 overflow-hidden">
+        {/* SIDEBAR TABS */}
+        <div className="w-64 border-r border-[#74FA93]/10 bg-[#0C272D] flex flex-col gap-2 overflow-y-auto z-20 relative">
+          <div className="p-6 pb-2">
+            <div className="text-[10px] font-black text-[#CBBB9D] uppercase tracking-widest mb-4 px-4">Navigation</div>
+          {tabs.map(t => {
+            const active = activeTab === t.id;
+            return (
+              <button 
+                key={t.id}
+                onClick={() => setActiveTab(t.id)}
+                className={`flex items-center gap-3 w-full px-4 py-3 rounded-xl font-bold transition-all ${
+                  active ? 'bg-[#74FA93] text-[#0C272D] shadow-[0_0_15px_rgba(116,250,147,0.3)]' : 'text-[#F1EAD8] hover:bg-[#74FA93]/10 hover:text-[#74FA93]'
+                }`}
+              >
+                <t.icon className="w-5 h-5" />
+                {t.label}
+              </button>
+            )
+          })}
+          </div>
+          <div className="flex-1 min-h-[100px] mt-8 opacity-[0.03] pointer-events-none" style={{ backgroundImage: "url('/pattern-4.png')", backgroundSize: 'contain', backgroundRepeat: 'repeat-y', backgroundPosition: 'center left' }}></div>
+        </div>
+        
+        {/* MAIN CONTENT */}
+        <main className="flex-1 overflow-y-auto p-8 custom-scrollbar relative z-10">
+          <div className="absolute top-0 right-0 w-full h-[500px] bg-gradient-to-br from-[#26085C]/10 via-[#0C272D] to-[#0C272D] pointer-events-none -z-10"></div>
+          <div className="absolute top-0 right-0 w-1/3 h-full opacity-5 pointer-events-none -z-10" style={{ backgroundImage: "url('/pattern-3.png')", backgroundSize: 'cover', backgroundRepeat: 'no-repeat', backgroundPosition: 'right center' }}></div>
+          <div className="absolute bottom-0 left-0 w-full h-12 opacity-5 pointer-events-none -z-10" style={{ backgroundImage: "url('/pattern-2.png')", backgroundSize: '200px', backgroundRepeat: 'repeat-x', backgroundPosition: 'bottom' }}></div>
+          {renderContent()}
+        </main>
+      </div>
+    </div>
   );
 }
