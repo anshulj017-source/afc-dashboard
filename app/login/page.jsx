@@ -50,7 +50,7 @@ export default function Login() {
       {/* Background Graphic */}
       <div className="absolute inset-0 z-0 opacity-[0.03] pointer-events-none" style={{ backgroundImage: "url('/pattern-1.png')", backgroundSize: '150px', backgroundRepeat: 'repeat', backgroundPosition: 'center' }}></div>
 
-      <div className="bg-[#113A42] rounded-3xl p-10 max-w-md w-full shadow-2xl border border-[#74FA93]/20 relative z-10">
+      <div className="bg-[#0C272D] rounded-3xl p-10 max-w-md w-full shadow-2xl border border-[#74FA93]/20 relative z-10">
         <div className="flex flex-col items-center mb-10">
           <img 
             src="/logo.png" 
@@ -78,7 +78,7 @@ export default function Login() {
               type="email" 
               value={email}
               onChange={(e) => setEmail(e.target.value)}
-              className="w-full bg-[#0C272D] border border-[#74FA93]/30 rounded-xl px-4 py-3 text-sm text-[#F1EAD8] focus:outline-none focus:border-[#74FA93] transition-all duration-200"
+              className="w-full bg-[#07171A] border border-[#74FA93]/30 rounded-xl px-4 py-3 text-sm text-[#F1EAD8] focus:outline-none focus:border-[#74FA93] transition-all duration-200"
               placeholder="name@example.com"
               required 
             />
@@ -89,7 +89,7 @@ export default function Login() {
               type="password" 
               value={password}
               onChange={(e) => setPassword(e.target.value)}
-              className="w-full bg-[#0C272D] border border-[#74FA93]/30 rounded-xl px-4 py-3 text-sm text-[#F1EAD8] focus:outline-none focus:border-[#74FA93] transition-all duration-200"
+              className="w-full bg-[#07171A] border border-[#74FA93]/30 rounded-xl px-4 py-3 text-sm text-[#F1EAD8] focus:outline-none focus:border-[#74FA93] transition-all duration-200"
               placeholder="••••••••"
               required 
             />

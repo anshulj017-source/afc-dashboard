@@ -831,7 +831,7 @@ export default function App() {
           </div>
           <div className="flex-1 min-h-[100px] mt-8 opacity-[0.03] pointer-events-none" style={{ backgroundImage: "url('/pattern-4.png')", backgroundSize: 'contain', backgroundRepeat: 'repeat-y', backgroundPosition: 'center left' }}></div>
           {isAdmin && (
-            <div className="mt-auto p-6 pt-0 z-30 bg-[#0C272D]">
+            <div className="mt-auto p-6 pt-0 z-30">
               <button 
                 onClick={() => setActiveTab('admin')}
                 className={`flex items-center gap-3 w-full px-4 py-3 rounded-xl font-bold transition-all ${
