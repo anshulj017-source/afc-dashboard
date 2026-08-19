@@ -2,6 +2,7 @@ import { NextResponse } from 'next/server';
 import { getFirebaseAdmin } from '../../../../lib/firebaseAdmin';
 
 export const dynamic = 'force-dynamic';
+export const runtime = 'nodejs';
 
 export async function GET(req) {
   try {
