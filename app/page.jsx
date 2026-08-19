@@ -4,7 +4,7 @@ import * as d3 from 'd3';
 import { 
   TrendingUp, Globe, Layers, Activity, DollarSign, MousePointer2, 
   Eye, Zap, LayoutDashboard, ChevronDown, Search, Check, 
-  TableProperties, MonitorPlay, BarChart3, Smartphone, List, Download, RefreshCw, Users
+  TableProperties, MonitorPlay, BarChart3, Smartphone, List, Download, RefreshCw, Users, Calendar
 } from 'lucide-react';
 import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer, BarChart, Bar, AreaChart, Area } from 'recharts';
 import { ComposableMap, Geographies, Geography, ZoomableGroup } from 'react-simple-maps';
@@ -16,6 +16,7 @@ import { onAuthStateChanged, signOut } from 'firebase/auth';
 import { doc, getDoc } from 'firebase/firestore';
 import { GaChannelTable } from './GaChannelTable';
 import AdminView from './AdminView';
+import CampaignView from './CampaignView';
 
 const GEO_URL = "https://unpkg.com/world-atlas@2.0.2/countries-110m.json";
 
@@ -144,7 +145,7 @@ const MultiSelect = ({ label, options, selected, onChange }) => {
   );
 };
 
-const DataTable = ({ data, columns }) => (
+const DataTable = ({ data, columns, totals }) => (
   <div className="overflow-x-auto bg-[#113A42] rounded-2xl border border-[#74FA93]/20 z-10 relative">
     <table className="w-full text-left border-collapse">
       <thead>
@@ -164,6 +165,17 @@ const DataTable = ({ data, columns }) => (
             ))}
           </tr>
         ))}
+        {totals && data.length > 0 && (
+          <tr className="bg-[#0C272D]/80 border-t-2 border-[#74FA93]/50">
+            {columns.map((col, j) => (
+              <td key={j} className="px-6 py-4 text-sm font-black text-[#74FA93] whitespace-nowrap">
+                {totals[col.key] !== undefined 
+                  ? (col.format ? col.format(totals[col.key], totals) : totals[col.key])
+                  : ''}
+              </td>
+            ))}
+          </tr>
+        )}
         {data.length === 0 && <tr><td colSpan={columns.length} className="px-6 py-8 text-center text-[#CBBB9D] text-sm">No data available</td></tr>}
       </tbody>
     </table>
@@ -264,7 +276,7 @@ export default function App() {
             adName: row['Ad name'] || row['Ad Name'] || 'Unknown',
             cost: rawCost,
             impressions: parseMetric(row['Impressions']),
-            clicks: parseMetric(row['Clicks'] || row['Link clicks'] || row['Click-throughs']),
+            clicks: parseMetric(row['Clicks'] || row['Swipes'] || row['Link clicks'] || row['Click-throughs']),
             videoViews: parseMetric(vals[ch.viewsCol]), // based on user mapping
             videoViews6s: parseMetric(row['6-second video views'] || row['Three-second video views'] || 0),
             videoViews15s: parseMetric(row['15-second video views (focused view)'] || row['ThruPlay actions'] || 0),
@@ -448,6 +460,7 @@ export default function App() {
 
   const NAV_ITEMS = [
     { id: 'summary', label: 'Summary', icon: LayoutDashboard },
+    { id: 'campaign', label: 'Campaign View', icon: Calendar },
     { id: 'channel', label: 'Channel wise', icon: Activity },
     { id: 'market', label: 'Market wise', icon: Globe },
     { id: 'detailed', label: 'Detailed data', icon: TableProperties },
@@ -456,21 +469,41 @@ export default function App() {
 
   // Admin button is rendered separately at the bottom left
 
-  if (isAuthLoading) {
-    return (
-      <div className="min-h-screen bg-[#0C272D] flex flex-col items-center justify-center text-[#74FA93] font-black text-2xl tracking-widest animate-pulse gap-6">
-        <img src="/logo.png" alt="Loading Logo" className="h-32 object-contain" onError={(e) => e.target.style.display = 'none'} />
-        <span>AUTHENTICATING...</span>
+  const LoadingScreen = ({ message }) => (
+    <div className="min-h-screen bg-[#0C272D] flex flex-col items-center justify-center text-[#74FA93] gap-6 relative overflow-hidden">
+      
+      <div className="relative flex flex-col items-center justify-center animate-pulse">
+        <img src="/logo.png" alt="Loading Logo" className="h-24 md:h-32 object-contain" onError={(e) => e.target.style.display = 'none'} />
       </div>
-    );
-  }
-
-  if (loading) return (
-    <div className="min-h-screen bg-[#0C272D] flex flex-col items-center justify-center text-[#74FA93] font-black text-2xl tracking-widest animate-pulse gap-6">
-      <img src="/logo.png" alt="Loading Logo" className="h-32 object-contain" />
-      <span>LOADING DATA...</span>
+      
+      <div className="flex flex-col items-center gap-2 z-10">
+        <span className="text-sm md:text-base font-bold text-[#74FA93] tracking-[0.2em]">{message}</span>
+        <div className="flex gap-1.5 mt-1">
+          <div className="w-1.5 h-1.5 rounded-full bg-[#74FA93] animate-bounce" style={{ animationDelay: '0s' }}></div>
+          <div className="w-1.5 h-1.5 rounded-full bg-[#74FA93] animate-bounce" style={{ animationDelay: '0.15s' }}></div>
+          <div className="w-1.5 h-1.5 rounded-full bg-[#74FA93] animate-bounce" style={{ animationDelay: '0.3s' }}></div>
+        </div>
+      </div>
     </div>
   );
+
+  if (isAuthLoading) return <LoadingScreen message="AUTHENTICATING" />;
+  if (loading) return <LoadingScreen message="LOADING DATA" />;
+
+  // Helper for generating totals row for grouped data
+  const getTotals = (dataArr, label = 'Total') => {
+    if (!dataArr || dataArr.length === 0) return null;
+    const tImp = d3.sum(dataArr, d => d.impressions);
+    const tClicks = d3.sum(dataArr, d => d.clicks);
+    return {
+      name: label,
+      cost: d3.sum(dataArr, d => d.cost),
+      impressions: tImp,
+      clicks: tClicks,
+      views: d3.sum(dataArr, d => d.views),
+      ctr: tImp > 0 ? (tClicks / tImp) * 100 : 0
+    };
+  };
 
   const renderContent = () => {
     if (activeTab === 'summary') {
@@ -583,12 +616,21 @@ export default function App() {
       );
     }
     
+    if (activeTab === 'campaign') {
+      return (
+        <div className="w-full h-full">
+          <CampaignView adData={filteredAdData} exRate={exRate} exSym={exSym} formatShort={formatShort} />
+        </div>
+      );
+    }
+    
     if (activeTab === 'channel') {
       return (
         <div className="space-y-8">
           <h2 className="text-2xl font-black text-white flex items-center gap-3"><Activity className="text-[#74FA93]" /> Channel Performance</h2>
           <DataTable 
             data={groupBy('channel')} 
+            totals={getTotals(groupBy('channel'), 'Total')}
             columns={[
               { key: 'name', label: 'Channel' },
               { key: 'cost', label: 'Spend', format: v => `${exSym}${d3.format(",.2f")(v * exRate)}` },
@@ -608,6 +650,7 @@ export default function App() {
           <h2 className="text-2xl font-black text-white flex items-center gap-3"><Globe className="text-[#74FA93]" /> Market Performance</h2>
           <DataTable 
             data={groupBy('country')} 
+            totals={getTotals(groupBy('country'), 'Total')}
             columns={[
               { key: 'name', label: 'Market / Country' },
               { key: 'cost', label: 'Spend', format: v => `${exSym}${d3.format(",.2f")(v * exRate)}` },
@@ -776,7 +819,13 @@ export default function App() {
              <input type="date" value={dateRange.end} onClick={e => e.target.showPicker && e.target.showPicker()} onChange={e => setDateRange(prev => ({...prev, end: e.target.value}))} className="cursor-pointer px-2.5 py-1.5 bg-[#113A42] border border-[#74FA93]/30 rounded-lg text-xs font-bold text-[#F1EAD8] outline-none focus:border-[#74FA93] [&::-webkit-calendar-picker-indicator]:cursor-pointer [&::-webkit-calendar-picker-indicator]:opacity-50" />
           </div>
 
-          <MultiSelect label="Campaign" options={uniqueCampaigns} selected={filterCampaigns} onChange={setFilterCampaigns} />
+          { (activeTab !== 'campaign' && activeTab !== 'webtraffic') ? (
+            <MultiSelect label="Campaign" options={uniqueCampaigns} selected={filterCampaigns} onChange={setFilterCampaigns} />
+          ) : (
+            <div className="opacity-30 pointer-events-none" title="Campaign filter is disabled for this view">
+              <MultiSelect label="Campaign" options={uniqueCampaigns} selected={filterCampaigns} onChange={setFilterCampaigns} />
+            </div>
+          )}
           <MultiSelect label="Market" options={uniqueMarkets} selected={filterMarkets} onChange={setFilterMarkets} />
           
           <div className="flex items-end gap-3 ml-2">

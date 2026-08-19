@@ -170,6 +170,26 @@ export const GaChannelTable = ({ aggData, rawData, formatShort }) => {
               </tr>
             ))}
             {sortedAgg.length === 0 && <tr><td colSpan={7} className="px-6 py-8 text-center text-[#CBBB9D] text-sm">No channels found</td></tr>}
+            {sortedAgg.length > 0 && (() => {
+              const tSessions = d3.sum(sortedAgg, d => d.sessions);
+              const tUsers = d3.sum(sortedAgg, d => d.users);
+              const tEngaged = d3.sum(sortedAgg, d => d.engagedSessions);
+              const tNewUsers = d3.sum(sortedAgg, d => d.newUsers);
+              const totalDuration = d3.sum(sortedAgg, d => d.avgSessionDuration * d.sessions);
+              const tAvgDuration = tSessions > 0 ? totalDuration / tSessions : 0;
+              
+              return (
+                <tr className="bg-[#0C272D]/80 border-t-2 border-[#74FA93]/50 hover:bg-[#74FA93]/10 transition-colors">
+                  <td className="px-3 py-3 w-12 text-center"></td>
+                  <td className="px-3 py-3 text-sm font-black text-[#74FA93]">Total</td>
+                  <td className="px-3 py-3 text-sm font-black text-[#74FA93]">{d3.format(",")(tSessions)}</td>
+                  <td className="px-3 py-3 text-sm font-black text-[#74FA93]">{d3.format(",")(tUsers)}</td>
+                  <td className="px-3 py-3 text-sm font-black text-[#74FA93]">{d3.format(",")(tEngaged)}</td>
+                  <td className="px-3 py-3 text-sm font-black text-[#74FA93]">{d3.format(",")(tNewUsers)}</td>
+                  <td className="px-3 py-3 text-sm font-black text-[#74FA93]">{d3.format(",.1f")(tAvgDuration)}s</td>
+                </tr>
+              );
+            })()}
           </tbody>
         </table>
       </div>
