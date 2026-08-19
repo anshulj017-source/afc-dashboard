@@ -11,9 +11,11 @@ import { ComposableMap, Geographies, Geography, ZoomableGroup } from 'react-simp
 import { Tooltip as ReactTooltip } from 'react-tooltip';
 import 'react-tooltip/dist/react-tooltip.css';
 import { useRouter } from 'next/navigation';
-import { auth } from '../lib/firebase';
+import { auth, db } from '../lib/firebase';
 import { onAuthStateChanged, signOut } from 'firebase/auth';
+import { doc, getDoc } from 'firebase/firestore';
 import { GaChannelTable } from './GaChannelTable';
+import AdminView from './AdminView';
 
 const GEO_URL = "https://unpkg.com/world-atlas@2.0.2/countries-110m.json";
 
@@ -172,6 +174,7 @@ const DataTable = ({ data, columns }) => (
 export default function App() {
   const router = useRouter();
   const [isAuthenticated, setIsAuthenticated] = useState(false);
+  const [isAdmin, setIsAdmin] = useState(false);
   const [isAuthLoading, setIsAuthLoading] = useState(true);
   const [adData, setAdData] = useState([]);
   const [gaData, setGaData] = useState([]);
@@ -196,9 +199,19 @@ export default function App() {
   const [mapMetric, setMapMetric] = useState('Sessions');
 
   useEffect(() => {
-    const unsubscribe = onAuthStateChanged(auth, (user) => {
+    const unsubscribe = onAuthStateChanged(auth, async (user) => {
       if (user) {
         setIsAuthenticated(true);
+        try {
+          const userDoc = await getDoc(doc(db, 'users', user.uid));
+          if (userDoc.exists() && userDoc.data().isAdmin) {
+            setIsAdmin(true);
+          } else {
+            setIsAdmin(false);
+          }
+        } catch (e) {
+          console.error("Error fetching user role", e);
+        }
         setIsAuthLoading(false);
       } else {
         router.push('/login');
@@ -433,13 +446,17 @@ export default function App() {
     views: d3.sum(vals, d => d.videoViews),
   })).sort((a,b) => b.cost - a.cost);
 
-  const tabs = [
+  const NAV_ITEMS = [
     { id: 'summary', label: 'Summary', icon: LayoutDashboard },
     { id: 'channel', label: 'Channel wise', icon: Activity },
     { id: 'market', label: 'Market wise', icon: Globe },
     { id: 'detailed', label: 'Detailed data', icon: TableProperties },
     { id: 'webtraffic', label: 'Web Traffic', icon: MonitorPlay }
   ];
+
+  if (isAdmin) {
+    NAV_ITEMS.push({ id: 'admin', label: 'Admin', icon: Users });
+  }
 
   if (isAuthLoading) {
     return (
@@ -735,6 +752,7 @@ export default function App() {
         </div>
       );
     }
+    return null;
   };
 
   return (
@@ -782,7 +800,7 @@ export default function App() {
         <div className="w-64 border-r border-[#74FA93]/10 bg-[#0C272D] flex flex-col gap-2 overflow-y-auto z-20 relative">
           <div className="p-6 pb-2">
             <div className="text-[10px] font-black text-[#CBBB9D] uppercase tracking-widest mb-4 px-4">Navigation</div>
-          {tabs.map(t => {
+          {NAV_ITEMS.map(t => {
             const active = activeTab === t.id;
             return (
               <button 
@@ -801,13 +819,17 @@ export default function App() {
           <div className="flex-1 min-h-[100px] mt-8 opacity-[0.03] pointer-events-none" style={{ backgroundImage: "url('/pattern-4.png')", backgroundSize: 'contain', backgroundRepeat: 'repeat-y', backgroundPosition: 'center left' }}></div>
         </div>
         
-        {/* MAIN CONTENT */}
+        {/* TABS CONTENT */}
+        {activeTab === 'admin' ? (
+          <AdminView />
+        ) : (
         <main className="flex-1 overflow-y-auto p-8 custom-scrollbar relative z-10">
           <div className="absolute top-0 right-0 w-full h-[500px] bg-gradient-to-br from-[#26085C]/10 via-[#0C272D] to-[#0C272D] pointer-events-none -z-10"></div>
           <div className="absolute top-0 right-0 w-1/3 h-full opacity-5 pointer-events-none -z-10" style={{ backgroundImage: "url('/pattern-3.png')", backgroundSize: 'cover', backgroundRepeat: 'no-repeat', backgroundPosition: 'right center' }}></div>
           <div className="absolute bottom-0 left-0 w-full h-12 opacity-5 pointer-events-none -z-10" style={{ backgroundImage: "url('/pattern-2.png')", backgroundSize: '200px', backgroundRepeat: 'repeat-x', backgroundPosition: 'bottom' }}></div>
           {renderContent()}
         </main>
+        )}
       </div>
     </div>
   );
