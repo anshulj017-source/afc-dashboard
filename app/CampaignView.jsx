@@ -1,8 +1,9 @@
 import React, { useState, useMemo } from 'react';
+import InfoTooltip from './components/InfoTooltip';
 import * as d3 from 'd3';
 import { ChevronDown, Calendar, Layers, Activity } from 'lucide-react';
 
-const COLORS = ['#74FA93', '#F59E0B', '#3B82F6', '#EF4444', '#8B5CF6', '#10B981', '#F1EAD8', '#CBBB9D'];
+const COLORS = ['#74FA93', '#c88214', '#00937b', '#EF4444', '#065c5d', '#10B981', '#eef7f5', '#6fa89f'];
 
 export default function CampaignView({ adData, exRate = 1, exSym = '$', formatShort = (v) => v }) {
   const [selectedCampaign, setSelectedCampaign] = useState('');
@@ -161,10 +162,10 @@ export default function CampaignView({ adData, exRate = 1, exSym = '$', formatSh
   return (
     <div className="flex flex-col gap-8 w-full max-w-7xl mx-auto">
       {/* Top Controls */}
-      <div className="bg-[#113A42] p-6 rounded-3xl border border-[#74FA93]/20 shadow-xl flex flex-col md:flex-row gap-6 items-start md:items-center justify-between">
+      <div className="card-surface backdrop-blur-2xl p-6 rounded-3xl border border-[#c88214]/20 shadow-xl flex flex-col md:flex-row gap-6 items-start md:items-center justify-between">
         <div className="flex-1 w-full md:w-auto">
-          <label className="text-[10px] font-black text-[#CBBB9D] uppercase tracking-widest mb-2 block flex items-center gap-2">
-            <Layers size={14} /> Selected Campaign
+          <label className="text-[10px] font-black text-[#6fa89f] uppercase tracking-widest mb-2 block flex items-center gap-2">
+            <Layers size={14} /> Selected Tournament
           </label>
           <div className="relative">
             <select 
@@ -174,17 +175,17 @@ export default function CampaignView({ adData, exRate = 1, exSym = '$', formatSh
                 setSelectedPhases([]);
                 setSelectedChannels({});
               }}
-              className="w-full md:max-w-xs bg-[#0C272D] text-[#74FA93] text-sm font-bold pl-4 pr-10 py-3 rounded-xl border border-[#74FA93]/30 outline-none appearance-none cursor-pointer hover:border-[#74FA93] transition-colors"
+              className="w-full md:max-w-xs bg-[#011414] text-[#c88214] text-sm font-bold pl-4 pr-10 py-3 rounded-xl border border-[#c88214]/30 outline-none appearance-none cursor-pointer hover:border-[#c88214] transition-colors"
             >
               {campaigns.map(c => <option key={c} value={c}>{c}</option>)}
             </select>
-            <ChevronDown className="absolute right-3 top-1/2 -translate-y-1/2 text-[#74FA93] pointer-events-none" size={16} />
+            <ChevronDown className="absolute right-3 top-1/2 -translate-y-1/2 text-[#c88214] pointer-events-none" size={16} />
           </div>
         </div>
 
         {selectedCampaign && phases.length > 0 && (
           <div className="flex-1 w-full">
-            <label className="text-[10px] font-black text-[#CBBB9D] uppercase tracking-widest mb-2 block flex items-center gap-2">
+            <label className="text-[10px] font-black text-[#6fa89f] uppercase tracking-widest mb-2 block flex items-center gap-2">
               <Activity size={14} /> Active Phases ({phases.length})
             </label>
             <div className="flex flex-wrap gap-2">
@@ -199,7 +200,7 @@ export default function CampaignView({ adData, exRate = 1, exSym = '$', formatSh
                     style={{
                       backgroundColor: isActive ? `${color}20` : '#0C272D',
                       borderColor: isActive ? color : 'rgba(116, 250, 147, 0.2)',
-                      color: isActive ? color : '#CBBB9D'
+                      color: isActive ? color : '#6fa89f'
                     }}
                   >
                     {p.name}
@@ -221,12 +222,13 @@ export default function CampaignView({ adData, exRate = 1, exSym = '$', formatSh
 
       {/* Timeline Gantt Chart */}
       {selectedCampaign && selectedPhases.length > 0 && timeScale && (
-        <div className="bg-[#113A42] p-8 rounded-3xl border border-[#74FA93]/20 shadow-xl overflow-hidden relative">
+        <div className="card-surface backdrop-blur-2xl p-8 rounded-3xl border border-[#c88214]/20 shadow-xl overflow-hidden relative">
           <div className="flex justify-between items-center mb-10">
-            <h3 className="text-xl font-black text-[#F1EAD8] flex items-center gap-3">
-              <Calendar className="text-[#74FA93]" /> Campaign Timeline
+            <h3 className="text-xl font-black text-[#eef7f5] flex items-center gap-3">
+              <Calendar className="text-[#c88214]" /> Tournament Timeline
+              <InfoTooltip definition="Definition for Tournament Timeline" />
             </h3>
-            <div className="text-xs font-bold text-[#CBBB9D] bg-[#0C272D] px-4 py-2 rounded-lg border border-[#74FA93]/10">
+            <div className="text-xs font-bold text-[#6fa89f] bg-[#011414] px-4 py-2 rounded-lg border border-[#c88214]/10">
               {d3.timeFormat('%b %d, %Y')(campaignMinDate)} - {d3.timeFormat('%b %d, %Y')(campaignMaxDate)}
             </div>
           </div>
@@ -236,8 +238,8 @@ export default function CampaignView({ adData, exRate = 1, exSym = '$', formatSh
               {/* X-Axis Ticks */}
               <div className="absolute top-0 left-[200px] right-0 h-full pointer-events-none">
                 {ticks.map((tick, i) => (
-                  <div key={i} className="absolute top-0 bottom-0 border-l border-[#74FA93]/10 flex flex-col justify-start" style={{ left: `${tick.percent}%` }}>
-                    <span className="text-[9px] font-black text-[#CBBB9D] uppercase tracking-widest -ml-4 -mt-6 bg-[#113A42] px-1">{tick.label}</span>
+                  <div key={i} className="absolute top-0 bottom-0 border-l border-[#c88214]/10 flex flex-col justify-start" style={{ left: `${tick.percent}%` }}>
+                    <span className="text-[9px] font-black text-[#6fa89f] uppercase tracking-widest -ml-4 -mt-6 card-surface backdrop-blur-2xl px-1">{tick.label}</span>
                   </div>
                 ))}
               </div>
@@ -256,12 +258,12 @@ export default function CampaignView({ adData, exRate = 1, exSym = '$', formatSh
                       {/* Phase Row */}
                       <div className="flex items-center gap-4">
                         {/* Label */}
-                        <div className="w-[184px] flex-shrink-0 text-right pr-4 border-r border-[#74FA93]/20">
+                        <div className="w-[184px] flex-shrink-0 text-right pr-4 border-r border-[#c88214]/20">
                           <h4 className="text-sm font-bold" style={{ color: pColor }}>{phase.name}</h4>
-                          <p className="text-[10px] text-[#CBBB9D]">{d3.timeFormat('%b %d')(phase.minDate)} - {d3.timeFormat('%b %d')(phase.maxDate)}</p>
+                          <p className="text-[10px] text-[#6fa89f]">{d3.timeFormat('%b %d')(phase.minDate)} - {d3.timeFormat('%b %d')(phase.maxDate)}</p>
                         </div>
                         {/* Bar Area */}
-                        <div className="flex-1 relative h-10 bg-[#0C272D]/50 rounded-lg overflow-hidden group">
+                        <div className="flex-1 relative h-10 bg-[#011414]/50 rounded-lg overflow-hidden group">
                           {phase.bursts.map((b, bi) => {
                             const bLeft = timeScale(b.start);
                             const bWidth = timeScale(b.end) - bLeft;
@@ -295,7 +297,7 @@ export default function CampaignView({ adData, exRate = 1, exSym = '$', formatSh
                               style={{
                                 backgroundColor: isChActive ? `${pColor}15` : 'transparent',
                                 borderColor: isChActive ? pColor : 'rgba(255,255,255,0.1)',
-                                color: isChActive ? pColor : '#CBBB9D'
+                                color: isChActive ? pColor : '#6fa89f'
                               }}
                             >
                               {ch.name}
@@ -312,9 +314,9 @@ export default function CampaignView({ adData, exRate = 1, exSym = '$', formatSh
                         return (
                           <div key={chName} className="flex items-center gap-4 mt-1">
                             <div className="w-[184px] flex-shrink-0 text-right pr-4">
-                              <span className="text-xs font-medium text-[#F1EAD8]">{chName}</span>
+                              <span className="text-xs font-medium text-[#eef7f5]">{chName}</span>
                             </div>
-                            <div className="flex-1 relative h-6 bg-[#0C272D]/30 rounded-md">
+                            <div className="flex-1 relative h-6 bg-[#011414]/30 rounded-md">
                               {chData.bursts.map((b, bi) => {
                                 const chLeft = timeScale(b.start);
                                 const chWidth = timeScale(b.end) - chLeft;
@@ -348,38 +350,39 @@ export default function CampaignView({ adData, exRate = 1, exSym = '$', formatSh
 
       {/* Metrics Table */}
       {selectedCampaign && tableData.length > 0 && (
-        <div className="bg-[#113A42] p-8 rounded-3xl border border-[#74FA93]/20 shadow-xl overflow-hidden">
+        <div className="card-surface backdrop-blur-2xl p-8 rounded-3xl border border-[#c88214]/20 shadow-xl overflow-hidden">
           <div className="flex justify-between items-center mb-6">
-            <h3 className="text-xl font-black text-[#F1EAD8] flex items-center gap-3">
-              <Activity className="text-[#74FA93]" /> Channel Performance
+            <h3 className="text-xl font-black text-[#eef7f5] flex items-center gap-3">
+              <Activity className="text-[#c88214]" /> Performance Metrics Breakdown
+              <InfoTooltip definition="Definition for Performance Metrics Breakdown" />
             </h3>
-            <span className="text-xs font-bold text-[#CBBB9D] bg-[#0C272D] px-4 py-2 rounded-lg border border-[#74FA93]/10">
+            <span className="text-xs font-bold text-[#6fa89f] bg-[#011414] px-4 py-2 rounded-lg border border-[#c88214]/10">
               Based on Selection
             </span>
           </div>
           <div className="overflow-x-auto custom-scrollbar">
             <table className="w-full text-left border-collapse">
               <thead>
-                <tr className="border-b border-[#74FA93]/20">
-                  <th className="py-4 px-4 text-[10px] font-black text-[#CBBB9D] uppercase tracking-widest bg-[#0C272D]/50 rounded-tl-xl">Channel</th>
-                  <th className="py-4 px-4 text-[10px] font-black text-[#CBBB9D] uppercase tracking-widest bg-[#0C272D]/50 text-right">Spend</th>
-                  <th className="py-4 px-4 text-[10px] font-black text-[#CBBB9D] uppercase tracking-widest bg-[#0C272D]/50 text-right">Impressions</th>
-                  <th className="py-4 px-4 text-[10px] font-black text-[#CBBB9D] uppercase tracking-widest bg-[#0C272D]/50 text-right">Clicks</th>
-                  <th className="py-4 px-4 text-[10px] font-black text-[#CBBB9D] uppercase tracking-widest bg-[#0C272D]/50 text-right">Video Views</th>
-                  <th className="py-4 px-4 text-[10px] font-black text-[#CBBB9D] uppercase tracking-widest bg-[#0C272D]/50 text-right">CTR</th>
-                  <th className="py-4 px-4 text-[10px] font-black text-[#CBBB9D] uppercase tracking-widest bg-[#0C272D]/50 text-right">CPM</th>
-                  <th className="py-4 px-4 text-[10px] font-black text-[#CBBB9D] uppercase tracking-widest bg-[#0C272D]/50 text-right">CPC</th>
-                  <th className="py-4 px-4 text-[10px] font-black text-[#CBBB9D] uppercase tracking-widest bg-[#0C272D]/50 text-right rounded-tr-xl">CPV</th>
+                <tr className="border-b border-[#c88214]/20">
+                  <th className="py-4 px-4 text-[10px] font-black text-[#6fa89f] uppercase tracking-widest bg-[#011414]/50 rounded-tl-xl">Channel</th>
+                  <th className="py-4 px-4 text-[10px] font-black text-[#6fa89f] uppercase tracking-widest bg-[#011414]/50 text-right">Spend</th>
+                  <th className="py-4 px-4 text-[10px] font-black text-[#6fa89f] uppercase tracking-widest bg-[#011414]/50 text-right">Impressions</th>
+                  <th className="py-4 px-4 text-[10px] font-black text-[#6fa89f] uppercase tracking-widest bg-[#011414]/50 text-right">Clicks</th>
+                  <th className="py-4 px-4 text-[10px] font-black text-[#6fa89f] uppercase tracking-widest bg-[#011414]/50 text-right">Video Views</th>
+                  <th className="py-4 px-4 text-[10px] font-black text-[#6fa89f] uppercase tracking-widest bg-[#011414]/50 text-right">CTR</th>
+                  <th className="py-4 px-4 text-[10px] font-black text-[#6fa89f] uppercase tracking-widest bg-[#011414]/50 text-right">CPM</th>
+                  <th className="py-4 px-4 text-[10px] font-black text-[#6fa89f] uppercase tracking-widest bg-[#011414]/50 text-right">CPC</th>
+                  <th className="py-4 px-4 text-[10px] font-black text-[#6fa89f] uppercase tracking-widest bg-[#011414]/50 text-right rounded-tr-xl">CPV</th>
                 </tr>
               </thead>
               <tbody>
                 {tableData.map((row, i) => (
-                  <tr key={row.channel} className={`border-b border-[#74FA93]/10 hover:bg-[#74FA93]/5 transition-colors ${i % 2 === 0 ? 'bg-transparent' : 'bg-[#0C272D]/20'}`}>
-                    <td className="py-4 px-4 text-sm font-bold text-[#F1EAD8]">{row.channel}</td>
+                  <tr key={row.channel} className={`border-b border-[#c88214]/10 hover:bg-[#74FA93]/5 transition-colors ${i % 2 === 0 ? 'bg-transparent' : 'bg-[#011414]/20'}`}>
+                    <td className="py-4 px-4 text-sm font-bold text-[#eef7f5]">{row.channel}</td>
                     <td className="py-4 px-4 text-sm font-medium text-white text-right">{exSym}{d3.format(",.2f")(row.spend * exRate)}</td>
-                    <td className="py-4 px-4 text-sm font-medium text-[#74FA93] text-right">{d3.format(",")(row.impressions)}</td>
-                    <td className="py-4 px-4 text-sm font-medium text-[#CBBB9D] text-right">{d3.format(",")(row.clicks)}</td>
-                    <td className="py-4 px-4 text-sm font-medium text-[#736BED] text-right">{formatShort(row.views)}</td>
+                    <td className="py-4 px-4 text-sm font-medium text-[#c88214] text-right">{d3.format(",")(row.impressions)}</td>
+                    <td className="py-4 px-4 text-sm font-medium text-[#6fa89f] text-right">{d3.format(",")(row.clicks)}</td>
+                    <td className="py-4 px-4 text-sm font-medium text-[#c88214] text-right">{formatShort(row.views)}</td>
                     <td className="py-4 px-4 text-sm font-bold text-white text-right">{row.ctr.toFixed(2)}%</td>
                     <td className="py-4 px-4 text-sm font-medium text-white text-right">{exSym}{d3.format(",.2f")(row.cpm * exRate)}</td>
                     <td className="py-4 px-4 text-sm font-medium text-white text-right">{exSym}{d3.format(",.2f")(row.cpc * exRate)}</td>
@@ -396,16 +399,16 @@ export default function CampaignView({ adData, exRate = 1, exSym = '$', formatSh
                   const tCpc = tClicks > 0 ? tSpend / tClicks : 0;
                   const tCpv = tViews > 0 ? tSpend / tViews : 0;
                   return (
-                    <tr className="bg-[#0C272D]/80 border-t-2 border-[#74FA93]/50">
-                      <td className="py-4 px-4 text-sm font-black text-[#74FA93]">Total</td>
-                      <td className="py-4 px-4 text-sm font-black text-[#74FA93] text-right">{exSym}{d3.format(",.2f")(tSpend * exRate)}</td>
-                      <td className="py-4 px-4 text-sm font-black text-[#74FA93] text-right">{d3.format(",")(tImp)}</td>
-                      <td className="py-4 px-4 text-sm font-black text-[#74FA93] text-right">{d3.format(",")(tClicks)}</td>
-                      <td className="py-4 px-4 text-sm font-black text-[#74FA93] text-right">{formatShort(tViews)}</td>
-                      <td className="py-4 px-4 text-sm font-black text-[#74FA93] text-right">{tCtr.toFixed(2)}%</td>
-                      <td className="py-4 px-4 text-sm font-black text-[#74FA93] text-right">{exSym}{d3.format(",.2f")(tCpm * exRate)}</td>
-                      <td className="py-4 px-4 text-sm font-black text-[#74FA93] text-right">{exSym}{d3.format(",.2f")(tCpc * exRate)}</td>
-                      <td className="py-4 px-4 text-sm font-black text-[#74FA93] text-right">{exSym}{d3.format(",.2f")(tCpv * exRate)}</td>
+                    <tr className="bg-[#011414]/80 border-t-2 border-[#c88214]/50">
+                      <td className="py-4 px-4 text-sm font-black text-[#c88214]">Total</td>
+                      <td className="py-4 px-4 text-sm font-black text-[#c88214] text-right">{exSym}{d3.format(",.2f")(tSpend * exRate)}</td>
+                      <td className="py-4 px-4 text-sm font-black text-[#c88214] text-right">{d3.format(",")(tImp)}</td>
+                      <td className="py-4 px-4 text-sm font-black text-[#c88214] text-right">{d3.format(",")(tClicks)}</td>
+                      <td className="py-4 px-4 text-sm font-black text-[#c88214] text-right">{formatShort(tViews)}</td>
+                      <td className="py-4 px-4 text-sm font-black text-[#c88214] text-right">{tCtr.toFixed(2)}%</td>
+                      <td className="py-4 px-4 text-sm font-black text-[#c88214] text-right">{exSym}{d3.format(",.2f")(tCpm * exRate)}</td>
+                      <td className="py-4 px-4 text-sm font-black text-[#c88214] text-right">{exSym}{d3.format(",.2f")(tCpc * exRate)}</td>
+                      <td className="py-4 px-4 text-sm font-black text-[#c88214] text-right">{exSym}{d3.format(",.2f")(tCpv * exRate)}</td>
                     </tr>
                   );
                 })()}

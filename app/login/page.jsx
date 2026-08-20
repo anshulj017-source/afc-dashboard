@@ -38,28 +38,28 @@ export default function Login() {
 
   if (loading) {
     return (
-      <div className="min-h-screen bg-[#0C272D] flex flex-col items-center justify-center text-[#74FA93] font-black text-2xl tracking-widest animate-pulse gap-6">
-        <img src="/logo.png" alt="Loading Logo" className="h-32 object-contain" onError={(e) => e.target.style.display = 'none'} />
+      <div className="min-h-screen app-bg flex flex-col items-center justify-center text-[#c88214] font-black text-2xl tracking-widest animate-pulse gap-6">
+        <img src="/loc-logo/Saudi 2027-07.png" alt="Loading Logo" className="h-32 object-contain" onError={(e) => e.target.style.display = 'none'} />
         <span>AUTHENTICATING...</span>
       </div>
     );
   }
 
   return (
-    <div className="min-h-screen flex items-center justify-center bg-[#0C272D] p-4 font-sans relative overflow-hidden text-white">
+    <div className="min-h-screen flex items-center justify-center app-bg p-4 font-sans relative overflow-hidden text-white">
       {/* Background Graphic */}
-      <div className="absolute inset-0 z-0 opacity-[0.03] pointer-events-none" style={{ backgroundImage: "url('/pattern-1.png')", backgroundSize: '150px', backgroundRepeat: 'repeat', backgroundPosition: 'center' }}></div>
+      <div className="pattern-overlay absolute inset-0 z-0 pointer-events-none"></div>
 
-      <div className="bg-[#0C272D] rounded-3xl p-10 max-w-md w-full shadow-2xl border border-[#74FA93]/20 relative z-10">
+      <div className="card-surface rounded-3xl p-10 max-w-md w-full shadow-2xl border border-[#c88214]/20 relative z-10">
         <div className="flex flex-col items-center mb-10">
           <img 
-            src="/logo.png" 
+            src="/loc-logo/Saudi 2027-07.png" 
             alt="AFC Logo" 
-            className="h-16 object-contain mb-6" 
+            className="h-32 object-contain mb-6" 
             onError={(e) => e.target.style.display = 'none'}
           />
-          <h1 className="text-2xl font-black text-white text-center tracking-tight uppercase">Asia Cup 2027 Dashboard</h1>
-          <p className="text-[10px] text-[#74FA93] font-black mt-2 uppercase tracking-[0.2em]">Authorized Access Only</p>
+          <h1 className="text-2xl font-black text-white text-center tracking-tight uppercase">Tournament Performance Dashboard</h1>
+          <p className="text-[10px] text-[#c88214] font-black mt-2 uppercase tracking-[0.2em]">Authorized Access Only</p>
         </div>
         
         {error && (
@@ -73,23 +73,23 @@ export default function Login() {
 
         <form onSubmit={handleLogin} className="flex flex-col gap-6">
           <div>
-            <label className="text-[10px] font-black text-[#CBBB9D] uppercase tracking-widest mb-2 block">Email Address</label>
+            <label className="text-[10px] font-black text-[#6fa89f] uppercase tracking-widest mb-2 block">Email Address</label>
             <input 
               type="email" 
               value={email}
               onChange={(e) => setEmail(e.target.value)}
-              className="w-full bg-[#07171A] border border-[#74FA93]/30 rounded-xl px-4 py-3 text-sm text-[#F1EAD8] focus:outline-none focus:border-[#74FA93] transition-all duration-200"
+              className="w-full surface-inset border border-[#c88214]/30 rounded-xl px-4 py-3 text-sm text-[#eef7f5] focus:outline-none focus:border-[#c88214] transition-all duration-200"
               placeholder="name@example.com"
               required 
             />
           </div>
           <div>
-            <label className="text-[10px] font-black text-[#CBBB9D] uppercase tracking-widest mb-2 block">Password</label>
+            <label className="text-[10px] font-black text-[#6fa89f] uppercase tracking-widest mb-2 block">Password</label>
             <input 
               type="password" 
               value={password}
               onChange={(e) => setPassword(e.target.value)}
-              className="w-full bg-[#07171A] border border-[#74FA93]/30 rounded-xl px-4 py-3 text-sm text-[#F1EAD8] focus:outline-none focus:border-[#74FA93] transition-all duration-200"
+              className="w-full surface-inset border border-[#c88214]/30 rounded-xl px-4 py-3 text-sm text-[#eef7f5] focus:outline-none focus:border-[#c88214] transition-all duration-200"
               placeholder="••••••••"
               required 
             />
@@ -97,7 +97,7 @@ export default function Login() {
           <button 
             type="submit" 
             disabled={loading}
-            className="w-full bg-[#74FA93]/20 hover:bg-[#74FA93]/40 border border-[#74FA93]/50 text-[#74FA93] hover:text-white rounded-xl py-3.5 text-xs font-black uppercase tracking-widest transition-all mt-4 disabled:opacity-50"
+            className="w-full gradient-gold hover:brightness-110 text-[#043e3f] rounded-xl py-3.5 text-xs font-black uppercase tracking-widest transition-all mt-4 disabled:opacity-100"
           >
             {loading ? 'Authenticating...' : 'Sign In'}
           </button>

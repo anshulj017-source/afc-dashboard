@@ -16,10 +16,12 @@ import { onAuthStateChanged, signOut } from 'firebase/auth';
 import { doc, getDoc } from 'firebase/firestore';
 import { GaChannelTable } from './GaChannelTable';
 import AdminView from './AdminView';
+import dynamic from 'next/dynamic';
 import CampaignView from './CampaignView';
 import ChannelView from './ChannelView';
 import MarketView from './MarketView';
-import CustomView from './CustomView';
+import InfoTooltip from './components/InfoTooltip';
+const CustomView = dynamic(() => import('./CustomView'), { ssr: false });
 import CreativeView from './CreativeView';
 
 const GEO_URL = "https://unpkg.com/world-atlas@2.0.2/countries-110m.json";
@@ -80,12 +82,15 @@ const normalizeMarket = (marketName) => {
 };
 
 // --- COMPONENTS ---
-const MetricCard = ({ label, value, color, icon: Icon }) => (
-  <div className="bg-[#113A42] p-6 rounded-2xl border border-[#74FA93]/20 shadow-lg relative overflow-hidden group hover:-translate-y-1 transition-transform">
-    <div className="absolute top-0 right-0 w-24 h-24 bg-[#74FA93]/10 rounded-full blur-2xl -mr-8 -mt-8 group-hover:bg-[#74FA93]/20 transition-colors duration-500"></div>
+const MetricCard = ({ label, value, color, icon: Icon, definition }) => (
+  <div className="card-surface backdrop-blur-2xl p-6 rounded-2xl border border-[#c88214]/20 shadow-lg relative overflow-hidden group hover:-translate-y-1 transition-transform">
+    <div className="absolute top-0 right-0 w-24 h-24 bg-[#c88214]/10 rounded-full blur-2xl -mr-8 -mt-8 group-hover:bg-[#c88214]/20 transition-colors duration-500"></div>
     <div className="flex justify-between items-start relative z-10">
       <div>
-        <p className="text-[10px] font-black text-[#CBBB9D] uppercase tracking-widest mb-2">{label}</p>
+        <div className="flex items-center gap-2 mb-2">
+          <p className="text-[10px] font-black text-[#6fa89f] uppercase tracking-widest">{label}</p>
+          <InfoTooltip definition={definition} />
+        </div>
         <h3 className={`text-2xl font-black ${color} truncate`} title={value}>{value}</h3>
       </div>
     </div>
@@ -110,41 +115,43 @@ const MultiSelect = ({ label, options, selected, onChange }) => {
   }, []);
 
   return (
-    <div ref={wrapperRef} className="relative min-w-[120px] z-30">
-      <span className="text-[10px] font-black text-[#CBBB9D] uppercase tracking-widest mb-1.5 block">{label}</span>
+    <div ref={wrapperRef} className="relative w-[160px] z-30">
+      <span className="text-[10px] font-black text-[#6fa89f] uppercase tracking-widest mb-1.5 block">{label}</span>
       <div 
         onClick={() => setIsOpen(!isOpen)}
-        className="px-2.5 py-1.5 bg-[#113A42] border border-[#74FA93]/30 rounded-lg text-xs font-bold text-[#F1EAD8] cursor-pointer flex justify-between items-center hover:border-[#74FA93] transition-colors"
+        className="px-2.5 py-1.5 surface-inset border border-[#c88214]/30 rounded-lg text-xs font-bold text-[#eef7f5] cursor-pointer flex justify-between items-center hover:border-[#c88214] transition-colors"
       >
         <span className="truncate pr-2">{selected.includes('All') ? 'All Selected' : selected.join(', ')}</span>
         <ChevronDown className={`w-4 h-4 flex-shrink-0 transition-transform ${isOpen ? 'rotate-180' : ''}`} />
       </div>
       {isOpen && (
-        <div className="absolute top-full mt-2 w-full bg-[#113A42] border border-[#74FA93]/30 rounded-xl shadow-2xl z-50 flex flex-col max-h-64 overflow-hidden">
-          <div className="p-2 border-b border-[#74FA93]/10 relative">
-            <Search className="w-4 h-4 text-[#CBBB9D] absolute left-4 top-1/2 -translate-y-1/2" />
-            <input type="text" placeholder="Search..." autoFocus value={searchTerm} onChange={e => setSearchTerm(e.target.value)} className="w-full bg-[#0C272D] text-[#F1EAD8] text-xs font-bold pl-9 pr-3 py-2 rounded-lg outline-none border border-transparent focus:border-[#74FA93]/50" />
-          </div>
-          <div className="overflow-y-auto p-2 flex-1 custom-scrollbar">
-            <div onClick={() => { onChange(['All']); setIsOpen(false); setSearchTerm(''); }} className={`px-3 py-2 rounded-lg text-sm font-bold cursor-pointer flex justify-between ${selected.includes('All') ? 'bg-[#74FA93]/20 text-[#74FA93]' : 'text-[#F1EAD8] hover:bg-[#0C272D]'}`}>
-              All <Check className={`w-4 h-4 ${selected.includes('All') ? 'opacity-100' : 'opacity-0'}`} />
+        <div className="absolute top-full left-0 w-full h-0 z-50">
+          <div className="w-full mt-2 card-surface backdrop-blur-3xl bg-[#011414]/90 border border-[#c88214]/30 rounded-xl shadow-2xl flex flex-col max-h-64 overflow-hidden">
+            <div className="p-2 border-b border-[#c88214]/10 relative">
+              <Search className="w-4 h-4 text-[#6fa89f] absolute left-4 top-1/2 -translate-y-1/2" />
+              <input type="text" placeholder="Search..." value={searchTerm} onChange={e => setSearchTerm(e.target.value)} className="w-full bg-black/30 text-[#eef7f5] text-xs font-bold pl-9 pr-3 py-2 rounded-lg outline-none border border-transparent focus:border-[#c88214]/50" />
             </div>
-            {filtered.map(opt => {
-              const isSel = selected.includes(opt);
-              return (
-                <div key={opt} onClick={() => {
-                  let next = [...selected];
-                  if (next.includes('All')) next = [];
-                  if (isSel) {
-                    next = next.filter(n => n !== opt);
-                    if (next.length === 0) next = ['All'];
-                  } else { next.push(opt); }
-                  onChange(next);
-                }} className={`px-3 py-2 mt-1 rounded-lg text-sm font-bold cursor-pointer flex justify-between ${isSel ? 'bg-[#74FA93]/20 text-[#74FA93]' : 'text-[#F1EAD8] hover:bg-[#0C272D]'}`}>
-                  <span className="truncate pr-2">{opt}</span> <Check className={`w-4 h-4 flex-shrink-0 ${isSel ? 'opacity-100' : 'opacity-0'}`} />
-                </div>
-              )
-            })}
+            <div className="overflow-y-auto p-2 flex-1 custom-scrollbar">
+              <div onClick={() => { onChange(['All']); setIsOpen(false); setSearchTerm(''); }} className={`px-3 py-2 rounded-lg text-sm font-bold cursor-pointer flex justify-between ${selected.includes('All') ? 'bg-[#c88214]/20 text-[#c88214]' : 'text-[#eef7f5] hover:bg-[#011414]'}`}>
+                All <Check className={`w-4 h-4 ${selected.includes('All') ? 'opacity-100' : 'opacity-0'}`} />
+              </div>
+              {filtered.map(opt => {
+                const isSel = selected.includes(opt);
+                return (
+                  <div key={opt} onClick={() => {
+                    let next = [...selected];
+                    if (next.includes('All')) next = [];
+                    if (isSel) {
+                      next = next.filter(n => n !== opt);
+                      if (next.length === 0) next = ['All'];
+                    } else { next.push(opt); }
+                    onChange(next);
+                  }} className={`px-3 py-2 mt-1 rounded-lg text-sm font-bold cursor-pointer flex justify-between ${isSel ? 'bg-[#c88214]/20 text-[#c88214]' : 'text-[#eef7f5] hover:bg-[#011414]'}`}>
+                    <span className="truncate pr-2">{opt}</span> <Check className={`w-4 h-4 flex-shrink-0 ${isSel ? 'opacity-100' : 'opacity-0'}`} />
+                  </div>
+                )
+              })}
+            </div>
           </div>
         </div>
       )}
@@ -153,29 +160,29 @@ const MultiSelect = ({ label, options, selected, onChange }) => {
 };
 
 const DataTable = ({ data, columns, totals }) => (
-  <div className="overflow-x-auto bg-[#113A42] rounded-2xl border border-[#74FA93]/20 z-10 relative">
+  <div className="overflow-x-auto card-surface rounded-2xl border border-[#c88214]/20 z-10 relative">
     <table className="w-full text-left border-collapse">
       <thead>
-        <tr className="bg-[#0C272D] border-b border-[#74FA93]/20">
+        <tr className="bg-black/25 border-b border-[#c88214]/20">
           {columns.map((col, i) => (
-            <th key={i} className="px-6 py-4 text-[10px] font-black text-[#CBBB9D] uppercase tracking-widest whitespace-nowrap">{col.label}</th>
+            <th key={i} className="px-6 py-4 text-[10px] font-black text-[#6fa89f] uppercase tracking-widest whitespace-nowrap">{col.label}</th>
           ))}
         </tr>
       </thead>
       <tbody>
         {data.map((row, i) => (
-          <tr key={i} className="border-b border-[#74FA93]/10 hover:bg-[#74FA93]/5 transition-colors">
+          <tr key={i} className="border-b border-[#c88214]/10 hover:bg-[#c88214]/5 transition-colors">
             {columns.map((col, j) => (
-              <td key={j} className="px-6 py-4 text-sm font-medium text-[#F1EAD8] whitespace-nowrap">
+              <td key={j} className="px-6 py-4 text-sm font-medium text-[#eef7f5] whitespace-nowrap">
                 {col.format ? col.format(row[col.key], row) : row[col.key]}
               </td>
             ))}
           </tr>
         ))}
         {totals && data.length > 0 && (
-          <tr className="bg-[#0C272D]/80 border-t-2 border-[#74FA93]/50">
+          <tr className="bg-black/40 border-t-2 border-[#c88214]/50">
             {columns.map((col, j) => (
-              <td key={j} className="px-6 py-4 text-sm font-black text-[#74FA93] whitespace-nowrap">
+              <td key={j} className="px-6 py-4 text-sm font-black text-[#c88214] whitespace-nowrap">
                 {totals[col.key] !== undefined 
                   ? (col.format ? col.format(totals[col.key], totals) : totals[col.key])
                   : ''}
@@ -183,7 +190,7 @@ const DataTable = ({ data, columns, totals }) => (
             ))}
           </tr>
         )}
-        {data.length === 0 && <tr><td colSpan={columns.length} className="px-6 py-8 text-center text-[#CBBB9D] text-sm">No data available</td></tr>}
+        {data.length === 0 && <tr><td colSpan={columns.length} className="px-6 py-8 text-center text-[#6fa89f] text-sm">No data available</td></tr>}
       </tbody>
     </table>
   </div>
@@ -208,7 +215,7 @@ export default function App() {
   const [filterPaidOrganic, setFilterPaidOrganic] = useState(['All']);
   
   // State: Currency
-  const [currency, setCurrency] = useState('USD'); // 'USD' or 'SAR'
+  const [currency, setCurrency] = useState('SAR'); // 'USD' or 'SAR'
   const exRate = currency === 'SAR' ? 3.75 : 1;
   const exSym = currency === 'SAR' ? 'SAR ' : '$';
   
@@ -489,7 +496,7 @@ export default function App() {
 
   const NAV_ITEMS = [
     { id: 'summary', label: 'Summary View', icon: Grid },
-    { id: 'campaign', label: 'Campaign View', icon: Activity },
+    { id: 'campaign', label: 'Tournament View', icon: Activity },
     { id: 'channel', label: 'Channel View', icon: MonitorPlay },
     { id: 'market', label: 'Market View', icon: Map },
     { id: 'detailed', label: 'Detailed Split', icon: PieChart },
@@ -501,18 +508,18 @@ export default function App() {
 
   if (isAuthLoading || loading) {
     return (
-      <div className="min-h-screen bg-[#0C272D] flex flex-col items-center justify-center text-[#74FA93] gap-6 relative overflow-hidden">
+      <div className="min-h-screen app-bg flex flex-col items-center justify-center text-[#c88214] gap-6 relative overflow-hidden">
         <div className="relative flex flex-col items-center justify-center animate-pulse">
-          <img src="/logo.png" alt="Loading Logo" className="h-24 md:h-32 object-contain" onError={(e) => e.target.style.display = 'none'} />
+          <img src="/loc-logo/Saudi 2027-07.png" alt="Loading Logo" className="h-24 md:h-32 object-contain" onError={(e) => e.target.style.display = 'none'} />
         </div>
         <div className="flex flex-col items-center gap-2 z-10">
-          <span className="text-sm md:text-base font-bold text-[#74FA93] tracking-[0.2em]">
+          <span className="text-sm md:text-base font-bold text-[#c88214] tracking-[0.2em]">
             {isAuthLoading ? "AUTHENTICATING" : "LOADING DATA"}
           </span>
           <div className="flex gap-1.5 mt-1">
-            <div className="w-1.5 h-1.5 rounded-full bg-[#74FA93] animate-bounce" style={{ animationDelay: '0s' }}></div>
-            <div className="w-1.5 h-1.5 rounded-full bg-[#74FA93] animate-bounce" style={{ animationDelay: '0.15s' }}></div>
-            <div className="w-1.5 h-1.5 rounded-full bg-[#74FA93] animate-bounce" style={{ animationDelay: '0.3s' }}></div>
+            <div className="w-1.5 h-1.5 rounded-full bg-[#c88214] animate-bounce" style={{ animationDelay: '0s' }}></div>
+            <div className="w-1.5 h-1.5 rounded-full bg-[#c88214] animate-bounce" style={{ animationDelay: '0.15s' }}></div>
+            <div className="w-1.5 h-1.5 rounded-full bg-[#c88214] animate-bounce" style={{ animationDelay: '0.3s' }}></div>
           </div>
         </div>
       </div>
@@ -526,103 +533,115 @@ export default function App() {
       return (
         <div className="space-y-8">
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
-            <MetricCard label="Total Spend" value={`${exSym}${formatShort(agg.cost * exRate)}`} color="text-white" icon={DollarSign} />
-            <MetricCard label="Impressions" value={formatShort(agg.impressions)} color="text-[#74FA93]" icon={Eye} />
-            <MetricCard label="Clicks" value={formatShort(agg.clicks)} color="text-[#CBBB9D]" icon={MousePointer2} />
-            <MetricCard label="Video Views" value={formatShort(agg.views)} color="text-[#736BED]" icon={MonitorPlay} />
-            <MetricCard label="6s Video Views" value={formatShort(agg.views6s)} color="text-[#F1EAD8]" />
-            <MetricCard label="15s Video Views" value={formatShort(agg.views15s)} color="text-[#F1EAD8]" />
-            <MetricCard label="Video Completions (100%)" value={formatShort(agg.completions)} color="text-white" icon={Check} />
-            <MetricCard label="Total Web Sessions" value={formatShort(agg.sessions)} color="text-[#74FA93]" icon={Globe} />
+            <MetricCard definition="The total amount of money spent on advertising campaigns across all channels." label="Total Spend" value={`${exSym}${formatShort(agg.cost * exRate)}`} color="text-white" icon={DollarSign} />
+            <MetricCard definition="The total number of times your ads were displayed on screen to users." label="Impressions" value={formatShort(agg.impressions)} color="text-[#c88214]" icon={Eye} />
+            <MetricCard definition="The number of times users clicked on your ads." label="Clicks" value={formatShort(agg.clicks)} color="text-[#6fa89f]" icon={MousePointer2} />
+            <MetricCard definition="The total number of times your video ads were watched." label="Video Views" value={formatShort(agg.views)} color="text-[#00937b]" icon={MonitorPlay} />
+            <MetricCard definition="The number of times your video ads were watched for at least 6 seconds." label="6s Video Views" value={formatShort(agg.views6s)} color="text-[#eef7f5]" />
+            <MetricCard definition="The number of times your video ads were watched for at least 15 seconds." label="15s Video Views" value={formatShort(agg.views15s)} color="text-[#eef7f5]" />
+            <MetricCard definition="The number of times your video ads were watched to completion (100%)." label="Video Completions (100%)" value={formatShort(agg.completions)} color="text-white" icon={Check} />
+            <MetricCard definition="The total number of sessions on the website originating from the ad campaigns." label="Total Web Sessions" value={formatShort(agg.sessions)} color="text-[#c88214]" icon={Globe} />
           </div>
           
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-8 mb-8">
              {/* Chart 1: Monthly Spend vs Impressions */}
-             <div className="bg-[#113A42] p-6 rounded-3xl border border-[#74FA93]/20 shadow-xl h-[400px]">
-                <h3 className="text-[#F1EAD8] font-black mb-4">Monthly Spend vs Impressions</h3>
+             <div className="card-surface backdrop-blur-2xl p-6 rounded-3xl border border-[#c88214]/20 shadow-xl h-[400px]">
+                <h3 className="text-[#eef7f5] font-black mb-4 flex items-center gap-2">Monthly Spend vs Impressions <InfoTooltip definition="A trend analysis comparing the total advertising spend against the number of impressions generated over time." /></h3>
                 <ResponsiveContainer width="100%" height="90%">
                   <AreaChart data={monthlyChartData}>
                     <defs>
                       <linearGradient id="colorCost" x1="0" y1="0" x2="0" y2="1">
-                        <stop offset="5%" stopColor="#74FA93" stopOpacity={0.8}/>
-                        <stop offset="95%" stopColor="#74FA93" stopOpacity={0}/>
+                        <stop offset="5%" stopColor="#00937b" stopOpacity={0.8}/>
+                        <stop offset="95%" stopColor="#00937b" stopOpacity={0}/>
                       </linearGradient>
                     </defs>
                     <CartesianGrid strokeDasharray="3 3" stroke="#ffffff10" />
-                    <XAxis dataKey="month" stroke="#CBBB9D" fontSize={10} />
-                    <YAxis yAxisId="left" stroke="#74FA93" fontSize={10} tickFormatter={(t) => `${exSym}${d3.format(",.2f")(t)}`} />
-                    <YAxis yAxisId="right" orientation="right" stroke="#CBBB9D" fontSize={10} tickFormatter={(t) => d3.format(",")(t)} />
+                    <XAxis dataKey="month" stroke="#6fa89f" fontSize={10} />
+                    <YAxis yAxisId="left" stroke="#00937b" fontSize={10} tickFormatter={(t) => `${exSym}${d3.format(",.2f")(t)}`} />
+                    <YAxis yAxisId="right" orientation="right" stroke="#6fa89f" fontSize={10} tickFormatter={(t) => d3.format(",")(t)} />
                     <Tooltip 
-                      contentStyle={{ backgroundColor: '#0C272D', borderColor: '#74FA9320', color: '#fff' }} 
+                      contentStyle={{ backgroundColor: '#043e3f', borderColor: '#c8821420', color: '#fff' }} 
                       formatter={(value, name) => [name === 'Spend' ? `${exSym}${d3.format(",.2f")(value)}` : d3.format(",")(value), name]}
                     />
                     <Legend />
-                    <Area yAxisId="left" type="monotone" dataKey="cost" name="Spend" stroke="#74FA93" fillOpacity={1} fill="url(#colorCost)" />
-                    <Line yAxisId="right" type="monotone" dataKey="impressions" name="Impressions" stroke="#CBBB9D" strokeWidth={3} dot={false} />
+                    <Area yAxisId="left" type="monotone" dataKey="cost" name="Spend" stroke="#00937b" fillOpacity={1} fill="url(#colorCost)" />
+                    <Line yAxisId="right" type="monotone" dataKey="impressions" name="Impressions" stroke="#6fa89f" strokeWidth={3} dot={false} />
                   </AreaChart>
                 </ResponsiveContainer>
              </div>
              
              {/* Chart 2: Performance by Channel */}
-             <div className="bg-[#113A42] p-6 rounded-3xl border border-[#74FA93]/20 shadow-xl h-[400px] flex flex-col">
+             <div className="card-surface backdrop-blur-2xl p-6 rounded-3xl border border-[#c88214]/20 shadow-xl h-[400px] flex flex-col">
                 <div className="flex justify-between items-start mb-4">
-                  <h3 className="text-[#F1EAD8] font-black">{perfMetric} by Channel</h3>
+                  <h3 className="text-[#eef7f5] font-black flex items-center gap-2">{perfMetric} by Channel <InfoTooltip definition="A breakdown of key performance indicators (like CPM, CPC, CTR) segmented by the advertising channel." /></h3>
                   <div className="flex gap-2">
-                    <div className="flex bg-[#0C272D] p-1 rounded-lg border border-[#74FA93]/20">
-                      <button onClick={() => setPerfMetric('CPM')} className={`px-2 py-1 text-[10px] font-bold rounded transition-colors ${perfMetric === 'CPM' ? 'bg-[#74FA93] text-[#0C272D]' : 'text-slate-400 hover:text-white'}`}>CPM</button>
-                      <button onClick={() => setPerfMetric('CPC')} className={`px-2 py-1 text-[10px] font-bold rounded transition-colors ${perfMetric === 'CPC' ? 'bg-[#74FA93] text-[#0C272D]' : 'text-slate-400 hover:text-white'}`}>CPC</button>
+                    <div className="flex bg-[#011414] p-1 rounded-lg border border-[#c88214]/20">
+                      <button onClick={() => setPerfMetric('CPM')} className={`px-2 py-1 text-[10px] font-bold rounded transition-colors ${perfMetric === 'CPM' ? 'gradient-gold text-[#043e3f]' : 'text-slate-400 hover:text-white'}`}>CPM</button>
+                      <button onClick={() => setPerfMetric('CPC')} className={`px-2 py-1 text-[10px] font-bold rounded transition-colors ${perfMetric === 'CPC' ? 'gradient-gold text-[#043e3f]' : 'text-slate-400 hover:text-white'}`}>CPC</button>
                     </div>
-                    <div className="flex bg-[#0C272D] p-1 rounded-lg border border-[#74FA93]/20">
-                      <button onClick={() => setPerfSort('Top 5')} className={`px-2 py-1 text-[10px] font-bold rounded transition-colors ${perfSort === 'Top 5' ? 'bg-[#736BED] text-white' : 'text-slate-400 hover:text-white'}`}>Top 5</button>
-                      <button onClick={() => setPerfSort('Bottom 5')} className={`px-2 py-1 text-[10px] font-bold rounded transition-colors ${perfSort === 'Bottom 5' ? 'bg-[#736BED] text-white' : 'text-slate-400 hover:text-white'}`}>Bottom 5</button>
+                    <div className="flex bg-[#011414] p-1 rounded-lg border border-[#c88214]/20">
+                      <button onClick={() => setPerfSort('Top 5')} className={`px-2 py-1 text-[10px] font-bold rounded transition-colors ${perfSort === 'Top 5' ? 'gradient-teal text-white' : 'text-slate-400 hover:text-white'}`}>Top 5</button>
+                      <button onClick={() => setPerfSort('Bottom 5')} className={`px-2 py-1 text-[10px] font-bold rounded transition-colors ${perfSort === 'Bottom 5' ? 'gradient-teal text-white' : 'text-slate-400 hover:text-white'}`}>Bottom 5</button>
                     </div>
                   </div>
                 </div>
                 <ResponsiveContainer width="100%" height="90%">
                   <BarChart data={channelPerformance} margin={{ left: 20 }}>
+                    <defs>
+                      <linearGradient id="tealBarGradient" x1="0" y1="0" x2="0" y2="1">
+                        <stop offset="0%" stopColor="#00937b" />
+                        <stop offset="100%" stopColor="#007542" />
+                      </linearGradient>
+                    </defs>
                     <CartesianGrid strokeDasharray="3 3" stroke="#ffffff10" vertical={false} />
-                    <XAxis dataKey="channel" stroke="#CBBB9D" fontSize={10} />
-                    <YAxis stroke="#CBBB9D" fontSize={10} tickFormatter={(t) => `${exSym}${d3.format(",.2f")(t)}`} />
-                    <Tooltip 
-                      contentStyle={{ backgroundColor: '#0C272D', borderColor: '#74FA9320', color: '#fff' }} 
-                      cursor={{fill: '#ffffff10'}} 
+                    <XAxis dataKey="channel" stroke="#6fa89f" fontSize={10} />
+                    <YAxis stroke="#6fa89f" fontSize={10} tickFormatter={(t) => `${exSym}${d3.format(",.2f")(t)}`} />
+                    <Tooltip
+                      contentStyle={{ backgroundColor: '#043e3f', borderColor: '#c8821420', color: '#fff' }}
+                      cursor={{fill: '#ffffff10'}}
                       formatter={(value) => [`${exSym}${d3.format(",.2f")(value)}`, perfMetric]}
                     />
-                    <Bar dataKey={perfMetric.toLowerCase()} name={perfMetric} fill="#736BED" radius={[4, 4, 0, 0]} />
+                    <Bar dataKey={perfMetric.toLowerCase()} name={perfMetric} fill="url(#tealBarGradient)" radius={[4, 4, 0, 0]} />
                   </BarChart>
                 </ResponsiveContainer>
              </div>
           </div>
 
           {/* Chart 3: Top Countries Web Traffic (Full Width) */}
-          <div className="bg-[#113A42] p-6 rounded-3xl border border-[#74FA93]/20 shadow-xl h-[400px] mb-8 flex flex-col">
+          <div className="card-surface backdrop-blur-2xl p-6 rounded-3xl border border-[#c88214]/20 shadow-xl h-[400px] mb-8 flex flex-col">
             <div className="flex justify-between items-start mb-4">
-              <h3 className="text-[#F1EAD8] font-black">Top Countries by Web Traffic</h3>
-              <div className="flex bg-[#0C272D] p-1 rounded-lg border border-[#74FA93]/20">
-                <button onClick={() => setGaMetric('Sessions')} className={`px-2 py-1 text-[10px] font-bold rounded transition-colors ${gaMetric === 'Sessions' ? 'bg-[#74FA93] text-[#0C272D]' : 'text-slate-400 hover:text-white'}`}>Sessions</button>
-                <button onClick={() => setGaMetric('Users')} className={`px-2 py-1 text-[10px] font-bold rounded transition-colors ${gaMetric === 'Users' ? 'bg-[#74FA93] text-[#0C272D]' : 'text-slate-400 hover:text-white'}`}>Users</button>
-                <button onClick={() => setGaMetric('Engaged Sessions')} className={`px-2 py-1 text-[10px] font-bold rounded transition-colors ${gaMetric === 'Engaged Sessions' ? 'bg-[#74FA93] text-[#0C272D]' : 'text-slate-400 hover:text-white'}`}>Engaged</button>
+              <h3 className="text-[#eef7f5] font-black flex items-center gap-2">Top Countries by Web Traffic <InfoTooltip definition="A geographical representation showing which countries generate the highest volume of web traffic." /></h3>
+              <div className="flex bg-[#011414] p-1 rounded-lg border border-[#c88214]/20">
+                <button onClick={() => setGaMetric('Sessions')} className={`px-2 py-1 text-[10px] font-bold rounded transition-colors ${gaMetric === 'Sessions' ? 'gradient-gold text-[#043e3f]' : 'text-slate-400 hover:text-white'}`}>Sessions</button>
+                <button onClick={() => setGaMetric('Users')} className={`px-2 py-1 text-[10px] font-bold rounded transition-colors ${gaMetric === 'Users' ? 'gradient-gold text-[#043e3f]' : 'text-slate-400 hover:text-white'}`}>Users</button>
+                <button onClick={() => setGaMetric('Engaged Sessions')} className={`px-2 py-1 text-[10px] font-bold rounded transition-colors ${gaMetric === 'Engaged Sessions' ? 'gradient-gold text-[#043e3f]' : 'text-slate-400 hover:text-white'}`}>Engaged</button>
               </div>
             </div>
             <ResponsiveContainer width="100%" height="90%">
               <BarChart data={topCountriesGa} layout="vertical" margin={{ left: 20 }}>
+                <defs>
+                  <linearGradient id="goldBarGradientH" x1="0" y1="0" x2="1" y2="0">
+                    <stop offset="0%" stopColor="#d99a2e" />
+                    <stop offset="100%" stopColor="#c88214" />
+                  </linearGradient>
+                </defs>
                 <CartesianGrid strokeDasharray="3 3" stroke="#ffffff10" horizontal={false} />
-                <XAxis type="number" stroke="#CBBB9D" fontSize={10} tickFormatter={(t) => d3.format(",")(t)} />
-                <YAxis dataKey="country" type="category" stroke="#CBBB9D" fontSize={10} width={80} />
-                <Tooltip 
-                  contentStyle={{ backgroundColor: '#0C272D', borderColor: '#74FA9320', color: '#fff' }} 
-                  cursor={{fill: '#ffffff10'}} 
+                <XAxis type="number" stroke="#6fa89f" fontSize={10} tickFormatter={(t) => d3.format(",")(t)} />
+                <YAxis dataKey="country" type="category" stroke="#6fa89f" fontSize={10} width={80} />
+                <Tooltip
+                  contentStyle={{ backgroundColor: '#043e3f', borderColor: '#c8821420', color: '#fff' }}
+                  cursor={{fill: '#ffffff10'}}
                   formatter={(value) => [d3.format(",")(value), gaMetric]}
                 />
-                <Bar dataKey={gaMetric === 'Users' ? 'users' : gaMetric === 'Engaged Sessions' ? 'engagedSessions' : 'sessions'} name={gaMetric} fill="#74FA93" radius={[0, 4, 4, 0]} />
+                <Bar dataKey={gaMetric === 'Users' ? 'users' : gaMetric === 'Engaged Sessions' ? 'engagedSessions' : 'sessions'} name={gaMetric} fill="url(#goldBarGradientH)" radius={[0, 4, 4, 0]} />
               </BarChart>
             </ResponsiveContainer>
           </div>
 
-          <div className="bg-gradient-to-br from-[#26085C] to-[#0C272D] p-8 rounded-3xl border border-[#74FA93]/30 shadow-2xl relative overflow-hidden">
-            <div className="absolute top-0 right-0 p-8 opacity-10"><Zap className="w-32 h-32 text-[#74FA93]" /></div>
-            <h3 className="text-xl font-black text-white mb-4 flex items-center gap-3"><Zap className="text-[#74FA93] w-6 h-6"/> AI Performance Insights</h3>
-            <div className="text-[#F1EAD8] leading-relaxed max-w-4xl space-y-2 relative z-10 font-medium">
+          <div className="card-surface-gold p-8 rounded-3xl border border-[#c88214]/30 shadow-2xl relative overflow-hidden">
+            <div className="absolute top-0 right-0 p-8 opacity-10"><Zap className="w-32 h-32 text-[#c88214]" /></div>
+            <h3 className="text-xl font-black text-white mb-4 flex items-center gap-3"><Zap className="text-[#c88214] w-6 h-6"/> AI Performance Insights <InfoTooltip definition="Automated observations and key takeaways generated by analyzing the current data set." /></h3>
+            <div className="text-[#eef7f5] leading-relaxed max-w-4xl space-y-2 relative z-10 font-medium">
               <p>• The top performing channel generated <strong>{formatShort(agg.views)}</strong> total video views.</p>
               <p>• We saw a total of <strong>{formatShort(agg.sessions)}</strong> web sessions based on GA4 data across the selected period.</p>
               <p>• The overall cost per view stands at <strong>{agg.views > 0 ? `${exSym}${((agg.cost * exRate) / agg.views).toFixed(4)}` : `${exSym}0`}</strong>, indicating highly efficient media delivery.</p>
@@ -693,35 +712,35 @@ export default function App() {
       };
 
       const maxVal = d3.max(mapDataGrouped, getMapVal) || 1;
-      const colorScale = d3.scaleSequential(d3.interpolate('#113A42', '#74FA93')).domain([0, maxVal]);
+      const colorScale = d3.scaleSequential(d3.interpolate('#065c5d', '#c88214')).domain([0, maxVal]);
 
       return (
         <div className="space-y-8">
-          <div className="flex justify-between items-center bg-[#113A42] p-6 rounded-3xl border border-[#74FA93]/20 shadow-xl mb-4 flex-wrap gap-4">
-            <h2 className="text-2xl font-black text-white flex items-center gap-3"><MonitorPlay className="text-[#74FA93]" /> Web Traffic (GA4)</h2>
+          <div className="flex justify-between items-center card-surface backdrop-blur-2xl p-6 rounded-3xl border border-[#c88214]/20 shadow-xl mb-4 flex-wrap gap-4 relative z-20">
+            <h2 className="text-2xl font-black text-white flex items-center gap-3"><MonitorPlay className="text-[#c88214]" /> Web Traffic (GA4)</h2>
             <div className="flex gap-4 items-end">
               <MultiSelect label="Paid / Organic" options={uniquePaidOrganic} selected={filterPaidOrganic} onChange={setFilterPaidOrganic} />
             </div>
           </div>
 
           <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-4">
-            <MetricCard label="Sessions" value={formatShort(totalGaSessions)} icon={Eye} color="text-white" />
-            <MetricCard label="Total Markets" value={d3.format(",")(totalGaMarkets)} icon={Globe} color="text-[#74FA93]" />
-            <MetricCard label="Engaged Sessions" value={formatShort(totalGaEngaged)} icon={Activity} color="text-[#CBBB9D]" />
-            <MetricCard label="New Users" value={formatShort(totalGaNewUsers)} icon={TrendingUp} color="text-white" />
-            <MetricCard label="Total Users" value={formatShort(totalGaUsers)} icon={MousePointer2} color="text-[#74FA93]" />
-            <MetricCard label="Avg Session (s)" value={d3.format(",.1f")(avgDuration)} icon={List} color="text-[#CBBB9D]" />
+            <MetricCard definition="A session is a group of user interactions with your website that take place within a given time frame." label="Sessions" value={formatShort(totalGaSessions)} icon={Eye} color="text-white" />
+            <MetricCard definition="The total number of distinct geographic markets (countries) reached." label="Total Markets" value={d3.format(",")(totalGaMarkets)} icon={Globe} color="text-[#c88214]" />
+            <MetricCard definition="The number of sessions that lasted longer than 10 seconds, had a conversion event, or had 2 or more screen or page views." label="Engaged Sessions" value={formatShort(totalGaEngaged)} icon={Activity} color="text-[#6fa89f]" />
+            <MetricCard definition="The number of users who interacted with your site or launched your app for the first time." label="New Users" value={formatShort(totalGaNewUsers)} icon={TrendingUp} color="text-white" />
+            <MetricCard definition="The total number of unique users who logged an event." label="Total Users" value={formatShort(totalGaUsers)} icon={MousePointer2} color="text-[#c88214]" />
+            <MetricCard definition="The average duration (in seconds) of user sessions." label="Avg Session (s)" value={d3.format(",.1f")(avgDuration)} icon={List} color="text-[#6fa89f]" />
           </div>
 
-          <div className="bg-[#113A42] p-6 rounded-3xl border border-[#74FA93]/20 shadow-xl relative">
+          <div className="card-surface backdrop-blur-2xl p-6 rounded-3xl border border-[#c88214]/20 shadow-xl relative">
             <div className="flex justify-between items-center mb-6">
-              <h3 className="text-[#F1EAD8] font-black">Global Web Traffic</h3>
+              <h3 className="text-[#eef7f5] font-black flex items-center gap-2">Global Web Traffic <InfoTooltip definition="An overview of web traffic performance metrics distributed across a global map." /></h3>
               <div className="flex gap-2">
                 {['Sessions', 'Engaged Sessions', 'Total Users'].map(m => (
                   <button
                     key={m}
                     onClick={() => setMapMetric(m)}
-                    className={`px-3 py-1 rounded-full text-xs font-bold transition-colors ${mapMetric === m ? 'bg-[#74FA93] text-[#0C272D]' : 'bg-[#0C272D] text-[#74FA93] border border-[#74FA93]/30 hover:bg-[#74FA93]/20'}`}
+                    className={`px-3 py-1 rounded-full text-xs font-bold transition-colors ${mapMetric === m ? 'gradient-gold text-[#043e3f]' : 'bg-[#011414] text-[#c88214] border border-[#c88214]/30 hover:bg-[#c88214]/20'}`}
                   >
                     {m}
                   </button>
@@ -729,7 +748,7 @@ export default function App() {
               </div>
             </div>
             
-            <div className="w-full h-[500px] bg-[#0C272D]/50 rounded-2xl overflow-hidden border border-[#74FA93]/10">
+            <div className="w-full h-[500px] bg-[#011414]/50 rounded-2xl overflow-hidden border border-[#c88214]/10">
               <ComposableMap projection="geoMercator" projectionConfig={{ scale: 100 }} width={800} height={400}>
                 <ZoomableGroup>
                   <Geographies geography={GEO_URL}>
@@ -746,11 +765,11 @@ export default function App() {
                             key={geo.rsmKey}
                             geography={geo}
                             fill={fill}
-                            stroke="#0C272D"
+                            stroke="#043e3f"
                             strokeWidth={0.5}
                             style={{
                               default: { outline: 'none' },
-                              hover: { fill: '#F1EAD8', outline: 'none', cursor: 'pointer' },
+                              hover: { fill: '#eef7f5', outline: 'none', cursor: 'pointer' },
                               pressed: { outline: 'none' },
                             }}
                             data-tooltip-id="map-tooltip"
@@ -762,7 +781,7 @@ export default function App() {
                   </Geographies>
                 </ZoomableGroup>
               </ComposableMap>
-              <ReactTooltip id="map-tooltip" style={{ backgroundColor: '#0C272D', color: '#74FA93', fontWeight: 'bold' }} />
+              <ReactTooltip id="map-tooltip" style={{ backgroundColor: '#043e3f', color: '#c88214', fontWeight: 'bold' }} />
             </div>
           </div>
           
@@ -779,46 +798,46 @@ export default function App() {
   };
 
   return (
-    <div className="h-screen overflow-hidden bg-[#0C272D] font-sans selection:bg-[#74FA93]/30 text-white flex flex-col">
+    <div className="h-screen overflow-hidden app-bg font-sans selection:bg-[#c88214]/30 text-white flex flex-col">
       {/* HEADER */}
-      <header className="sticky top-0 z-50 bg-[#0C272D]/95 backdrop-blur-xl border-b border-[#74FA93]/20 px-8 py-4 flex flex-wrap gap-4 items-center justify-between shadow-2xl relative">
-        <div className="absolute inset-0 z-0 opacity-5 pointer-events-none" style={{ backgroundImage: "url('/pattern-1.png')", backgroundSize: '100px', backgroundRepeat: 'repeat-x', backgroundPosition: 'center' }}></div>
+      <header className="sticky top-0 z-50 bg-[#011414]/95 backdrop-blur-xl border-b border-[#c88214]/20 px-8 py-4 flex flex-wrap gap-4 items-center justify-between shadow-2xl relative">
+        <div className="pattern-overlay absolute inset-0 z-0 pointer-events-none"></div>
         <div className="flex items-center gap-4 relative z-10">
-          <img src="/logo.png" alt="AFC Logo" className="h-10 object-contain" onError={(e) => e.target.style.display = 'none'} />
+          <img src="/loc-logo/Saudi 2027-07.png" alt="AFC Logo" className="h-24 object-contain" onError={(e) => e.target.style.display = 'none'} />
           <div>
-            <h1 className="text-xl font-black text-white tracking-tight uppercase">Asia Cup 2027 Dashboard</h1>
-            <p className="text-[10px] font-black text-[#74FA93] uppercase tracking-[0.2em]">Asia Cup LOC Overview</p>
+            <h1 className="text-xl font-black text-white tracking-tight uppercase">Local Organising Committee</h1>
+            <p className="text-[10px] font-black text-[#c88214] uppercase tracking-[0.2em]">Tournament Performance Dashboard</p>
           </div>
         </div>
         
-        <div className="flex gap-3 flex-wrap flex-1 justify-end items-end relative">
+        <div className="flex gap-3 flex-wrap flex-1 justify-end items-end relative z-10">
           <div className="flex flex-col gap-1">
-             <span className="text-[10px] font-black text-[#CBBB9D] uppercase tracking-widest block">Start Date</span>
-             <input type="date" value={dateRange.start} onClick={e => e.target.showPicker && e.target.showPicker()} onChange={e => setDateRange(prev => ({...prev, start: e.target.value}))} className="cursor-pointer px-2.5 py-1.5 bg-[#113A42] border border-[#74FA93]/30 rounded-lg text-xs font-bold text-[#F1EAD8] outline-none focus:border-[#74FA93] [&::-webkit-calendar-picker-indicator]:cursor-pointer [&::-webkit-calendar-picker-indicator]:opacity-50" />
+             <span className="text-[10px] font-black text-[#6fa89f] uppercase tracking-widest block">Start Date</span>
+             <input type="date" value={dateRange.start} onClick={e => e.target.showPicker && e.target.showPicker()} onChange={e => setDateRange(prev => ({...prev, start: e.target.value}))} className="w-[160px] cursor-pointer px-2.5 py-1.5 bg-[#065c5d] border border-[#c88214]/30 rounded-lg text-xs font-bold text-[#eef7f5] outline-none focus:border-[#c88214] [&::-webkit-calendar-picker-indicator]:cursor-pointer [&::-webkit-calendar-picker-indicator]:opacity-100" />
           </div>
           <div className="flex flex-col gap-1">
-             <span className="text-[10px] font-black text-[#CBBB9D] uppercase tracking-widest block">End Date</span>
-             <input type="date" value={dateRange.end} onClick={e => e.target.showPicker && e.target.showPicker()} onChange={e => setDateRange(prev => ({...prev, end: e.target.value}))} className="cursor-pointer px-2.5 py-1.5 bg-[#113A42] border border-[#74FA93]/30 rounded-lg text-xs font-bold text-[#F1EAD8] outline-none focus:border-[#74FA93] [&::-webkit-calendar-picker-indicator]:cursor-pointer [&::-webkit-calendar-picker-indicator]:opacity-50" />
+             <span className="text-[10px] font-black text-[#6fa89f] uppercase tracking-widest block">End Date</span>
+             <input type="date" value={dateRange.end} onClick={e => e.target.showPicker && e.target.showPicker()} onChange={e => setDateRange(prev => ({...prev, end: e.target.value}))} className="w-[160px] cursor-pointer px-2.5 py-1.5 bg-[#065c5d] border border-[#c88214]/30 rounded-lg text-xs font-bold text-[#eef7f5] outline-none focus:border-[#c88214] [&::-webkit-calendar-picker-indicator]:cursor-pointer [&::-webkit-calendar-picker-indicator]:opacity-100" />
           </div>
 
           { (activeTab !== 'campaign' && activeTab !== 'webtraffic') ? (
-            <MultiSelect label="Campaign" options={uniqueCampaigns} selected={filterCampaigns} onChange={setFilterCampaigns} />
+            <MultiSelect label="Tournament" options={uniqueCampaigns} selected={filterCampaigns} onChange={setFilterCampaigns} />
           ) : (
-            <div className="opacity-30 pointer-events-none" title="Campaign filter is disabled for this view">
-              <MultiSelect label="Campaign" options={uniqueCampaigns} selected={filterCampaigns} onChange={setFilterCampaigns} />
+            <div className="opacity-30 pointer-events-none" title="Tournament filter is disabled for this view">
+              <MultiSelect label="Tournament" options={uniqueCampaigns} selected={filterCampaigns} onChange={setFilterCampaigns} />
             </div>
           )}
           <MultiSelect label="Market" options={uniqueMarkets} selected={filterMarkets} onChange={setFilterMarkets} />
           
           <div className="flex items-end gap-3 ml-2">
              <div className="flex flex-col gap-1">
-               <span className="text-[10px] font-black text-[#CBBB9D] uppercase tracking-widest block">Currency</span>
-               <div className="flex bg-[#113A42] p-0.5 rounded-lg border border-[#74FA93]/30">
-                 <button onClick={() => setCurrency('USD')} className={`px-2.5 py-1 text-xs font-bold rounded-md transition-colors ${currency === 'USD' ? 'bg-[#74FA93] text-[#0C272D]' : 'text-slate-400 hover:text-white'}`}>USD</button>
-                 <button onClick={() => setCurrency('SAR')} className={`px-2.5 py-1 text-xs font-bold rounded-md transition-colors ${currency === 'SAR' ? 'bg-[#74FA93] text-[#0C272D]' : 'text-slate-400 hover:text-white'}`}>SAR</button>
+               <span className="text-[10px] font-black text-[#6fa89f] uppercase tracking-widest block">Currency</span>
+               <div className="flex bg-[#065c5d]/20 backdrop-blur-md p-0.5 rounded-lg border border-[#c88214]/30">
+                 <button onClick={() => setCurrency('USD')} className={`px-2.5 py-1 text-xs font-bold rounded-md transition-colors ${currency === 'USD' ? 'gradient-gold text-[#043e3f]' : 'text-slate-400 hover:text-white'}`}>USD</button>
+                 <button onClick={() => setCurrency('SAR')} className={`px-2.5 py-1 text-xs font-bold rounded-md transition-colors ${currency === 'SAR' ? 'gradient-gold text-[#043e3f]' : 'text-slate-400 hover:text-white'}`}>SAR</button>
                </div>
              </div>
-             <button onClick={resetFilters} className="px-3 py-1.5 bg-[#74FA93]/10 border border-[#74FA93]/50 text-[#74FA93] text-[10px] uppercase font-black rounded-lg hover:bg-[#74FA93]/20 hover:text-white transition-colors flex items-center justify-center gap-1"><RefreshCw className="w-3 h-3"/> Reset</button>
+             <button onClick={resetFilters} className="px-3 py-1.5 bg-[#c88214]/10 border border-[#c88214]/50 text-[#c88214] text-[10px] uppercase font-black rounded-lg hover:bg-[#c88214]/20 hover:text-white transition-colors flex items-center justify-center gap-1"><RefreshCw className="w-3 h-3"/> Reset</button>
              <button onClick={handleSignOut} className="px-3 py-1.5 bg-red-500/10 border border-red-500/30 text-red-400 text-[10px] uppercase font-black rounded-lg hover:bg-red-500/20 hover:text-red-300 transition-colors flex items-center justify-center gap-1">Sign Out</button>
           </div>
         </div>
@@ -826,9 +845,9 @@ export default function App() {
 
       <div className="flex flex-1 overflow-hidden">
         {/* SIDEBAR TABS */}
-        <div className="w-64 border-r border-[#74FA93]/10 bg-[#0C272D] flex flex-col gap-2 overflow-y-auto z-20 relative">
+        <div className="w-64 border-r border-[#c88214]/10 bg-[#011414] flex flex-col gap-2 overflow-y-auto z-20 relative">
           <div className="p-6 pb-2">
-            <div className="text-[10px] font-black text-[#CBBB9D] uppercase tracking-widest mb-4 px-4">Navigation</div>
+            <div className="text-[10px] font-black text-[#6fa89f] uppercase tracking-widest mb-4 px-4">Navigation</div>
           {NAV_ITEMS.map(t => {
             const active = activeTab === t.id;
             return (
@@ -836,7 +855,7 @@ export default function App() {
                 key={t.id}
                 onClick={() => setActiveTab(t.id)}
                 className={`flex items-center gap-3 w-full px-4 py-3 rounded-xl font-bold transition-all ${
-                  active ? 'bg-[#74FA93] text-[#0C272D] shadow-[0_0_15px_rgba(116,250,147,0.3)]' : 'text-[#F1EAD8] hover:bg-[#74FA93]/10 hover:text-[#74FA93]'
+                  active ? 'gradient-gold text-[#043e3f] shadow-[0_0_15px_rgba(200,130,20,0.35)]' : 'text-[#eef7f5] hover:bg-[#c88214]/10 hover:text-[#c88214]'
                 }`}
               >
                 <t.icon className="w-5 h-5" />
@@ -845,13 +864,13 @@ export default function App() {
             )
           })}
           </div>
-          <div className="flex-1 min-h-[100px] mt-8 opacity-[0.03] pointer-events-none" style={{ backgroundImage: "url('/pattern-4.png')", backgroundSize: 'contain', backgroundRepeat: 'repeat-y', backgroundPosition: 'center left' }}></div>
+          <div className="flex-1 min-h-[100px] mt-8"></div>
           {isAdmin && (
             <div className="mt-auto p-6 pt-0 z-30">
               <button 
                 onClick={() => setActiveTab('admin')}
                 className={`flex items-center gap-3 w-full px-4 py-3 rounded-xl font-bold transition-all ${
-                  activeTab === 'admin' ? 'bg-[#74FA93] text-[#0C272D] shadow-[0_0_15px_rgba(116,250,147,0.3)]' : 'text-[#F1EAD8] hover:bg-[#74FA93]/10 hover:text-[#74FA93]'
+                  activeTab === 'admin' ? 'gradient-gold text-[#043e3f] shadow-[0_0_15px_rgba(200,130,20,0.35)]' : 'text-[#eef7f5] hover:bg-[#c88214]/10 hover:text-[#c88214]'
                 }`}
               >
                 <Users className="w-5 h-5" />
@@ -866,9 +885,7 @@ export default function App() {
           <AdminView />
         ) : (
         <main className="flex-1 overflow-y-auto p-8 custom-scrollbar relative z-10">
-          <div className="absolute top-0 right-0 w-full h-[500px] bg-gradient-to-br from-[#26085C]/10 via-[#0C272D] to-[#0C272D] pointer-events-none -z-10"></div>
-          <div className="absolute top-0 right-0 w-1/3 h-full opacity-5 pointer-events-none -z-10" style={{ backgroundImage: "url('/pattern-3.png')", backgroundSize: 'cover', backgroundRepeat: 'no-repeat', backgroundPosition: 'right center' }}></div>
-          <div className="absolute bottom-0 left-0 w-full h-12 opacity-5 pointer-events-none -z-10" style={{ backgroundImage: "url('/pattern-2.png')", backgroundSize: '200px', backgroundRepeat: 'repeat-x', backgroundPosition: 'bottom' }}></div>
+          <div className="absolute top-0 right-0 w-full h-[500px] bg-gradient-to-br from-[#062f2e]/20 via-transparent to-transparent pointer-events-none -z-10"></div>
           {renderContent()}
         </main>
         )}

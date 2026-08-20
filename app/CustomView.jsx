@@ -5,7 +5,7 @@ import * as d3 from 'd3';
 import { Filter, Download, Activity, TrendingUp, BarChart3, Target, Calendar, Globe2, AlertCircle, Search, Check, ChevronDown, Zap, TableProperties } from 'lucide-react';
 import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip as RechartsTooltip, ResponsiveContainer, BarChart, Bar, Legend, PieChart, Pie, Cell } from 'recharts';
 
-const COLORS = ['#74FA93', '#CBBB9D', '#736BED', '#A29CF0', '#F1EAD8', '#FFD166', '#EF476F'];
+const COLORS = ['#74FA93', '#6fa89f', '#c88214', '#00937b', '#eef7f5', '#c88214', '#007542'];
 
 // Helper to get ISO Week number
 const getWeekNumber = (d) => {
@@ -16,10 +16,10 @@ const getWeekNumber = (d) => {
     return `Week ${weekNo}`;
 };
 
-const MetricCard = ({ label, value, color = "text-[#74FA93]" }) => {
+const MetricCard = ({ label, value, color = "text-[#c88214]" }) => {
   return (
-    <div className="bg-[#113A42]/80 backdrop-blur-xl p-6 rounded-[1.5rem] border border-[#74FA93]/10 shadow-xl transition-all hover:shadow-[0_0_20px_rgba(116,250,147,0.15)] hover:-translate-y-1 relative overflow-hidden group">
-      <div className="absolute top-0 right-0 w-32 h-32 bg-gradient-to-br from-[#74FA93]/5 to-transparent rounded-full blur-2xl -mr-10 -mt-10 group-hover:bg-[#74FA93]/10 transition-colors duration-500"></div>
+    <div className="card-surface backdrop-blur-2xl/80 backdrop-blur-xl p-6 rounded-[1.5rem] border border-[#c88214]/10 shadow-xl transition-all hover:shadow-[0_0_20px_rgba(116,250,147,0.15)] hover:-translate-y-1 relative overflow-hidden group">
+      <div className="absolute top-0 right-0 w-32 h-32 bg-gradient-to-br from-[#74FA93]/5 to-transparent rounded-full blur-2xl -mr-10 -mt-10 group-hover:bg-[#c88214]/10 transition-colors duration-500"></div>
       <p className={`text-[10px] font-black ${color} uppercase tracking-widest mb-2 relative z-10`}>{label}</p>
       <h3 className="text-2xl font-black text-white truncate relative z-10" title={value}>{value}</h3>
     </div>
@@ -34,10 +34,10 @@ const MultiSelectDropdown = ({ label, options, selected, onChange }) => {
 
   return (
     <div className="flex-1 relative min-w-[180px]">
-      <span className="text-[10px] font-black uppercase text-[#CBBB9D] mb-1.5 tracking-widest block">{label}</span>
+      <span className="text-[10px] font-black uppercase text-[#6fa89f] mb-1.5 tracking-widest block">{label}</span>
       <div 
         onClick={() => setIsOpen(!isOpen)}
-        className="w-full px-4 py-3 bg-[#113A42] border border-[#74FA93]/20 rounded-xl text-sm font-black text-[#74FA93] shadow-sm cursor-pointer flex justify-between items-center transition-colors hover:border-[#74FA93]/50"
+        className="w-full px-4 py-3 card-surface backdrop-blur-2xl border border-[#c88214]/20 rounded-xl text-sm font-black text-[#c88214] shadow-sm cursor-pointer flex justify-between items-center transition-colors hover:border-[#c88214]/50"
       >
         <span className="truncate pr-4">{selected.length === 0 ? 'All Selected' : selected.join(', ')}</span>
         <ChevronDown className={`w-4 h-4 flex-shrink-0 transition-transform ${isOpen ? 'rotate-180' : ''}`} />
@@ -45,50 +45,53 @@ const MultiSelectDropdown = ({ label, options, selected, onChange }) => {
       {isOpen && (
         <>
           <div className="fixed inset-0 z-40" onClick={(e) => { e.stopPropagation(); setIsOpen(false); setSearchTerm(''); }} />
-          <div className="absolute top-full mt-2 w-full bg-[#113A42] border border-[#74FA93]/20 rounded-xl shadow-[0_20px_50px_rgba(0,0,0,0.5)] z-50 flex flex-col max-h-80 overflow-hidden">
-            <div className="p-3 border-b border-[#74FA93]/10 bg-[#0C272D]">
-              <div className="relative">
-                <Search className="w-4 h-4 text-[#CBBB9D] absolute left-3 top-1/2 -translate-y-1/2" />
-                <input 
-                  type="text" 
-                  placeholder="Search..." 
-                  autoFocus 
-                  value={searchTerm} 
-                  onChange={e => setSearchTerm(e.target.value)} 
-                  className="w-full bg-[#113A42] text-white text-xs font-bold pl-9 pr-3 py-2.5 rounded-lg outline-none border border-[#74FA93]/20 focus:border-[#74FA93] transition-colors" 
-                />
+          <div className="absolute top-full left-0 w-full h-0 z-50">
+            <div className="w-full mt-2 card-surface backdrop-blur-2xl border border-[#c88214]/20 rounded-xl shadow-[0_20px_50px_rgba(0,0,0,0.5)] flex flex-col max-h-80 overflow-hidden">
+              <div className="p-3 border-b border-[#c88214]/10 bg-[#011414]">
+                <div className="relative">
+                  <Search className="w-4 h-4 text-[#6fa89f] absolute left-3 top-1/2 -translate-y-1/2" />
+                  <input 
+                    type="text" 
+                    placeholder="Search..." 
+                    autoFocus 
+                    value={searchTerm} 
+                    onChange={e => setSearchTerm(e.target.value)} 
+                    className="w-full card-surface backdrop-blur-2xl text-white text-xs font-bold pl-9 pr-3 py-2.5 rounded-lg outline-none border border-[#c88214]/20 focus:border-[#c88214] transition-colors" 
+                  />
+                </div>
               </div>
-            </div>
-            <div className="overflow-y-auto custom-scrollbar p-2 flex-1">
-              <div 
-                onClick={() => { onChange([]); setIsOpen(false); setSearchTerm(''); }}
-                className={`px-3 py-2.5 rounded-lg text-sm font-bold cursor-pointer flex items-center justify-between ${selected.length === 0 ? 'bg-[#74FA93]/20 text-[#74FA93]' : 'text-[#CBBB9D] hover:bg-white/5'}`}
-              >
-                All <Check className={`w-4 h-4 ${selected.length === 0 ? 'opacity-100' : 'opacity-0'}`} />
+              <div className="overflow-y-auto p-2 flex-1 custom-scrollbar">
+                <div 
+                  onClick={() => { onChange([]); setIsOpen(false); setSearchTerm(''); }} 
+                  className={`px-3 py-2.5 rounded-lg text-sm font-bold cursor-pointer flex justify-between items-center transition-colors ${selected.length === 0 ? 'bg-[#c88214]/20 text-[#c88214]' : 'text-white hover:bg-[#011414]'}`}
+                >
+                  All <Check className={`w-4 h-4 ${selected.length === 0 ? 'opacity-100' : 'opacity-0'}`} />
+                </div>
+                {filteredOptions.map(opt => {
+                  const isSel = selected.includes(opt);
+                  return (
+                    <div 
+                      key={opt} 
+                      onClick={() => {
+                        let next = [...selected];
+                        if (isSel) {
+                          next = next.filter(n => n !== opt);
+                        } else { 
+                          next.push(opt); 
+                        }
+                        onChange(next);
+                      }} 
+                      className={`px-3 py-2.5 mt-1 rounded-lg text-sm font-bold cursor-pointer flex justify-between items-center transition-colors ${isSel ? 'bg-[#c88214]/20 text-[#c88214]' : 'text-white hover:bg-[#011414]'}`}
+                    >
+                      <span className="truncate pr-4">{opt}</span> 
+                      <Check className={`w-4 h-4 flex-shrink-0 ${isSel ? 'opacity-100' : 'opacity-0'}`} />
+                    </div>
+                  )
+                })}
+                {filteredOptions.length === 0 && (
+                  <div className="px-3 py-4 text-center text-xs font-bold text-[#6fa89f] uppercase tracking-widest">No results found</div>
+                )}
               </div>
-              {filteredOptions.map(opt => {
-                const isSel = selected.includes(opt);
-                return (
-                  <div 
-                    key={opt}
-                    onClick={() => {
-                      let next = [...selected];
-                      if (isSel) {
-                        next = next.filter(n => n !== opt);
-                      } else {
-                        next.push(opt);
-                      }
-                      onChange(next);
-                    }}
-                    className={`px-3 py-2.5 rounded-lg text-sm font-bold cursor-pointer flex items-center justify-between mt-1 transition-colors ${isSel ? 'bg-[#74FA93]/20 text-[#74FA93]' : 'text-[#CBBB9D] hover:bg-white/5'}`}
-                  >
-                    <span className="truncate pr-2">{opt}</span> <Check className={`w-4 h-4 flex-shrink-0 ${isSel ? 'text-[#74FA93] opacity-100' : 'opacity-0'}`} />
-                  </div>
-                )
-              })}
-              {filteredOptions.length === 0 && (
-                <div className="px-3 py-4 text-center text-xs font-bold text-[#CBBB9D] uppercase tracking-widest">No results found</div>
-              )}
             </div>
           </div>
         </>
@@ -316,7 +319,7 @@ export default function CustomView({ adData = [], exRate = 1, exSym = "$", forma
 
     if (!canSetKpi) {
       return (
-        <div className="mb-8 w-full border border-dashed border-[#74FA93]/20 rounded-[2rem] p-8 text-[#CBBB9D]/50 flex items-center justify-center gap-3 font-bold text-sm bg-[#113A42]/50 cursor-not-allowed">
+        <div className="mb-8 w-full border border-dashed border-[#c88214]/20 rounded-[2rem] p-8 text-[#6fa89f]/50 flex items-center justify-center gap-3 font-bold text-sm card-surface backdrop-blur-2xl/50 cursor-not-allowed">
           <Target className="w-5 h-5 opacity-50" /> KPI Tracker (Requires at least one Campaign AND a Date Range or Week filter to activate)
         </div>
       );
@@ -324,19 +327,19 @@ export default function CustomView({ adData = [], exRate = 1, exSym = "$", forma
 
     if (kpi.isOpen && !kpi.isSet) {
       return (
-        <div className="mb-8 bg-[#113A42] p-8 rounded-[2rem] border border-[#74FA93]/30 shadow-xl relative overflow-hidden animate-in fade-in slide-in-from-top-4">
-           <div className="absolute top-0 right-0 w-32 h-32 bg-[#74FA93]/10 rounded-full blur-3xl"></div>
+        <div className="mb-8 card-surface backdrop-blur-2xl p-8 rounded-[2rem] border border-[#c88214]/30 shadow-xl relative overflow-hidden animate-in fade-in slide-in-from-top-4">
+           <div className="absolute top-0 right-0 w-32 h-32 bg-[#c88214]/10 rounded-full blur-3xl"></div>
            <div className="flex justify-between items-center mb-6 relative z-10">
              <h4 className="text-sm font-black text-white uppercase tracking-widest flex items-center gap-2">
-               <Target className="w-4 h-4 text-[#74FA93]" /> Configure KPI Targets
+               <Target className="w-4 h-4 text-[#c88214]" /> Configure KPI Targets
              </h4>
-             <button onClick={() => setKpi({...kpi, isOpen: false})} className="text-[#CBBB9D] hover:text-white"><Zap className="w-4 h-4 rotate-45"/></button>
+             <button onClick={() => setKpi({...kpi, isOpen: false})} className="text-[#6fa89f] hover:text-white"><Zap className="w-4 h-4 rotate-45"/></button>
            </div>
            <div className="grid grid-cols-2 md:grid-cols-4 gap-4 relative z-10">
-              <input type="number" placeholder={`Budget (${exSym})`} value={kpi.budget} onChange={e=>setKpi({...kpi, budget: e.target.value})} className="w-full text-xs font-bold text-white bg-[#0C272D] border border-[#74FA93]/20 rounded-xl px-4 py-3 outline-none focus:border-[#74FA93]" />
-              <input type="number" placeholder="Target Impressions" value={kpi.impressions} onChange={e=>setKpi({...kpi, impressions: e.target.value})} className="w-full text-xs font-bold text-white bg-[#0C272D] border border-[#74FA93]/20 rounded-xl px-4 py-3 outline-none focus:border-[#74FA93]" />
-              <input type="number" placeholder="Target Clicks" value={kpi.clicks} onChange={e=>setKpi({...kpi, clicks: e.target.value})} className="w-full text-xs font-bold text-white bg-[#0C272D] border border-[#74FA93]/20 rounded-xl px-4 py-3 outline-none focus:border-[#74FA93]" />
-              <input type="number" placeholder="Target Views" value={kpi.views} onChange={e=>setKpi({...kpi, views: e.target.value})} className="w-full text-xs font-bold text-white bg-[#0C272D] border border-[#74FA93]/20 rounded-xl px-4 py-3 outline-none focus:border-[#74FA93]" />
+              <input type="number" placeholder={`Budget (${exSym})`} value={kpi.budget} onChange={e=>setKpi({...kpi, budget: e.target.value})} className="w-full text-xs font-bold text-white bg-[#011414] border border-[#c88214]/20 rounded-xl px-4 py-3 outline-none focus:border-[#c88214]" />
+              <input type="number" placeholder="Target Impressions" value={kpi.impressions} onChange={e=>setKpi({...kpi, impressions: e.target.value})} className="w-full text-xs font-bold text-white bg-[#011414] border border-[#c88214]/20 rounded-xl px-4 py-3 outline-none focus:border-[#c88214]" />
+              <input type="number" placeholder="Target Clicks" value={kpi.clicks} onChange={e=>setKpi({...kpi, clicks: e.target.value})} className="w-full text-xs font-bold text-white bg-[#011414] border border-[#c88214]/20 rounded-xl px-4 py-3 outline-none focus:border-[#c88214]" />
+              <input type="number" placeholder="Target Views" value={kpi.views} onChange={e=>setKpi({...kpi, views: e.target.value})} className="w-full text-xs font-bold text-white bg-[#011414] border border-[#c88214]/20 rounded-xl px-4 py-3 outline-none focus:border-[#c88214]" />
            </div>
            <button onClick={() => setKpi({...kpi, isSet: true, isOpen: false})} className="mt-6 w-full bg-[#74FA93] text-[#0C272D] rounded-xl py-3 font-black text-sm shadow-lg shadow-[#74FA93]/20 transition-all hover:scale-[1.01] relative z-10">Track Pacing Against Live Data</button>
         </div>
@@ -351,14 +354,14 @@ export default function CustomView({ adData = [], exRate = 1, exSym = "$", forma
 
       const ProgressBar = ({ label, actual, target, pct, isCurr, color = "bg-[#74FA93]" }) => (
         <div>
-          <div className="flex justify-between items-end text-xs font-bold text-[#CBBB9D] mb-2">
+          <div className="flex justify-between items-end text-xs font-bold text-[#6fa89f] mb-2">
             <span>{label}</span>
             <span className="text-white text-right">
               Delivered: {isCurr ? `${exSym}${formatShort(actual)}` : formatShort(actual)} <span className={color.replace('bg-','text-')}>({pct.toFixed(1)}%)</span><br/>
               <span className="text-[10px] text-white/50 font-medium">Target: {isCurr ? `${exSym}${formatShort(target)}` : formatShort(target)}</span>
             </span>
           </div>
-          <div className="h-2 bg-[#0C272D] rounded-full overflow-hidden border border-[#74FA93]/10">
+          <div className="h-2 bg-[#011414] rounded-full overflow-hidden border border-[#c88214]/10">
             <div className={`h-full ${color} rounded-full relative`} style={{ width: `${pct}%` }}>
               <div className="absolute inset-0 bg-white/20 w-full animate-[shimmer_2s_infinite]"></div>
             </div>
@@ -367,26 +370,26 @@ export default function CustomView({ adData = [], exRate = 1, exSym = "$", forma
       );
 
       return (
-        <div ref={kpiRef} className="mb-8 bg-[#113A42] p-8 rounded-[2rem] border border-[#74FA93]/30 shadow-xl animate-in fade-in">
+        <div ref={kpiRef} className="mb-8 card-surface backdrop-blur-2xl p-8 rounded-[2rem] border border-[#c88214]/30 shadow-xl animate-in fade-in">
            <div className="flex justify-between items-center mb-6">
              <h4 className="text-sm font-black text-white uppercase tracking-widest flex items-center gap-2">
-               <Target className="w-4 h-4 text-[#74FA93]" /> Goal Pacing Tracker
+               <Target className="w-4 h-4 text-[#c88214]" /> Goal Pacing Tracker
              </h4>
-             <button onClick={() => setKpi({...kpi, isSet: false, isOpen: true})} className="text-xs font-black uppercase tracking-widest text-[#74FA93] hover:text-white">Edit Goals</button>
+             <button onClick={() => setKpi({...kpi, isSet: false, isOpen: true})} className="text-xs font-black uppercase tracking-widest text-[#c88214] hover:text-white">Edit Goals</button>
            </div>
            <div className="grid grid-cols-1 md:grid-cols-2 gap-x-8 gap-y-6">
               <ProgressBar label="Budget Delivery" actual={actuals.spend} target={kpi.budget} pct={bPct} isCurr color="bg-[#74FA93]" />
-              <ProgressBar label="Impressions Generated" actual={actuals.impressions} target={kpi.impressions} pct={impPct} color="bg-[#CBBB9D]" />
-              <ProgressBar label="Clicks Generated" actual={actuals.clicks} target={kpi.clicks} pct={clkPct} color="bg-[#736BED]" />
-              <ProgressBar label="Video Views" actual={actuals.views} target={kpi.views} pct={viewPct} color="bg-[#EF476F]" />
+              <ProgressBar label="Impressions Generated" actual={actuals.impressions} target={kpi.impressions} pct={impPct} color="bg-[#6fa89f]" />
+              <ProgressBar label="Clicks Generated" actual={actuals.clicks} target={kpi.clicks} pct={clkPct} color="bg-[#c88214]" />
+              <ProgressBar label="Video Views" actual={actuals.views} target={kpi.views} pct={viewPct} color="bg-[#007542]" />
            </div>
         </div>
       );
     }
 
     return (
-      <button onClick={() => setKpi({...kpi, isOpen: true})} className="mb-8 w-full border border-dashed border-[#74FA93]/30 rounded-[2rem] p-6 text-[#74FA93] hover:text-white hover:border-[#74FA93]/80 hover:bg-[#74FA93]/5 transition-all flex items-center justify-center gap-3 font-bold text-sm">
-        <Target className="w-5 h-5 text-[#74FA93]" /> Set Campaign Goal & KPI Pacing Tracker
+      <button onClick={() => setKpi({...kpi, isOpen: true})} className="mb-8 w-full border border-dashed border-[#c88214]/30 rounded-[2rem] p-6 text-[#c88214] hover:text-white hover:border-[#c88214]/80 hover:bg-[#74FA93]/5 transition-all flex items-center justify-center gap-3 font-bold text-sm">
+        <Target className="w-5 h-5 text-[#c88214]" /> Set Campaign Goal & KPI Pacing Tracker
       </button>
     );
   };
@@ -396,13 +399,13 @@ export default function CustomView({ adData = [], exRate = 1, exSym = "$", forma
     <div className="space-y-8 animate-[fadeIn_0.5s_ease-out] mb-24">
       
       {/* HEADER & CONTROLS */}
-      <div className="flex flex-col xl:flex-row justify-between items-start xl:items-center gap-6 bg-[#113A42]/80 backdrop-blur-xl p-8 rounded-[2rem] border border-[#74FA93]/20 shadow-2xl relative z-50">
+      <div className="flex flex-col xl:flex-row justify-between items-start xl:items-center gap-6 card-surface backdrop-blur-2xl/80 backdrop-blur-xl p-8 rounded-[2rem] border border-[#c88214]/20 shadow-2xl relative z-50">
         <div className="absolute top-0 left-0 w-32 h-32 bg-[#74FA93]/5 rounded-full blur-3xl -ml-10 -mt-10"></div>
         <div className="relative z-10">
            <h2 className="text-3xl font-black text-white flex items-center gap-3">
-             <Filter className="text-[#74FA93] w-8 h-8" /> Custom Data Hub
+             <Filter className="text-[#c88214] w-8 h-8" /> Custom Data Hub
            </h2>
-           <p className="text-[#CBBB9D] text-sm mt-2 font-medium tracking-wide">Advanced slicing, goal tracking, and export suite.</p>
+           <p className="text-[#6fa89f] text-sm mt-2 font-medium tracking-wide">Advanced slicing, goal tracking, and export suite.</p>
         </div>
         
         <div className="flex flex-wrap gap-4 items-end w-full xl:w-auto relative z-40">
@@ -427,35 +430,35 @@ export default function CustomView({ adData = [], exRate = 1, exSym = "$", forma
            <div ref={chartsRef}>
              <div className="grid grid-cols-2 md:grid-cols-4 gap-6 mb-8">
               <MetricCard label="Total Spend" value={`${exSym}${formatShort(actuals.spend)}`} />
-              <MetricCard label="Impressions" value={formatShort(actuals.impressions)} color="text-[#CBBB9D]" />
-              <MetricCard label="Clicks" value={formatShort(actuals.clicks)} color="text-[#736BED]" />
-              <MetricCard label="Video Views" value={formatShort(actuals.views)} color="text-[#EF476F]" />
+              <MetricCard label="Impressions" value={formatShort(actuals.impressions)} color="text-[#6fa89f]" />
+              <MetricCard label="Clicks" value={formatShort(actuals.clicks)} color="text-[#c88214]" />
+              <MetricCard label="Video Views" value={formatShort(actuals.views)} color="text-[#007542]" />
            </div>
 
            <div className="grid grid-cols-1 xl:grid-cols-3 gap-6 mb-8">
-              <div className="bg-[#113A42]/80 backdrop-blur-xl border border-[#74FA93]/10 rounded-[2rem] p-8 xl:col-span-2 shadow-xl">
+              <div className="card-surface backdrop-blur-2xl/80 backdrop-blur-xl border border-[#c88214]/10 rounded-[2rem] p-8 xl:col-span-2 shadow-xl">
                  <h3 className="text-lg font-black text-white mb-8 flex items-center gap-2 uppercase tracking-widest text-sm">
-                   <TrendingUp className="text-[#74FA93] w-5 h-5" /> Performance Trend
+                   <TrendingUp className="text-[#c88214] w-5 h-5" /> Performance Trend
                  </h3>
                  <div className="h-72">
                    <ResponsiveContainer width="100%" height="100%">
                      <LineChart data={trendData} margin={{ top: 10, right: 30, left: 0, bottom: 0 }}>
                        <CartesianGrid strokeDasharray="3 3" stroke="#ffffff05" vertical={false} />
-                       <XAxis dataKey="date" stroke="#CBBB9D" fontSize={12} tickLine={false} axisLine={false} />
+                       <XAxis dataKey="date" stroke="#6fa89f" fontSize={12} tickLine={false} axisLine={false} />
                        <YAxis yAxisId="left" stroke="#74FA93" fontSize={12} tickLine={false} axisLine={false} tickFormatter={formatShort} />
-                       <YAxis yAxisId="right" orientation="right" stroke="#736BED" fontSize={12} tickLine={false} axisLine={false} tickFormatter={formatShort} />
+                       <YAxis yAxisId="right" orientation="right" stroke="#c88214" fontSize={12} tickLine={false} axisLine={false} tickFormatter={formatShort} />
                        <RechartsTooltip contentStyle={{ backgroundColor: '#0C272D', borderColor: '#74FA9320', color: '#fff', borderRadius: '16px', boxShadow: '0 10px 30px rgba(0,0,0,0.5)' }} />
                        <Legend wrapperStyle={{ paddingTop: '20px' }} />
                        <Line yAxisId="left" type="monotone" dataKey="Spend" stroke="#74FA93" strokeWidth={4} dot={false} activeDot={{r:8, fill: '#74FA93', stroke: '#0C272D', strokeWidth: 2}} />
-                       <Line yAxisId="right" type="monotone" dataKey="Impressions" stroke="#736BED" strokeWidth={4} dot={false} activeDot={{r:8, fill: '#736BED', stroke: '#0C272D', strokeWidth: 2}} />
+                       <Line yAxisId="right" type="monotone" dataKey="Impressions" stroke="#c88214" strokeWidth={4} dot={false} activeDot={{r:8, fill: '#c88214', stroke: '#0C272D', strokeWidth: 2}} />
                      </LineChart>
                    </ResponsiveContainer>
                  </div>
               </div>
 
-              <div className="bg-[#113A42]/80 backdrop-blur-xl border border-[#74FA93]/10 rounded-[2rem] p-8 shadow-xl">
+              <div className="card-surface backdrop-blur-2xl/80 backdrop-blur-xl border border-[#c88214]/10 rounded-[2rem] p-8 shadow-xl">
                  <h3 className="text-lg font-black text-white mb-8 flex items-center gap-2 uppercase tracking-widest text-sm">
-                   <Activity className="text-[#74FA93] w-5 h-5" /> Channel Mix
+                   <Activity className="text-[#c88214] w-5 h-5" /> Channel Mix
                  </h3>
                  <div className="h-72">
                    <ResponsiveContainer width="100%" height="100%">
@@ -478,19 +481,19 @@ export default function CustomView({ adData = [], exRate = 1, exSym = "$", forma
            </div>
 
            {/* Data Table */}
-           <div ref={tableRef} className="bg-[#113A42]/80 backdrop-blur-xl border border-[#74FA93]/10 rounded-[2rem] p-8 shadow-xl overflow-x-auto custom-scrollbar">
+           <div ref={tableRef} className="card-surface backdrop-blur-2xl/80 backdrop-blur-xl border border-[#c88214]/10 rounded-[2rem] p-8 shadow-xl overflow-x-auto custom-scrollbar">
               <h3 className="text-lg font-black text-white mb-6 flex items-center gap-2 uppercase tracking-widest text-sm">
-                 <TableProperties className="text-[#74FA93] w-5 h-5" /> Data Breakdown
+                 <TableProperties className="text-[#c88214] w-5 h-5" /> Data Breakdown
               </h3>
               <table className="w-full text-left border-collapse">
                  <thead>
-                    <tr className="border-b border-[#74FA93]/20">
-                       <th className="py-4 px-4 text-[#CBBB9D] font-bold text-xs uppercase tracking-widest">Week</th>
-                       <th className="py-4 px-4 text-[#CBBB9D] font-bold text-xs uppercase tracking-widest">Campaign</th>
-                       <th className="py-4 px-4 text-[#CBBB9D] font-bold text-xs uppercase tracking-widest">Channel</th>
-                       <th className="py-4 px-4 text-[#CBBB9D] font-bold text-xs uppercase tracking-widest text-right">Spend</th>
-                       <th className="py-4 px-4 text-[#CBBB9D] font-bold text-xs uppercase tracking-widest text-right">Impressions</th>
-                       <th className="py-4 px-4 text-[#CBBB9D] font-bold text-xs uppercase tracking-widest text-right">Clicks</th>
+                    <tr className="border-b border-[#c88214]/20">
+                       <th className="py-4 px-4 text-[#6fa89f] font-bold text-xs uppercase tracking-widest">Week</th>
+                       <th className="py-4 px-4 text-[#6fa89f] font-bold text-xs uppercase tracking-widest">Campaign</th>
+                       <th className="py-4 px-4 text-[#6fa89f] font-bold text-xs uppercase tracking-widest">Channel</th>
+                       <th className="py-4 px-4 text-[#6fa89f] font-bold text-xs uppercase tracking-widest text-right">Spend</th>
+                       <th className="py-4 px-4 text-[#6fa89f] font-bold text-xs uppercase tracking-widest text-right">Impressions</th>
+                       <th className="py-4 px-4 text-[#6fa89f] font-bold text-xs uppercase tracking-widest text-right">Clicks</th>
                     </tr>
                  </thead>
                  <tbody>
@@ -498,7 +501,7 @@ export default function CustomView({ adData = [], exRate = 1, exSym = "$", forma
                        <tr key={i} className="border-b border-white/5 hover:bg-white/5 transition-colors">
                           <td className="py-4 px-4 text-white text-sm font-medium">{d.week}</td>
                           <td className="py-4 px-4 text-white text-sm font-bold">{d.campaignName}</td>
-                          <td className="py-4 px-4 text-[#74FA93] text-sm font-bold">{d.channel}</td>
+                          <td className="py-4 px-4 text-[#c88214] text-sm font-bold">{d.channel}</td>
                           <td className="py-4 px-4 text-white text-sm font-bold text-right">{exSym}{d3.format(",.2f")(d.cost * exRate)}</td>
                           <td className="py-4 px-4 text-white text-sm font-bold text-right">{d3.format(",.0f")(d.impressions)}</td>
                           <td className="py-4 px-4 text-white text-sm font-bold text-right">{d3.format(",.0f")(d.clicks)}</td>
@@ -507,17 +510,17 @@ export default function CustomView({ adData = [], exRate = 1, exSym = "$", forma
                  </tbody>
               </table>
               {tableDataByWeek.length > 50 && (
-                 <div className="text-center text-[#CBBB9D] text-xs font-bold mt-6 uppercase tracking-widest">
+                 <div className="text-center text-[#6fa89f] text-xs font-bold mt-6 uppercase tracking-widest">
                    Showing first 50 rows. Export report for full data.
                  </div>
               )}
            </div>
          </>
       ) : (
-         <div className="bg-[#113A42]/50 p-16 rounded-[2rem] border border-[#74FA93]/10 text-center flex flex-col items-center justify-center">
-            <AlertCircle className="w-16 h-16 text-[#EF476F] mb-6 opacity-80" />
+         <div className="card-surface backdrop-blur-2xl/50 p-16 rounded-[2rem] border border-[#c88214]/10 text-center flex flex-col items-center justify-center">
+            <AlertCircle className="w-16 h-16 text-[#007542] mb-6 opacity-80" />
             <h3 className="text-2xl font-black text-white">No data matches your filters</h3>
-            <p className="text-[#CBBB9D] mt-2 font-medium">Try clearing some selections to see results.</p>
+            <p className="text-[#6fa89f] mt-2 font-medium">Try clearing some selections to see results.</p>
          </div>
       )}
     </div>
