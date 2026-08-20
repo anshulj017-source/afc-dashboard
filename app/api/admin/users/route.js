@@ -19,7 +19,7 @@ export async function GET(req) {
       users.push({
         uid: userRecord.uid,
         email: userRecord.email,
-        isAdmin: userData.isAdmin || false,
+        role: userData.role || (userData.isAdmin ? 'admin' : 'standard'),
         lastSignInTime: userRecord.metadata.lastSignInTime || null,
         creationTime: userRecord.metadata.creationTime || null,
       });
@@ -35,7 +35,7 @@ export async function GET(req) {
 export async function POST(req) {
   try {
     const { adminAuth, adminDb } = getFirebaseAdmin();
-    const { email, password, isAdmin } = await req.json();
+    const { email, password, role } = await req.json();
 
     if (!email || !password) {
       return NextResponse.json({ error: 'Email and password are required' }, { status: 400 });
@@ -47,7 +47,7 @@ export async function POST(req) {
     });
 
     await adminDb.collection('users').doc(userRecord.uid).set({
-      isAdmin: isAdmin || false,
+      role: role || 'standard',
     });
 
     return NextResponse.json({ success: true, uid: userRecord.uid });
@@ -60,14 +60,14 @@ export async function POST(req) {
 export async function PUT(req) {
   try {
     const { adminAuth, adminDb } = getFirebaseAdmin();
-    const { uid, isAdmin } = await req.json();
+    const { uid, role } = await req.json();
 
     if (!uid) {
       return NextResponse.json({ error: 'UID is required' }, { status: 400 });
     }
 
     await adminDb.collection('users').doc(uid).set({
-      isAdmin: isAdmin || false,
+      role: role || 'standard',
     }, { merge: true });
 
     return NextResponse.json({ success: true });

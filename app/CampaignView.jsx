@@ -5,7 +5,7 @@ import { ChevronDown, Calendar, Layers, Activity } from 'lucide-react';
 
 const COLORS = ['#74FA93', '#c88214', '#00937b', '#EF4444', '#065c5d', '#10B981', '#eef7f5', '#6fa89f'];
 
-export default function CampaignView({ adData, exRate = 1, exSym = '$', formatShort = (v) => v }) {
+export default function CampaignView({ adData, exRate = 1, exSym = '$', formatShort = (v) => v, userRole }) {
   const [selectedCampaign, setSelectedCampaign] = useState('');
   const [selectedPhases, setSelectedPhases] = useState([]);
   const [selectedChannels, setSelectedChannels] = useState({}); // { phaseName: [channelNames] }
@@ -365,28 +365,36 @@ export default function CampaignView({ adData, exRate = 1, exSym = '$', formatSh
               <thead>
                 <tr className="border-b border-[#c88214]/20">
                   <th className="py-4 px-4 text-[10px] font-black text-[#6fa89f] uppercase tracking-widest bg-[#011414]/50 rounded-tl-xl">Channel</th>
-                  <th className="py-4 px-4 text-[10px] font-black text-[#6fa89f] uppercase tracking-widest bg-[#011414]/50 text-right">Spend</th>
+                  {userRole !== 'non-finance' && <th className="py-4 px-4 text-[10px] font-black text-[#6fa89f] uppercase tracking-widest bg-[#011414]/50 text-right">Spend</th>}
                   <th className="py-4 px-4 text-[10px] font-black text-[#6fa89f] uppercase tracking-widest bg-[#011414]/50 text-right">Impressions</th>
                   <th className="py-4 px-4 text-[10px] font-black text-[#6fa89f] uppercase tracking-widest bg-[#011414]/50 text-right">Clicks</th>
                   <th className="py-4 px-4 text-[10px] font-black text-[#6fa89f] uppercase tracking-widest bg-[#011414]/50 text-right">Video Views</th>
-                  <th className="py-4 px-4 text-[10px] font-black text-[#6fa89f] uppercase tracking-widest bg-[#011414]/50 text-right">CTR</th>
-                  <th className="py-4 px-4 text-[10px] font-black text-[#6fa89f] uppercase tracking-widest bg-[#011414]/50 text-right">CPM</th>
-                  <th className="py-4 px-4 text-[10px] font-black text-[#6fa89f] uppercase tracking-widest bg-[#011414]/50 text-right">CPC</th>
-                  <th className="py-4 px-4 text-[10px] font-black text-[#6fa89f] uppercase tracking-widest bg-[#011414]/50 text-right rounded-tr-xl">CPV</th>
+                  <th className={`py-4 px-4 text-[10px] font-black text-[#6fa89f] uppercase tracking-widest bg-[#011414]/50 text-right ${userRole === 'non-finance' ? 'rounded-tr-xl' : ''}`}>CTR</th>
+                  {userRole !== 'non-finance' && (
+                    <>
+                      <th className="py-4 px-4 text-[10px] font-black text-[#6fa89f] uppercase tracking-widest bg-[#011414]/50 text-right">CPM</th>
+                      <th className="py-4 px-4 text-[10px] font-black text-[#6fa89f] uppercase tracking-widest bg-[#011414]/50 text-right">CPC</th>
+                      <th className="py-4 px-4 text-[10px] font-black text-[#6fa89f] uppercase tracking-widest bg-[#011414]/50 text-right rounded-tr-xl">CPV</th>
+                    </>
+                  )}
                 </tr>
               </thead>
               <tbody>
                 {tableData.map((row, i) => (
                   <tr key={row.channel} className={`border-b border-[#c88214]/10 hover:bg-[#74FA93]/5 transition-colors ${i % 2 === 0 ? 'bg-transparent' : 'bg-[#011414]/20'}`}>
                     <td className="py-4 px-4 text-sm font-bold text-[#eef7f5]">{row.channel}</td>
-                    <td className="py-4 px-4 text-sm font-medium text-white text-right">{exSym}{d3.format(",.2f")(row.spend * exRate)}</td>
+                    {userRole !== 'non-finance' && <td className="py-4 px-4 text-sm font-medium text-white text-right">{exSym}{d3.format(",.2f")(row.spend * exRate)}</td>}
                     <td className="py-4 px-4 text-sm font-medium text-[#c88214] text-right">{d3.format(",")(row.impressions)}</td>
                     <td className="py-4 px-4 text-sm font-medium text-[#6fa89f] text-right">{d3.format(",")(row.clicks)}</td>
                     <td className="py-4 px-4 text-sm font-medium text-[#c88214] text-right">{formatShort(row.views)}</td>
                     <td className="py-4 px-4 text-sm font-bold text-white text-right">{row.ctr.toFixed(2)}%</td>
-                    <td className="py-4 px-4 text-sm font-medium text-white text-right">{exSym}{d3.format(",.2f")(row.cpm * exRate)}</td>
-                    <td className="py-4 px-4 text-sm font-medium text-white text-right">{exSym}{d3.format(",.2f")(row.cpc * exRate)}</td>
-                    <td className="py-4 px-4 text-sm font-medium text-white text-right">{exSym}{d3.format(",.2f")(row.cpv * exRate)}</td>
+                    {userRole !== 'non-finance' && (
+                      <>
+                        <td className="py-4 px-4 text-sm font-medium text-white text-right">{exSym}{d3.format(",.2f")(row.cpm * exRate)}</td>
+                        <td className="py-4 px-4 text-sm font-medium text-white text-right">{exSym}{d3.format(",.2f")(row.cpc * exRate)}</td>
+                        <td className="py-4 px-4 text-sm font-medium text-white text-right">{exSym}{d3.format(",.2f")(row.cpv * exRate)}</td>
+                      </>
+                    )}
                   </tr>
                 ))}
                 {tableData.length > 0 && (() => {
@@ -401,14 +409,18 @@ export default function CampaignView({ adData, exRate = 1, exSym = '$', formatSh
                   return (
                     <tr className="bg-[#011414]/80 border-t-2 border-[#c88214]/50">
                       <td className="py-4 px-4 text-sm font-black text-[#c88214]">Total</td>
-                      <td className="py-4 px-4 text-sm font-black text-[#c88214] text-right">{exSym}{d3.format(",.2f")(tSpend * exRate)}</td>
+                      {userRole !== 'non-finance' && <td className="py-4 px-4 text-sm font-black text-[#c88214] text-right">{exSym}{d3.format(",.2f")(tSpend * exRate)}</td>}
                       <td className="py-4 px-4 text-sm font-black text-[#c88214] text-right">{d3.format(",")(tImp)}</td>
                       <td className="py-4 px-4 text-sm font-black text-[#c88214] text-right">{d3.format(",")(tClicks)}</td>
                       <td className="py-4 px-4 text-sm font-black text-[#c88214] text-right">{formatShort(tViews)}</td>
                       <td className="py-4 px-4 text-sm font-black text-[#c88214] text-right">{tCtr.toFixed(2)}%</td>
-                      <td className="py-4 px-4 text-sm font-black text-[#c88214] text-right">{exSym}{d3.format(",.2f")(tCpm * exRate)}</td>
-                      <td className="py-4 px-4 text-sm font-black text-[#c88214] text-right">{exSym}{d3.format(",.2f")(tCpc * exRate)}</td>
-                      <td className="py-4 px-4 text-sm font-black text-[#c88214] text-right">{exSym}{d3.format(",.2f")(tCpv * exRate)}</td>
+                      {userRole !== 'non-finance' && (
+                        <>
+                          <td className="py-4 px-4 text-sm font-black text-[#c88214] text-right">{exSym}{d3.format(",.2f")(tCpm * exRate)}</td>
+                          <td className="py-4 px-4 text-sm font-black text-[#c88214] text-right">{exSym}{d3.format(",.2f")(tCpc * exRate)}</td>
+                          <td className="py-4 px-4 text-sm font-black text-[#c88214] text-right">{exSym}{d3.format(",.2f")(tCpv * exRate)}</td>
+                        </>
+                      )}
                     </tr>
                   );
                 })()}

@@ -200,7 +200,7 @@ const DataTable = ({ data, columns, totals }) => (
 export default function App() {
   const router = useRouter();
   const [isAuthenticated, setIsAuthenticated] = useState(false);
-  const [isAdmin, setIsAdmin] = useState(false);
+  const [userRole, setUserRole] = useState('standard');
   const [isAuthLoading, setIsAuthLoading] = useState(true);
   const [adData, setAdData] = useState([]);
   const [gaData, setGaData] = useState([]);
@@ -226,15 +226,24 @@ export default function App() {
   const [mapMetric, setMapMetric] = useState('Sessions');
 
   useEffect(() => {
+    if (userRole === 'non-finance' && ['CPM', 'CPC'].includes(perfMetric)) {
+      setPerfMetric('CTR');
+    } else if (userRole !== 'non-finance' && ['CTR', 'Clicks'].includes(perfMetric)) {
+      setPerfMetric('CPM');
+    }
+  }, [userRole, perfMetric]);
+
+  useEffect(() => {
     const unsubscribe = onAuthStateChanged(auth, async (user) => {
       if (user) {
         setIsAuthenticated(true);
         try {
           const userDoc = await getDoc(doc(db, 'users', user.uid));
-          if (userDoc.exists() && userDoc.data().isAdmin) {
-            setIsAdmin(true);
+          if (userDoc.exists()) {
+            const data = userDoc.data();
+            setUserRole(data.role || (data.isAdmin ? 'admin' : 'standard'));
           } else {
-            setIsAdmin(false);
+            setUserRole('standard');
           }
         } catch (e) {
           console.error("Error fetching user role", e);
@@ -438,7 +447,8 @@ export default function App() {
         month,
         sortDate,
         cost: d3.sum(vals, d => d.cost) * exRate,
-        impressions: d3.sum(vals, d => d.impressions)
+        impressions: d3.sum(vals, d => d.impressions),
+        clicks: d3.sum(vals, d => d.clicks)
       };
     }).sort((a,b) => a.sortDate - b.sortDate);
   }, [filteredAdData, exRate]);
@@ -466,7 +476,9 @@ export default function App() {
       return {
         channel,
         cpm: totalImpressions > 0 ? (totalCost / totalImpressions) * 1000 : 0,
-        cpc: totalClicks > 0 ? (totalCost / totalClicks) : 0
+        cpc: totalClicks > 0 ? (totalCost / totalClicks) : 0,
+        ctr: totalImpressions > 0 ? (totalClicks / totalImpressions) * 100 : 0,
+        clicks: totalClicks
       };
     });
 
@@ -533,7 +545,9 @@ export default function App() {
       return (
         <div className="space-y-8">
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
-            <MetricCard definition="The total amount of money spent on advertising campaigns across all channels." label="Total Spend" value={`${exSym}${formatShort(agg.cost * exRate)}`} color="text-white" icon={DollarSign} />
+            {userRole !== 'non-finance' && (
+              <MetricCard definition="The total amount of money spent on advertising campaigns across all channels." label="Total Spend" value={`${exSym}${formatShort(agg.cost * exRate)}`} color="text-white" icon={DollarSign} />
+            )}
             <MetricCard definition="The total number of times your ads were displayed on screen to users." label="Impressions" value={formatShort(agg.impressions)} color="text-[#c88214]" icon={Eye} />
             <MetricCard definition="The number of times users clicked on your ads." label="Clicks" value={formatShort(agg.clicks)} color="text-[#6fa89f]" icon={MousePointer2} />
             <MetricCard definition="The total number of times your video ads were watched." label="Video Views" value={formatShort(agg.views)} color="text-[#00937b]" icon={MonitorPlay} />
@@ -546,7 +560,10 @@ export default function App() {
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-8 mb-8">
              {/* Chart 1: Monthly Spend vs Impressions */}
              <div className="card-surface backdrop-blur-2xl p-6 rounded-3xl border border-[#c88214]/20 shadow-xl h-[400px]">
-                <h3 className="text-[#eef7f5] font-black mb-4 flex items-center gap-2">Monthly Spend vs Impressions <InfoTooltip definition="A trend analysis comparing the total advertising spend against the number of impressions generated over time." /></h3>
+                <h3 className="text-[#eef7f5] font-black mb-4 flex items-center gap-2">
+                  {userRole === 'non-finance' ? 'Monthly Clicks vs Impressions' : 'Monthly Spend vs Impressions'} 
+                  <InfoTooltip definition={userRole === 'non-finance' ? "A trend analysis comparing clicks against impressions generated over time." : "A trend analysis comparing the total advertising spend against the number of impressions generated over time."} />
+                </h3>
                 <ResponsiveContainer width="100%" height="90%">
                   <AreaChart data={monthlyChartData}>
                     <defs>
@@ -557,14 +574,18 @@ export default function App() {
                     </defs>
                     <CartesianGrid strokeDasharray="3 3" stroke="#ffffff10" />
                     <XAxis dataKey="month" stroke="#6fa89f" fontSize={10} />
-                    <YAxis yAxisId="left" stroke="#00937b" fontSize={10} tickFormatter={(t) => `${exSym}${d3.format(",.2f")(t)}`} />
+                    <YAxis yAxisId="left" stroke="#00937b" fontSize={10} tickFormatter={(t) => userRole === 'non-finance' ? d3.format(",")(t) : `${exSym}${d3.format(",.2f")(t)}`} />
                     <YAxis yAxisId="right" orientation="right" stroke="#6fa89f" fontSize={10} tickFormatter={(t) => d3.format(",")(t)} />
                     <Tooltip 
                       contentStyle={{ backgroundColor: '#043e3f', borderColor: '#c8821420', color: '#fff' }} 
-                      formatter={(value, name) => [name === 'Spend' ? `${exSym}${d3.format(",.2f")(value)}` : d3.format(",")(value), name]}
+                      formatter={(value, name) => [name === 'Spend' ? `${exSym}${d3.format(",.2f")(value)}` : (name === 'CTR' ? `${d3.format(".2f")(value)}%` : d3.format(",")(value)), name]}
                     />
                     <Legend />
-                    <Area yAxisId="left" type="monotone" dataKey="cost" name="Spend" stroke="#00937b" fillOpacity={1} fill="url(#colorCost)" />
+                    {userRole === 'non-finance' ? (
+                      <Area yAxisId="left" type="monotone" dataKey="clicks" name="Clicks" stroke="#00937b" fillOpacity={1} fill="url(#colorCost)" />
+                    ) : (
+                      <Area yAxisId="left" type="monotone" dataKey="cost" name="Spend" stroke="#00937b" fillOpacity={1} fill="url(#colorCost)" />
+                    )}
                     <Line yAxisId="right" type="monotone" dataKey="impressions" name="Impressions" stroke="#6fa89f" strokeWidth={3} dot={false} />
                   </AreaChart>
                 </ResponsiveContainer>
@@ -576,8 +597,17 @@ export default function App() {
                   <h3 className="text-[#eef7f5] font-black flex items-center gap-2">{perfMetric} by Channel <InfoTooltip definition="A breakdown of key performance indicators (like CPM, CPC, CTR) segmented by the advertising channel." /></h3>
                   <div className="flex gap-2">
                     <div className="flex bg-[#011414] p-1 rounded-lg border border-[#c88214]/20">
-                      <button onClick={() => setPerfMetric('CPM')} className={`px-2 py-1 text-[10px] font-bold rounded transition-colors ${perfMetric === 'CPM' ? 'gradient-gold text-[#043e3f]' : 'text-slate-400 hover:text-white'}`}>CPM</button>
-                      <button onClick={() => setPerfMetric('CPC')} className={`px-2 py-1 text-[10px] font-bold rounded transition-colors ${perfMetric === 'CPC' ? 'gradient-gold text-[#043e3f]' : 'text-slate-400 hover:text-white'}`}>CPC</button>
+                      {userRole !== 'non-finance' ? (
+                        <>
+                          <button onClick={() => setPerfMetric('CPM')} className={`px-2 py-1 text-[10px] font-bold rounded transition-colors ${perfMetric === 'CPM' ? 'gradient-gold text-[#043e3f]' : 'text-slate-400 hover:text-white'}`}>CPM</button>
+                          <button onClick={() => setPerfMetric('CPC')} className={`px-2 py-1 text-[10px] font-bold rounded transition-colors ${perfMetric === 'CPC' ? 'gradient-gold text-[#043e3f]' : 'text-slate-400 hover:text-white'}`}>CPC</button>
+                        </>
+                      ) : (
+                        <>
+                          <button onClick={() => setPerfMetric('CTR')} className={`px-2 py-1 text-[10px] font-bold rounded transition-colors ${perfMetric === 'CTR' ? 'gradient-gold text-[#043e3f]' : 'text-slate-400 hover:text-white'}`}>CTR</button>
+                          <button onClick={() => setPerfMetric('Clicks')} className={`px-2 py-1 text-[10px] font-bold rounded transition-colors ${perfMetric === 'Clicks' ? 'gradient-gold text-[#043e3f]' : 'text-slate-400 hover:text-white'}`}>Clicks</button>
+                        </>
+                      )}
                     </div>
                     <div className="flex bg-[#011414] p-1 rounded-lg border border-[#c88214]/20">
                       <button onClick={() => setPerfSort('Top 5')} className={`px-2 py-1 text-[10px] font-bold rounded transition-colors ${perfSort === 'Top 5' ? 'gradient-teal text-white' : 'text-slate-400 hover:text-white'}`}>Top 5</button>
@@ -595,11 +625,11 @@ export default function App() {
                     </defs>
                     <CartesianGrid strokeDasharray="3 3" stroke="#ffffff10" vertical={false} />
                     <XAxis dataKey="channel" stroke="#6fa89f" fontSize={10} />
-                    <YAxis stroke="#6fa89f" fontSize={10} tickFormatter={(t) => `${exSym}${d3.format(",.2f")(t)}`} />
+                    <YAxis stroke="#6fa89f" fontSize={10} tickFormatter={(t) => ['CPM', 'CPC'].includes(perfMetric) ? `${exSym}${d3.format(",.2f")(t)}` : perfMetric === 'CTR' ? `${t.toFixed(2)}%` : d3.format(",")(t)} />
                     <Tooltip
                       contentStyle={{ backgroundColor: '#043e3f', borderColor: '#c8821420', color: '#fff' }}
                       cursor={{fill: '#ffffff10'}}
-                      formatter={(value) => [`${exSym}${d3.format(",.2f")(value)}`, perfMetric]}
+                      formatter={(value) => [userRole === 'non-finance' ? (perfMetric === 'CTR' ? `${d3.format(".2f")(value)}%` : d3.format(",")(value)) : `${exSym}${d3.format(",.2f")(value)}`, perfMetric]}
                     />
                     <Bar dataKey={perfMetric.toLowerCase()} name={perfMetric} fill="url(#tealBarGradient)" radius={[4, 4, 0, 0]} />
                   </BarChart>
@@ -644,7 +674,7 @@ export default function App() {
             <div className="text-[#eef7f5] leading-relaxed max-w-4xl space-y-2 relative z-10 font-medium">
               <p>• The top performing channel generated <strong>{formatShort(agg.views)}</strong> total video views.</p>
               <p>• We saw a total of <strong>{formatShort(agg.sessions)}</strong> web sessions based on GA4 data across the selected period.</p>
-              <p>• The overall cost per view stands at <strong>{agg.views > 0 ? `${exSym}${((agg.cost * exRate) / agg.views).toFixed(4)}` : `${exSym}0`}</strong>, indicating highly efficient media delivery.</p>
+              {userRole !== 'non-finance' && <p>• The overall cost per view stands at <strong>{agg.views > 0 ? `${exSym}${((agg.cost * exRate) / agg.views).toFixed(4)}` : `${exSym}0`}</strong>, indicating highly efficient media delivery.</p>}
             </div>
           </div>
         </div>
@@ -654,7 +684,7 @@ export default function App() {
     if (activeTab === 'campaign') {
       return (
         <div className="w-full h-full">
-          <CampaignView adData={filteredAdData} exRate={exRate} exSym={exSym} formatShort={formatShort} />
+           <CampaignView adData={filteredAdData} exRate={exRate} exSym={exSym} formatShort={formatShort} userRole={userRole} />
         </div>
       );
     }
@@ -662,7 +692,7 @@ export default function App() {
     if (activeTab === 'channel') {
       return (
         <div className="w-full h-full">
-          <ChannelView adData={filteredAdData} exRate={exRate} exSym={exSym} formatShort={formatShort} />
+          <ChannelView adData={filteredAdData} exRate={exRate} exSym={exSym} formatShort={formatShort} userRole={userRole} />
         </div>
       );
     }
@@ -670,7 +700,7 @@ export default function App() {
     if (activeTab === 'market') {
       return (
         <div className="w-full h-full">
-          <MarketView adData={filteredAdData} gaData={filteredGaData} exRate={exRate} exSym={exSym} formatShort={formatShort} />
+          <MarketView adData={filteredAdData} gaData={filteredGaData} exRate={exRate} exSym={exSym} formatShort={formatShort} userRole={userRole} />
         </div>
       );
     }
@@ -678,7 +708,7 @@ export default function App() {
     if (activeTab === 'detailed') {
       return (
         <div className="w-full h-full">
-          <CustomView adData={filteredAdData} exRate={exRate} exSym={exSym} formatShort={formatShort} filterCampaigns={filterCampaigns} dateRange={dateRange} />
+          <CustomView adData={filteredAdData} exRate={exRate} exSym={exSym} formatShort={formatShort} filterCampaigns={filterCampaigns} dateRange={dateRange} userRole={userRole} />
         </div>
       );
     }
@@ -791,7 +821,7 @@ export default function App() {
     }
     if (activeTab === 'creative') {
       return (
-        <CreativeView data={creativeData} exRate={exRate} exSym={exSym} formatShort={formatShort} />
+        <CreativeView data={creativeData} exRate={exRate} exSym={exSym} formatShort={formatShort} userRole={userRole} />
       );
     }
     return null;
@@ -830,13 +860,15 @@ export default function App() {
           <MultiSelect label="Market" options={uniqueMarkets} selected={filterMarkets} onChange={setFilterMarkets} />
           
           <div className="flex items-end gap-3 ml-2">
-             <div className="flex flex-col gap-1">
-               <span className="text-[10px] font-black text-[#6fa89f] uppercase tracking-widest block">Currency</span>
-               <div className="flex bg-[#065c5d]/20 backdrop-blur-md p-0.5 rounded-lg border border-[#c88214]/30">
-                 <button onClick={() => setCurrency('USD')} className={`px-2.5 py-1 text-xs font-bold rounded-md transition-colors ${currency === 'USD' ? 'gradient-gold text-[#043e3f]' : 'text-slate-400 hover:text-white'}`}>USD</button>
-                 <button onClick={() => setCurrency('SAR')} className={`px-2.5 py-1 text-xs font-bold rounded-md transition-colors ${currency === 'SAR' ? 'gradient-gold text-[#043e3f]' : 'text-slate-400 hover:text-white'}`}>SAR</button>
+             {userRole !== 'non-finance' && (
+               <div className="flex flex-col gap-1">
+                 <span className="text-[10px] font-black text-[#6fa89f] uppercase tracking-widest block">Currency</span>
+                 <div className="flex bg-[#065c5d]/20 backdrop-blur-md p-0.5 rounded-lg border border-[#c88214]/30">
+                   <button onClick={() => setCurrency('USD')} className={`px-2.5 py-1 text-xs font-bold rounded-md transition-colors ${currency === 'USD' ? 'gradient-gold text-[#043e3f]' : 'text-slate-400 hover:text-white'}`}>USD</button>
+                   <button onClick={() => setCurrency('SAR')} className={`px-2.5 py-1 text-xs font-bold rounded-md transition-colors ${currency === 'SAR' ? 'gradient-gold text-[#043e3f]' : 'text-slate-400 hover:text-white'}`}>SAR</button>
+                 </div>
                </div>
-             </div>
+             )}
              <button onClick={resetFilters} className="px-3 py-1.5 bg-[#c88214]/10 border border-[#c88214]/50 text-[#c88214] text-[10px] uppercase font-black rounded-lg hover:bg-[#c88214]/20 hover:text-white transition-colors flex items-center justify-center gap-1"><RefreshCw className="w-3 h-3"/> Reset</button>
              <button onClick={handleSignOut} className="px-3 py-1.5 bg-red-500/10 border border-red-500/30 text-red-400 text-[10px] uppercase font-black rounded-lg hover:bg-red-500/20 hover:text-red-300 transition-colors flex items-center justify-center gap-1">Sign Out</button>
           </div>
@@ -865,7 +897,7 @@ export default function App() {
           })}
           </div>
           <div className="flex-1 min-h-[100px] mt-8"></div>
-          {isAdmin && (
+          {userRole === 'admin' && (
             <div className="mt-auto p-6 pt-0 z-30">
               <button 
                 onClick={() => setActiveTab('admin')}

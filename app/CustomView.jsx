@@ -101,7 +101,7 @@ const MultiSelectDropdown = ({ label, options, selected, onChange }) => {
 };
 
 
-export default function CustomView({ adData = [], exRate = 1, exSym = "$", formatShort = (v)=>v, filterCampaigns = [], dateRange = {start:'', end:''} }) {
+export default function CustomView({ adData = [], exRate = 1, exSym = "$", formatShort = (v)=>v, filterCampaigns = [], dateRange = {start:'', end:''}, userRole = 'admin' }) {
   
   const [isGenerating, setIsGenerating] = useState(false);
   
@@ -378,7 +378,7 @@ export default function CustomView({ adData = [], exRate = 1, exSym = "$", forma
              <button onClick={() => setKpi({...kpi, isSet: false, isOpen: true})} className="text-xs font-black uppercase tracking-widest text-[#c88214] hover:text-white">Edit Goals</button>
            </div>
            <div className="grid grid-cols-1 md:grid-cols-2 gap-x-8 gap-y-6">
-              <ProgressBar label="Budget Delivery" actual={actuals.spend} target={kpi.budget} pct={bPct} isCurr color="bg-[#74FA93]" />
+              {userRole !== 'non-finance' && <ProgressBar label="Budget Delivery" actual={actuals.spend} target={kpi.budget} pct={bPct} isCurr color="bg-[#74FA93]" />}
               <ProgressBar label="Impressions Generated" actual={actuals.impressions} target={kpi.impressions} pct={impPct} color="bg-[#6fa89f]" />
               <ProgressBar label="Clicks Generated" actual={actuals.clicks} target={kpi.clicks} pct={clkPct} color="bg-[#c88214]" />
               <ProgressBar label="Video Views" actual={actuals.views} target={kpi.views} pct={viewPct} color="bg-[#007542]" />
@@ -428,8 +428,8 @@ export default function CustomView({ adData = [], exRate = 1, exSym = "$", forma
       {filteredData.length > 0 ? (
          <>
            <div ref={chartsRef}>
-             <div className="grid grid-cols-2 md:grid-cols-4 gap-6 mb-8">
-              <MetricCard label="Total Spend" value={`${exSym}${formatShort(actuals.spend)}`} />
+             <div className={`grid grid-cols-2 md:grid-cols-${userRole === 'non-finance' ? '3' : '4'} gap-6 mb-8`}>
+              {userRole !== 'non-finance' && <MetricCard label="Total Spend" value={`${exSym}${formatShort(actuals.spend)}`} />}
               <MetricCard label="Impressions" value={formatShort(actuals.impressions)} color="text-[#6fa89f]" />
               <MetricCard label="Clicks" value={formatShort(actuals.clicks)} color="text-[#c88214]" />
               <MetricCard label="Video Views" value={formatShort(actuals.views)} color="text-[#007542]" />
@@ -445,12 +445,12 @@ export default function CustomView({ adData = [], exRate = 1, exSym = "$", forma
                      <LineChart data={trendData} margin={{ top: 10, right: 30, left: 0, bottom: 0 }}>
                        <CartesianGrid strokeDasharray="3 3" stroke="#ffffff05" vertical={false} />
                        <XAxis dataKey="date" stroke="#6fa89f" fontSize={12} tickLine={false} axisLine={false} />
-                       <YAxis yAxisId="left" stroke="#74FA93" fontSize={12} tickLine={false} axisLine={false} tickFormatter={formatShort} />
-                       <YAxis yAxisId="right" orientation="right" stroke="#c88214" fontSize={12} tickLine={false} axisLine={false} tickFormatter={formatShort} />
+                       {userRole !== 'non-finance' && <YAxis yAxisId="left" stroke="#74FA93" fontSize={12} tickLine={false} axisLine={false} tickFormatter={formatShort} />}
+                       <YAxis yAxisId={userRole === 'non-finance' ? "left" : "right"} orientation={userRole === 'non-finance' ? "left" : "right"} stroke="#c88214" fontSize={12} tickLine={false} axisLine={false} tickFormatter={formatShort} />
                        <RechartsTooltip contentStyle={{ backgroundColor: '#0C272D', borderColor: '#74FA9320', color: '#fff', borderRadius: '16px', boxShadow: '0 10px 30px rgba(0,0,0,0.5)' }} />
                        <Legend wrapperStyle={{ paddingTop: '20px' }} />
-                       <Line yAxisId="left" type="monotone" dataKey="Spend" stroke="#74FA93" strokeWidth={4} dot={false} activeDot={{r:8, fill: '#74FA93', stroke: '#0C272D', strokeWidth: 2}} />
-                       <Line yAxisId="right" type="monotone" dataKey="Impressions" stroke="#c88214" strokeWidth={4} dot={false} activeDot={{r:8, fill: '#c88214', stroke: '#0C272D', strokeWidth: 2}} />
+                       {userRole !== 'non-finance' && <Line yAxisId="left" type="monotone" dataKey="Spend" stroke="#74FA93" strokeWidth={4} dot={false} activeDot={{r:8, fill: '#74FA93', stroke: '#0C272D', strokeWidth: 2}} />}
+                       <Line yAxisId={userRole === 'non-finance' ? "left" : "right"} type="monotone" dataKey="Impressions" stroke="#c88214" strokeWidth={4} dot={false} activeDot={{r:8, fill: '#c88214', stroke: '#0C272D', strokeWidth: 2}} />
                      </LineChart>
                    </ResponsiveContainer>
                  </div>
@@ -491,7 +491,7 @@ export default function CustomView({ adData = [], exRate = 1, exSym = "$", forma
                        <th className="py-4 px-4 text-[#6fa89f] font-bold text-xs uppercase tracking-widest">Week</th>
                        <th className="py-4 px-4 text-[#6fa89f] font-bold text-xs uppercase tracking-widest">Campaign</th>
                        <th className="py-4 px-4 text-[#6fa89f] font-bold text-xs uppercase tracking-widest">Channel</th>
-                       <th className="py-4 px-4 text-[#6fa89f] font-bold text-xs uppercase tracking-widest text-right">Spend</th>
+                       {userRole !== 'non-finance' && <th className="py-4 px-4 text-[#6fa89f] font-bold text-xs uppercase tracking-widest text-right">Spend</th>}
                        <th className="py-4 px-4 text-[#6fa89f] font-bold text-xs uppercase tracking-widest text-right">Impressions</th>
                        <th className="py-4 px-4 text-[#6fa89f] font-bold text-xs uppercase tracking-widest text-right">Clicks</th>
                     </tr>
@@ -502,7 +502,7 @@ export default function CustomView({ adData = [], exRate = 1, exSym = "$", forma
                           <td className="py-4 px-4 text-white text-sm font-medium">{d.week}</td>
                           <td className="py-4 px-4 text-white text-sm font-bold">{d.campaignName}</td>
                           <td className="py-4 px-4 text-[#c88214] text-sm font-bold">{d.channel}</td>
-                          <td className="py-4 px-4 text-white text-sm font-bold text-right">{exSym}{d3.format(",.2f")(d.cost * exRate)}</td>
+                          {userRole !== 'non-finance' && <td className="py-4 px-4 text-white text-sm font-bold text-right">{exSym}{d3.format(",.2f")(d.cost * exRate)}</td>}
                           <td className="py-4 px-4 text-white text-sm font-bold text-right">{d3.format(",.0f")(d.impressions)}</td>
                           <td className="py-4 px-4 text-white text-sm font-bold text-right">{d3.format(",.0f")(d.clicks)}</td>
                        </tr>

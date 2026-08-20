@@ -11,7 +11,7 @@ export default function AdminView() {
   const [showAddForm, setShowAddForm] = useState(false);
   const [newEmail, setNewEmail] = useState('');
   const [newPassword, setNewPassword] = useState('');
-  const [newIsAdmin, setNewIsAdmin] = useState(false);
+  const [newRole, setNewRole] = useState('standard');
   const [addingUser, setAddingUser] = useState(false);
   const [addSuccess, setAddSuccess] = useState(false);
 
@@ -48,7 +48,7 @@ export default function AdminView() {
       const res = await fetch('/api/admin/users', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ email: newEmail, password: newPassword, isAdmin: newIsAdmin })
+        body: JSON.stringify({ email: newEmail, password: newPassword, role: newRole })
       });
       
       const data = await res.json();
@@ -57,7 +57,7 @@ export default function AdminView() {
       setAddSuccess(true);
       setNewEmail('');
       setNewPassword('');
-      setNewIsAdmin(false);
+      setNewRole('standard');
       setShowAddForm(false);
       fetchUsers(); // Refresh the list
     } catch (err) {
@@ -90,12 +90,12 @@ export default function AdminView() {
     }
   };
 
-  const toggleAdminStatus = async (uid, currentStatus) => {
+  const updateUserRole = async (uid, newRole) => {
     try {
       const res = await fetch('/api/admin/users', {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ uid, isAdmin: !currentStatus })
+        body: JSON.stringify({ uid, role: newRole })
       });
       
       if (!res.ok) {
@@ -104,7 +104,7 @@ export default function AdminView() {
       }
       
       // Optimistically update the UI
-      setUsers(users.map(u => u.uid === uid ? { ...u, isAdmin: !currentStatus } : u));
+      setUsers(users.map(u => u.uid === uid ? { ...u, role: newRole } : u));
     } catch (err) {
       console.error(err);
       alert('Error updating user role: ' + err.message);
@@ -182,17 +182,17 @@ export default function AdminView() {
                   minLength={6}
                 />
               </div>
-              <div className="flex items-center gap-3 pb-2 px-2">
-                <label className="relative inline-flex items-center cursor-pointer">
-                  <input 
-                    type="checkbox" 
-                    className="sr-only peer" 
-                    checked={newIsAdmin}
-                    onChange={(e) => setNewIsAdmin(e.target.checked)}
-                  />
-                  <div className="w-9 h-5 bg-[#011414] peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-gray-400 after:border-gray-300 after:border after:rounded-full after:h-4 after:w-4 after:transition-all peer-checked:bg-[#c88214]/30 peer-checked:after:bg-[#c88214]"></div>
-                  <span className="ml-2 text-xs font-bold text-gray-300 uppercase tracking-wider">Admin Rights</span>
-                </label>
+              <div className="flex-1 min-w-[150px]">
+                <label className="text-[10px] font-black text-gray-400 uppercase tracking-widest mb-1.5 block">User Role</label>
+                <select 
+                  value={newRole}
+                  onChange={(e) => setNewRole(e.target.value)}
+                  className="w-full bg-[#011414] border border-gray-600/50 rounded-xl px-4 py-2.5 text-sm text-[#eef7f5] font-bold focus:outline-none focus:border-[#c88214]/50 transition-all cursor-pointer appearance-none"
+                >
+                  <option value="admin">Admin</option>
+                  <option value="standard">Standard</option>
+                  <option value="non-finance">Non-Finance</option>
+                </select>
               </div>
               
               <button 
@@ -234,8 +234,8 @@ export default function AdminView() {
                     <tr key={user.uid} className="hover:bg-[#011414]/30 transition-colors group">
                       <td className="py-4 px-6">
                         <div className="flex items-center gap-3">
-                          <div className={`w-10 h-10 rounded-full flex items-center justify-center ${user.isAdmin ? 'bg-[#c88214]/10 text-[#c88214]' : 'bg-gray-800 text-gray-400'}`}>
-                            {user.isAdmin ? <Shield className="w-5 h-5" /> : <User className="w-5 h-5" />}
+                          <div className={`w-10 h-10 rounded-full flex items-center justify-center ${user.role === 'admin' ? 'bg-[#c88214]/10 text-[#c88214]' : 'bg-gray-800 text-gray-400'}`}>
+                            {user.role === 'admin' ? <Shield className="w-5 h-5" /> : <User className="w-5 h-5" />}
                           </div>
                           <div>
                             <div className="font-bold text-white text-sm">{user.email}</div>
@@ -245,13 +245,19 @@ export default function AdminView() {
                       </td>
                       <td className="py-4 px-6">
                         <div className="flex justify-center">
-                           <button 
-                            onClick={() => toggleAdminStatus(user.uid, user.isAdmin)}
-                            className={`px-3 py-1 rounded-full text-[10px] font-black uppercase tracking-widest transition-all ${user.isAdmin ? 'bg-[#c88214]/10 border border-[#c88214]/30 text-[#c88214] hover:bg-red-500/10 hover:text-red-400 hover:border-red-500/30' : 'bg-gray-800 border border-gray-600 text-gray-400 hover:bg-[#c88214]/10 hover:text-[#c88214] hover:border-[#c88214]/30'}`}
-                            title={user.isAdmin ? "Revoke Admin" : "Make Admin"}
+                           <select 
+                            value={user.role || 'standard'}
+                            onChange={(e) => updateUserRole(user.uid, e.target.value)}
+                            className={`px-3 py-1.5 rounded-xl text-xs font-black uppercase tracking-widest transition-all outline-none cursor-pointer appearance-none text-center ${
+                              user.role === 'admin' ? 'bg-[#c88214]/10 border border-[#c88214]/30 text-[#c88214]' : 
+                              user.role === 'non-finance' ? 'bg-purple-900/20 border border-purple-500/30 text-purple-400' : 
+                              'bg-gray-800 border border-gray-600 text-gray-400'
+                            }`}
                            >
-                            {user.isAdmin ? 'Admin' : 'Viewer'}
-                           </button>
+                            <option value="admin">Admin</option>
+                            <option value="standard">Standard</option>
+                            <option value="non-finance">Non-Finance</option>
+                           </select>
                         </div>
                       </td>
                       <td className="py-4 px-6">

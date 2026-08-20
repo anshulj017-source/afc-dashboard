@@ -59,7 +59,7 @@ const MultiSelectDropdown = ({ label, options, selected, onChange }) => {
   );
 };
 
-export default function CreativeView({ data, exRate, exSym, formatShort }) {
+export default function CreativeView({ data, exRate = 1, exSym = '$', formatShort = (v) => v, userRole }) {
   const CREATIVES_PER_PAGE = 24;
   const [creativePage, setCreativePage] = useState(1);
   const [creativeViewMode, setCreativeViewMode] = useState('grid');
@@ -155,41 +155,45 @@ export default function CreativeView({ data, exRate, exSym, formatShort }) {
             </div>
          </div>
          
-         <div className="card-surface backdrop-blur-2xl rounded-2xl border border-[#c88214]/20 p-6 shadow-xl flex flex-col">
-            <h3 className="text-sm font-black text-[#eef7f5] uppercase tracking-widest mb-4 flex items-center gap-2"><BarChart3 className="w-4 h-4 text-[#c88214]"/> Top 10 by CPC (Lowest)</h3>
-            <div className="flex-1 space-y-3">
-               {topCPC.map((c, i) => (
-                  <div key={i} className="flex flex-col gap-1">
-                     <div className="flex justify-between text-xs text-[#6fa89f]">
-                        <span className="truncate w-3/4">{i+1}. {c.creativeName}</span>
-                        <span className="font-bold text-[#c88214]">{exSym}{d3.format(",.2f")(c.cpc)}</span>
-                     </div>
-                     <div className="w-full bg-[#011414] h-1.5 rounded-full overflow-hidden">
-                        <div className="bg-[#74FA93] h-full rounded-full" style={{width: `${Math.min(100, (c.cpc / (topCPC[topCPC.length-1]?.cpc || 1)) * 100)}%`}}></div>
-                     </div>
-                  </div>
-               ))}
-               {topCPC.length === 0 && <div className="text-[#6fa89f] text-xs py-4 text-center">No data available</div>}
-            </div>
-         </div>
+         {userRole !== 'non-finance' && (
+           <div className="card-surface backdrop-blur-2xl rounded-2xl border border-[#c88214]/20 p-6 shadow-xl flex flex-col">
+              <h3 className="text-sm font-black text-[#eef7f5] uppercase tracking-widest mb-4 flex items-center gap-2"><BarChart3 className="w-4 h-4 text-[#c88214]"/> Top 10 by CPC (Lowest)</h3>
+              <div className="flex-1 space-y-3">
+                 {topCPC.map((c, i) => (
+                    <div key={i} className="flex flex-col gap-1">
+                       <div className="flex justify-between text-xs text-[#6fa89f]">
+                          <span className="truncate w-3/4">{i+1}. {c.creativeName}</span>
+                          <span className="font-bold text-[#c88214]">{exSym}{d3.format(",.2f")(c.cpc)}</span>
+                       </div>
+                       <div className="w-full bg-[#011414] h-1.5 rounded-full overflow-hidden">
+                          <div className="bg-[#74FA93] h-full rounded-full" style={{width: `${Math.min(100, (c.cpc / (topCPC[topCPC.length-1]?.cpc || 1)) * 100)}%`}}></div>
+                       </div>
+                    </div>
+                 ))}
+                 {topCPC.length === 0 && <div className="text-[#6fa89f] text-xs py-4 text-center">No data available</div>}
+              </div>
+           </div>
+         )}
          
-         <div className="card-surface backdrop-blur-2xl rounded-2xl border border-[#c88214]/20 p-6 shadow-xl flex flex-col">
-            <h3 className="text-sm font-black text-[#eef7f5] uppercase tracking-widest mb-4 flex items-center gap-2"><BarChart3 className="w-4 h-4 text-rose-400"/> Top 10 by Spend</h3>
-            <div className="flex-1 space-y-3">
-               {topCost.map((c, i) => (
-                  <div key={i} className="flex flex-col gap-1">
-                     <div className="flex justify-between text-xs text-[#6fa89f]">
-                        <span className="truncate w-3/4">{i+1}. {c.creativeName}</span>
-                        <span className="font-bold text-rose-400">{exSym}{formatShort(c.cost)}</span>
-                     </div>
-                     <div className="w-full bg-[#011414] h-1.5 rounded-full overflow-hidden">
-                        <div className="bg-rose-500 h-full rounded-full" style={{width: `${Math.min(100, (c.cost / (topCost[0]?.cost || 1)) * 100)}%`}}></div>
-                     </div>
-                  </div>
-               ))}
-               {topCost.length === 0 && <div className="text-[#6fa89f] text-xs py-4 text-center">No data available</div>}
-            </div>
-         </div>
+         {userRole !== 'non-finance' && (
+           <div className="card-surface backdrop-blur-2xl rounded-2xl border border-[#c88214]/20 p-6 shadow-xl flex flex-col">
+              <h3 className="text-sm font-black text-[#eef7f5] uppercase tracking-widest mb-4 flex items-center gap-2"><BarChart3 className="w-4 h-4 text-rose-400"/> Top 10 by Spend</h3>
+              <div className="flex-1 space-y-3">
+                 {topCost.map((c, i) => (
+                    <div key={i} className="flex flex-col gap-1">
+                       <div className="flex justify-between text-xs text-[#6fa89f]">
+                          <span className="truncate w-3/4">{i+1}. {c.creativeName}</span>
+                          <span className="font-bold text-rose-400">{exSym}{formatShort(c.cost)}</span>
+                       </div>
+                       <div className="w-full bg-[#011414] h-1.5 rounded-full overflow-hidden">
+                          <div className="bg-rose-500 h-full rounded-full" style={{width: `${Math.min(100, (c.cost / (topCost[0]?.cost || 1)) * 100)}%`}}></div>
+                       </div>
+                    </div>
+                 ))}
+                 {topCost.length === 0 && <div className="text-[#6fa89f] text-xs py-4 text-center">No data available</div>}
+              </div>
+           </div>
+         )}
       </div>
 
       <div className="card-surface backdrop-blur-2xl p-6 rounded-2xl border border-[#c88214]/20 break-inside-avoid mb-8 shadow-lg">
@@ -236,19 +240,23 @@ export default function CreativeView({ data, exRate, exSym, formatShort }) {
                         {c.status}
                      </span>
                   </div>
-                  <div className="grid grid-cols-2 gap-3 mb-4 flex-1">
-                     <div className="bg-[#011414] rounded-xl p-3 border border-[#c88214]/10">
-                       <p className="text-[10px] font-black uppercase text-[#6fa89f] tracking-widest mb-1">Spend</p>
-                       <p className="text-sm font-bold text-rose-400">{exSym}{formatShort(c.cost)}</p>
-                     </div>
+                  <div className={`grid ${userRole === 'non-finance' ? 'grid-cols-2' : 'grid-cols-2'} gap-3 mb-4 flex-1`}>
+                     {userRole !== 'non-finance' && (
+                       <div className="bg-[#011414] rounded-xl p-3 border border-[#c88214]/10">
+                         <p className="text-[10px] font-black uppercase text-[#6fa89f] tracking-widest mb-1">Spend</p>
+                         <p className="text-sm font-bold text-rose-400">{exSym}{formatShort(c.cost)}</p>
+                       </div>
+                     )}
                      <div className="bg-[#011414] rounded-xl p-3 border border-[#c88214]/10">
                        <p className="text-[10px] font-black uppercase text-[#6fa89f] tracking-widest mb-1">CTR</p>
                        <p className="text-sm font-bold text-[#c88214]">{(c.ctr*100).toFixed(2)}%</p>
                      </div>
-                     <div className="bg-[#011414] rounded-xl p-3 border border-[#c88214]/10">
-                       <p className="text-[10px] font-black uppercase text-[#6fa89f] tracking-widest mb-1">CPC</p>
-                       <p className="text-sm font-bold text-[#c88214]">{exSym}{d3.format(",.2f")(c.cpc)}</p>
-                     </div>
+                     {userRole !== 'non-finance' && (
+                       <div className="bg-[#011414] rounded-xl p-3 border border-[#c88214]/10">
+                         <p className="text-[10px] font-black uppercase text-[#6fa89f] tracking-widest mb-1">CPC</p>
+                         <p className="text-sm font-bold text-[#c88214]">{exSym}{d3.format(",.2f")(c.cpc)}</p>
+                       </div>
+                     )}
                      <div className="bg-[#011414] rounded-xl p-3 border border-[#c88214]/10">
                        <p className="text-[10px] font-black uppercase text-[#6fa89f] tracking-widest mb-1">Views</p>
                        <p className="text-sm font-bold text-amber-400">{formatShort(c.views)}</p>
@@ -266,9 +274,9 @@ export default function CreativeView({ data, exRate, exSym, formatShort }) {
                     <th className="px-6 py-4 text-[10px] font-black text-[#6fa89f] uppercase tracking-widest">Preview</th>
                     <th className="px-6 py-4 text-[10px] font-black text-[#6fa89f] uppercase tracking-widest">Creative Name</th>
                     <th className="px-6 py-4 text-[10px] font-black text-[#6fa89f] uppercase tracking-widest">Status</th>
-                    <th className="px-6 py-4 text-[10px] font-black text-[#6fa89f] uppercase tracking-widest">Spend</th>
+                    {userRole !== 'non-finance' && <th className="px-6 py-4 text-[10px] font-black text-[#6fa89f] uppercase tracking-widest">Spend</th>}
                     <th className="px-6 py-4 text-[10px] font-black text-[#6fa89f] uppercase tracking-widest">CTR</th>
-                    <th className="px-6 py-4 text-[10px] font-black text-[#6fa89f] uppercase tracking-widest">CPC</th>
+                    {userRole !== 'non-finance' && <th className="px-6 py-4 text-[10px] font-black text-[#6fa89f] uppercase tracking-widest">CPC</th>}
                     <th className="px-6 py-4 text-[10px] font-black text-[#6fa89f] uppercase tracking-widest">Views</th>
                  </tr>
               </thead>
@@ -288,9 +296,9 @@ export default function CreativeView({ data, exRate, exSym, formatShort }) {
                             {c.status}
                           </span>
                        </td>
-                       <td className="px-6 py-4 text-sm font-bold text-rose-400 whitespace-nowrap">{exSym}{formatShort(c.cost)}</td>
+                       {userRole !== 'non-finance' && <td className="px-6 py-4 text-sm font-bold text-rose-400 whitespace-nowrap">{exSym}{formatShort(c.cost)}</td>}
                        <td className="px-6 py-4 text-sm font-bold text-[#c88214] whitespace-nowrap">{(c.ctr*100).toFixed(2)}%</td>
-                       <td className="px-6 py-4 text-sm font-bold text-[#c88214] whitespace-nowrap">{exSym}{d3.format(",.2f")(c.cpc)}</td>
+                       {userRole !== 'non-finance' && <td className="px-6 py-4 text-sm font-bold text-[#c88214] whitespace-nowrap">{exSym}{d3.format(",.2f")(c.cpc)}</td>}
                        <td className="px-6 py-4 text-sm font-bold text-amber-400 whitespace-nowrap">{formatShort(c.views)}</td>
                     </tr>
                  ))}

@@ -29,26 +29,32 @@ const getFlagEmoji = (countryName) => {
   return <span className="inline-block mx-1">🌐</span>;
 };
 
-export default function MarketView({ adData, gaData, exRate, exSym, formatShort }) {
+export default function MarketView({ adData, gaData, exRate = 1, exSym = '$', formatShort = (v) => v, userRole }) {
   const [selectedMarkets, setSelectedMarkets] = useState([]);
-  const [selectedMetrics, setSelectedMetrics] = useState(['spend', 'impressions', 'clicks', 'ctr', 'cpm', 'sessions']);
-  const [trendMetric, setTrendMetric] = useState('spend'); // spend, impressions, clicks, sessions
+  const [selectedMetrics, setSelectedMetrics] = useState(userRole === 'non-finance' ? ['impressions', 'clicks', 'ctr', 'sessions'] : ['spend', 'impressions', 'clicks', 'ctr', 'cpm', 'sessions']);
+  const [trendMetric, setTrendMetric] = useState(userRole === 'non-finance' ? 'impressions' : 'spend'); // spend, impressions, clicks, sessions
 
-  const AVAILABLE_METRICS = useMemo(() => [
-    { key: 'spend', label: 'Spend', format: v => `${exSym}${d3.format(",.2f")(v * exRate)}` },
-    { key: 'impressions', label: 'Impressions', format: v => d3.format(",")(v) },
-    { key: 'clicks', label: 'Clicks', format: v => d3.format(",")(v) },
-    { key: 'views', label: 'Video Views', format: v => d3.format(",")(v) },
-    { key: 'views6s', label: '6s Views', format: v => d3.format(",")(v) },
-    { key: 'views15s', label: '15s Views', format: v => d3.format(",")(v) },
-    { key: 'completions', label: 'Completed Views', format: v => d3.format(",")(v) },
-    { key: 'sessions', label: 'Paid GA4 Sessions', format: v => d3.format(",")(v) },
-    { key: 'cpc', label: 'CPC', format: v => `${exSym}${d3.format(",.2f")(v * exRate)}` },
-    { key: 'cpm', label: 'CPM', format: v => `${exSym}${d3.format(",.2f")(v * exRate)}` },
-    { key: 'ctr', label: 'CTR', format: v => `${v.toFixed(2)}%` },
-    { key: 'cpv', label: 'CPV', format: v => `${exSym}${d3.format(",.4f")(v * exRate)}` },
-    { key: 'cpcv', label: 'CPCV', format: v => `${exSym}${d3.format(",.4f")(v * exRate)}` }
-  ], [exRate, exSym]);
+  const AVAILABLE_METRICS = useMemo(() => {
+    const base = [
+      { key: 'spend', label: 'Spend', format: v => `${exSym}${d3.format(",.2f")(v * exRate)}` },
+      { key: 'impressions', label: 'Impressions', format: v => d3.format(",")(v) },
+      { key: 'clicks', label: 'Clicks', format: v => d3.format(",")(v) },
+      { key: 'views', label: 'Video Views', format: v => d3.format(",")(v) },
+      { key: 'views6s', label: '6s Views', format: v => d3.format(",")(v) },
+      { key: 'views15s', label: '15s Views', format: v => d3.format(",")(v) },
+      { key: 'completions', label: 'Completed Views', format: v => d3.format(",")(v) },
+      { key: 'sessions', label: 'Paid GA4 Sessions', format: v => d3.format(",")(v) },
+      { key: 'cpc', label: 'CPC', format: v => `${exSym}${d3.format(",.2f")(v * exRate)}` },
+      { key: 'cpm', label: 'CPM', format: v => `${exSym}${d3.format(",.2f")(v * exRate)}` },
+      { key: 'ctr', label: 'CTR', format: v => `${v.toFixed(2)}%` },
+      { key: 'cpv', label: 'CPV', format: v => `${exSym}${d3.format(",.4f")(v * exRate)}` },
+      { key: 'cpcv', label: 'CPCV', format: v => `${exSym}${d3.format(",.4f")(v * exRate)}` }
+    ];
+    if (userRole === 'non-finance') {
+      return base.filter(m => !['spend', 'cpc', 'cpm', 'cpv', 'cpcv'].includes(m.key));
+    }
+    return base;
+  }, [exRate, exSym, userRole]);
 
   // Merge Ad Data and GA Data at market level
   const marketStats = useMemo(() => {
@@ -268,15 +274,17 @@ export default function MarketView({ adData, gaData, exRate, exSym, formatShort 
           </div>
 
           {topCards && (
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
-              <div className="bg-[#011414] border border-[#c88214]/20 rounded-2xl p-6 relative overflow-hidden group hover:border-[#c88214]/50 transition-colors">
-                <div className="absolute -right-4 -top-4 opacity-5 group-hover:opacity-10 transition-opacity"><DollarSign className="w-32 h-32 text-white" /></div>
-                <p className="text-[#6fa89f] text-xs font-bold uppercase tracking-widest mb-1 flex items-center gap-2"><DollarSign className="w-4 h-4 text-[#c88214]"/> Top by Spend</p>
-                <p className="text-2xl font-black text-white truncate flex items-center gap-2">
-                   {getFlagEmoji(topCards.spend.country)} {topCards.spend.country}
-                </p>
-                <p className="text-[#c88214] font-bold text-lg mt-2">{exSym}{formatShort(topCards.spend.spend * exRate)} <span className="text-xs text-[#6fa89f] font-medium">Spend</span></p>
-              </div>
+            <div className={`grid grid-cols-1 md:grid-cols-2 ${userRole === 'non-finance' ? 'lg:grid-cols-2' : 'lg:grid-cols-4'} gap-4`}>
+              {userRole !== 'non-finance' && (
+                <div className="bg-[#011414] border border-[#c88214]/20 rounded-2xl p-6 relative overflow-hidden group hover:border-[#c88214]/50 transition-colors">
+                  <div className="absolute -right-4 -top-4 opacity-5 group-hover:opacity-10 transition-opacity"><DollarSign className="w-32 h-32 text-white" /></div>
+                  <p className="text-[#6fa89f] text-xs font-bold uppercase tracking-widest mb-1 flex items-center gap-2"><DollarSign className="w-4 h-4 text-[#c88214]"/> Top by Spend</p>
+                  <p className="text-2xl font-black text-white truncate flex items-center gap-2">
+                     {getFlagEmoji(topCards.spend.country)} {topCards.spend.country}
+                  </p>
+                  <p className="text-[#c88214] font-bold text-lg mt-2">{exSym}{formatShort(topCards.spend.spend * exRate)} <span className="text-xs text-[#6fa89f] font-medium">Spend</span></p>
+                </div>
+              )}
               
               <div className="bg-[#011414] border border-[#c88214]/20 rounded-2xl p-6 relative overflow-hidden group hover:border-[#c88214]/50 transition-colors">
                 <div className="absolute -right-4 -top-4 opacity-5 group-hover:opacity-10 transition-opacity"><Eye className="w-32 h-32 text-white" /></div>
@@ -296,14 +304,16 @@ export default function MarketView({ adData, gaData, exRate, exSym, formatShort 
                 <p className="text-[#c88214] font-bold text-lg mt-2">{formatShort(topCards.sessions.sessions)} <span className="text-xs text-[#6fa89f] font-medium">Sessions (Paid)</span></p>
               </div>
 
-              <div className="bg-gradient-to-br from-[#0C272D] to-[#113A42] border border-[#c88214]/40 rounded-2xl p-6 relative overflow-hidden group hover:border-[#c88214] transition-colors shadow-[0_0_15px_rgba(116,250,147,0.1)]">
-                <div className="absolute -right-4 -top-4 opacity-5 group-hover:opacity-10 transition-opacity"><Target className="w-32 h-32 text-[#c88214]" /></div>
-                <p className="text-[#6fa89f] text-xs font-bold uppercase tracking-widest mb-1 flex items-center gap-2"><Target className="w-4 h-4 text-[#c88214]"/> Most Efficient</p>
-                <p className="text-2xl font-black text-white truncate flex items-center gap-2">
-                   {getFlagEmoji(topCards.efficiency.country)} {topCards.efficiency.country}
-                </p>
-                <p className="text-[#c88214] font-bold text-lg mt-2">{exSym}{d3.format(",.2f")(topCards.efficiency.cpm * exRate)} <span className="text-xs text-[#6fa89f] font-medium">CPM</span></p>
-              </div>
+              {userRole !== 'non-finance' && (
+                <div className="bg-gradient-to-br from-[#0C272D] to-[#113A42] border border-[#c88214]/40 rounded-2xl p-6 relative overflow-hidden group hover:border-[#c88214] transition-colors shadow-[0_0_15px_rgba(116,250,147,0.1)]">
+                  <div className="absolute -right-4 -top-4 opacity-5 group-hover:opacity-10 transition-opacity"><Target className="w-32 h-32 text-[#c88214]" /></div>
+                  <p className="text-[#6fa89f] text-xs font-bold uppercase tracking-widest mb-1 flex items-center gap-2"><Target className="w-4 h-4 text-[#c88214]"/> Most Efficient</p>
+                  <p className="text-2xl font-black text-white truncate flex items-center gap-2">
+                     {getFlagEmoji(topCards.efficiency.country)} {topCards.efficiency.country}
+                  </p>
+                  <p className="text-[#c88214] font-bold text-lg mt-2">{exSym}{d3.format(",.2f")(topCards.efficiency.cpm * exRate)} <span className="text-xs text-[#6fa89f] font-medium">CPM</span></p>
+                </div>
+              )}
             </div>
           )}
         </>
@@ -348,8 +358,8 @@ export default function MarketView({ adData, gaData, exRate, exSym, formatShort 
                 </div>
                 <div className="mt-3 flex justify-between items-end">
                   <div>
-                    <p className="text-[10px] text-[#6fa89f] uppercase tracking-wider">Spend</p>
-                    <p className="text-xs font-black text-white">{exSym}{formatShort(m.spend * exRate)}</p>
+                    <p className="text-[10px] text-[#6fa89f] uppercase tracking-wider">{userRole === 'non-finance' ? 'Clicks' : 'Spend'}</p>
+                    <p className="text-xs font-black text-white">{userRole === 'non-finance' ? formatShort(m.clicks) : `${exSym}${formatShort(m.spend * exRate)}`}</p>
                   </div>
                   <div className="text-right">
                     <p className="text-[10px] text-[#6fa89f] uppercase tracking-wider">GA4</p>
@@ -382,7 +392,7 @@ export default function MarketView({ adData, gaData, exRate, exSym, formatShort 
                     </tr>
                   </thead>
                   <tbody>
-                    {['spend', 'impressions', 'clicks', 'ctr', 'cpm', 'sessions'].map((metricKey, i) => {
+                    {(userRole === 'non-finance' ? ['impressions', 'clicks', 'ctr', 'sessions'] : ['spend', 'impressions', 'clicks', 'ctr', 'cpm', 'sessions']).map((metricKey, i) => {
                        const metricDef = AVAILABLE_METRICS.find(m => m.key === metricKey);
                        return (
                           <tr key={metricKey} className={`border-b border-[#c88214]/10 ${i % 2 === 0 ? 'bg-transparent' : 'bg-[#011414]/30'}`}>
@@ -416,7 +426,7 @@ export default function MarketView({ adData, gaData, exRate, exSym, formatShort 
                   onChange={(e) => setTrendMetric(e.target.value)}
                   className="bg-[#011414] text-[#c88214] border border-[#c88214]/30 rounded-lg px-3 py-1 text-xs font-bold outline-none"
                 >
-                  <option value="spend">Spend</option>
+                  {userRole !== 'non-finance' && <option value="spend">Spend</option>}
                   <option value="impressions">Impressions</option>
                   <option value="clicks">Clicks</option>
                   <option value="sessions">Paid GA4 Sessions</option>

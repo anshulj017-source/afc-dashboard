@@ -8,25 +8,31 @@ import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip as RechartsToolti
 
 const COLORS = ['#74FA93', '#c88214', '#00937b', '#eef7f5', '#007542'];
 
-export default function ChannelView({ adData, exRate, exSym, formatShort }) {
+export default function ChannelView({ adData, exRate = 1, exSym = '$', formatShort = (v) => v, userRole }) {
   const [selectedChannels, setSelectedChannels] = useState([]);
-  const [selectedMetrics, setSelectedMetrics] = useState(['spend', 'impressions', 'clicks', 'ctr', 'cpm']);
-  const [trendMetric, setTrendMetric] = useState('spend'); // spend, impressions, clicks, views
+  const [selectedMetrics, setSelectedMetrics] = useState(userRole === 'non-finance' ? ['impressions', 'clicks', 'ctr', 'views'] : ['spend', 'impressions', 'clicks', 'ctr', 'cpm']);
+  const [trendMetric, setTrendMetric] = useState(userRole === 'non-finance' ? 'impressions' : 'spend'); // spend, impressions, clicks, views
 
-  const AVAILABLE_METRICS = useMemo(() => [
-    { key: 'spend', label: 'Spend', format: v => `${exSym}${d3.format(",.2f")(v * exRate)}` },
-    { key: 'impressions', label: 'Impressions', format: v => d3.format(",")(v) },
-    { key: 'clicks', label: 'Clicks', format: v => d3.format(",")(v) },
-    { key: 'views', label: 'Video Views', format: v => d3.format(",")(v) },
-    { key: 'views6s', label: '6s Views', format: v => d3.format(",")(v) },
-    { key: 'views15s', label: '15s Views', format: v => d3.format(",")(v) },
-    { key: 'completions', label: 'Completed Views', format: v => d3.format(",")(v) },
-    { key: 'cpc', label: 'CPC', format: v => `${exSym}${d3.format(",.2f")(v * exRate)}` },
-    { key: 'cpm', label: 'CPM', format: v => `${exSym}${d3.format(",.2f")(v * exRate)}` },
-    { key: 'ctr', label: 'CTR', format: v => `${v.toFixed(2)}%` },
-    { key: 'cpv', label: 'CPV', format: v => `${exSym}${d3.format(",.4f")(v * exRate)}` },
-    { key: 'cpcv', label: 'CPCV', format: v => `${exSym}${d3.format(",.4f")(v * exRate)}` }
-  ], [exRate, exSym]);
+  const AVAILABLE_METRICS = useMemo(() => {
+    const base = [
+      { key: 'spend', label: 'Spend', format: v => `${exSym}${d3.format(",.2f")(v * exRate)}` },
+      { key: 'impressions', label: 'Impressions', format: v => d3.format(",")(v) },
+      { key: 'clicks', label: 'Clicks', format: v => d3.format(",")(v) },
+      { key: 'views', label: 'Video Views', format: v => d3.format(",")(v) },
+      { key: 'views6s', label: '6s Views', format: v => d3.format(",")(v) },
+      { key: 'views15s', label: '15s Views', format: v => d3.format(",")(v) },
+      { key: 'completions', label: 'Completed Views', format: v => d3.format(",")(v) },
+      { key: 'cpc', label: 'CPC', format: v => `${exSym}${d3.format(",.2f")(v * exRate)}` },
+      { key: 'cpm', label: 'CPM', format: v => `${exSym}${d3.format(",.2f")(v * exRate)}` },
+      { key: 'ctr', label: 'CTR', format: v => `${v.toFixed(2)}%` },
+      { key: 'cpv', label: 'CPV', format: v => `${exSym}${d3.format(",.4f")(v * exRate)}` },
+      { key: 'cpcv', label: 'CPCV', format: v => `${exSym}${d3.format(",.4f")(v * exRate)}` }
+    ];
+    if (userRole === 'non-finance') {
+      return base.filter(m => !['spend', 'cpc', 'cpm', 'cpv', 'cpcv'].includes(m.key));
+    }
+    return base;
+  }, [exRate, exSym, userRole]);
 
   // 1. Calculate overall channel aggregates for the top cards and grid
   const channelStats = useMemo(() => {
@@ -199,7 +205,7 @@ export default function ChannelView({ adData, exRate, exSym, formatShort }) {
           </div>
 
           {topCards && (
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+            <div className={`grid grid-cols-1 md:grid-cols-2 ${userRole === 'non-finance' ? 'lg:grid-cols-3' : 'lg:grid-cols-4'} gap-4`}>
               <div className="bg-[#011414] border border-[#c88214]/20 rounded-2xl p-6 relative overflow-hidden group hover:border-[#c88214]/50 transition-colors">
                 <div className="absolute -right-4 -top-4 opacity-5 group-hover:opacity-10 transition-opacity"><Eye className="w-32 h-32 text-white" /></div>
                 <p className="text-[#6fa89f] text-xs font-bold uppercase tracking-widest mb-1 flex items-center gap-2"><Eye className="w-4 h-4 text-[#c88214]"/> Top by Impressions</p>
@@ -221,12 +227,14 @@ export default function ChannelView({ adData, exRate, exSym, formatShort }) {
                 <p className="text-[#c88214] font-bold text-lg mt-2">{formatShort(topCards.views.views)} <span className="text-xs text-[#6fa89f] font-medium">Views</span></p>
               </div>
 
-              <div className="bg-gradient-to-br from-[#0C272D] to-[#113A42] border border-[#c88214]/40 rounded-2xl p-6 relative overflow-hidden group hover:border-[#c88214] transition-colors shadow-[0_0_15px_rgba(116,250,147,0.1)]">
-                <div className="absolute -right-4 -top-4 opacity-5 group-hover:opacity-10 transition-opacity"><Target className="w-32 h-32 text-[#c88214]" /></div>
-                <p className="text-[#6fa89f] text-xs font-bold uppercase tracking-widest mb-1 flex items-center gap-2"><Target className="w-4 h-4 text-[#c88214]"/> Most Efficient</p>
-                <p className="text-2xl font-black text-white truncate">{topCards.efficiency.channel}</p>
-                <p className="text-[#c88214] font-bold text-lg mt-2">{exSym}{d3.format(",.2f")(topCards.efficiency.cpc * exRate)} <span className="text-xs text-[#6fa89f] font-medium">CPC</span></p>
-              </div>
+              {userRole !== 'non-finance' && (
+                <div className="bg-gradient-to-br from-[#0C272D] to-[#113A42] border border-[#c88214]/40 rounded-2xl p-6 relative overflow-hidden group hover:border-[#c88214] transition-colors shadow-[0_0_15px_rgba(116,250,147,0.1)]">
+                  <div className="absolute -right-4 -top-4 opacity-5 group-hover:opacity-10 transition-opacity"><Target className="w-32 h-32 text-[#c88214]" /></div>
+                  <p className="text-[#6fa89f] text-xs font-bold uppercase tracking-widest mb-1 flex items-center gap-2"><Target className="w-4 h-4 text-[#c88214]"/> Most Efficient</p>
+                  <p className="text-2xl font-black text-white truncate">{topCards.efficiency.channel}</p>
+                  <p className="text-[#c88214] font-bold text-lg mt-2">{exSym}{d3.format(",.2f")(topCards.efficiency.cpc * exRate)} <span className="text-xs text-[#6fa89f] font-medium">CPC</span></p>
+                </div>
+              )}
             </div>
           )}
         </>
@@ -269,8 +277,8 @@ export default function ChannelView({ adData, exRate, exSym, formatShort }) {
                   <h4 className={`text-base font-bold transition-colors line-clamp-1 ${isSelected ? 'text-[#c88214]' : 'text-white'}`}>{ch.channel}</h4>
                 </div>
                 <div className="mt-2">
-                  <p className="text-[10px] text-[#6fa89f] uppercase tracking-wider">Spend</p>
-                  <p className="text-sm font-black text-white">{exSym}{formatShort(ch.spend * exRate)}</p>
+                  <p className="text-[10px] text-[#6fa89f] uppercase tracking-wider">{userRole === 'non-finance' ? 'Clicks' : 'Spend'}</p>
+                  <p className="text-sm font-black text-white">{userRole === 'non-finance' ? formatShort(ch.clicks) : `${exSym}${formatShort(ch.spend * exRate)}`}</p>
                 </div>
               </button>
             )
@@ -296,8 +304,9 @@ export default function ChannelView({ adData, exRate, exSym, formatShort }) {
                     </tr>
                   </thead>
                   <tbody>
-                    {['spend', 'impressions', 'clicks', 'ctr', 'cpm'].map((metricKey, i) => {
+                    {(userRole === 'non-finance' ? ['impressions', 'clicks', 'ctr', 'views'] : ['spend', 'impressions', 'clicks', 'ctr', 'cpm']).map((metricKey, i) => {
                        const metricDef = AVAILABLE_METRICS.find(m => m.key === metricKey);
+                       if (!metricDef) return null;
                        return (
                           <tr key={metricKey} className={`border-b border-[#c88214]/10 ${i % 2 === 0 ? 'bg-transparent' : 'bg-[#011414]/30'}`}>
                             <td className="px-4 py-4 text-sm font-bold text-white">{metricDef.label}</td>
@@ -330,7 +339,7 @@ export default function ChannelView({ adData, exRate, exSym, formatShort }) {
                   onChange={(e) => setTrendMetric(e.target.value)}
                   className="bg-[#011414] text-[#c88214] border border-[#c88214]/30 rounded-lg px-3 py-1 text-xs font-bold outline-none"
                 >
-                  <option value="spend">Spend</option>
+                  {userRole !== 'non-finance' && <option value="spend">Spend</option>}
                   <option value="impressions">Impressions</option>
                   <option value="clicks">Clicks</option>
                   <option value="views">Video Views</option>
