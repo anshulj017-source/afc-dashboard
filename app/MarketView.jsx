@@ -8,13 +8,24 @@ import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip as RechartsToolti
 const COLORS = ['#74FA93', '#736BED', '#A29CF0', '#F1EAD8', '#D1CFF9'];
 
 const getFlagEmoji = (countryName) => {
-  const flags = {
-    'Australia': '🇦🇺', 'Malaysia': '🇲🇾', 'Singapore': '🇸🇬', 'Indonesia': '🇮🇩', 'India': '🇮🇳',
-    'Philippines': '🇵🇭', 'Thailand': '🇹🇭', 'Vietnam': '🇻🇳', 'South Korea': '🇰🇷', 'Japan': '🇯🇵',
-    'Kuwait': '🇰🇼', 'Saudi Arabia': '🇸🇦', 'United Arab Emirates': '🇦🇪', 'Qatar': '🇶🇦',
-    'Bahrain': '🇧🇭', 'Oman': '🇴🇲', 'Egypt': '🇪🇬', 'Jordan': '🇯🇴', 'United Kingdom': '🇬🇧', 'United States': '🇺🇸'
+  const codes = {
+    'Australia': 'au', 'Malaysia': 'my', 'Singapore': 'sg', 'Indonesia': 'id', 'India': 'in',
+    'Philippines': 'ph', 'Thailand': 'th', 'Vietnam': 'vn', 'South Korea': 'kr', 'Japan': 'jp',
+    'Kuwait': 'kw', 'Saudi Arabia': 'sa', 'United Arab Emirates': 'ae', 'Qatar': 'qa',
+    'Bahrain': 'bh', 'Oman': 'om', 'Egypt': 'eg', 'Jordan': 'jo', 'United Kingdom': 'gb', 'United States': 'us'
   };
-  return flags[countryName] || '🌐';
+  const code = codes[countryName];
+  if (code) {
+    return (
+      <img 
+        src={`https://flagcdn.com/${code}.svg`} 
+        alt={countryName} 
+        className="inline-block mx-1 object-contain h-[0.85em] rounded-[1px]" 
+        style={{ verticalAlign: 'middle', marginTop: '-0.15em' }} 
+      />
+    );
+  }
+  return <span className="inline-block mx-1">🌐</span>;
 };
 
 export default function MarketView({ adData, gaData, exRate, exSym, formatShort }) {
