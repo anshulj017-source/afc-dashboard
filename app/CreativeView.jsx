@@ -62,20 +62,20 @@ export default function CreativeView({ data, exRate, exSym, formatShort }) {
   const [creativePage, setCreativePage] = useState(1);
   const [creativeViewMode, setCreativeViewMode] = useState('grid');
   
-  const [filterMarkets, setFilterMarkets] = useState(['All']);
+  const [filterChannels, setFilterChannels] = useState(['All']);
   const [filterLanguages, setFilterLanguages] = useState(['All']);
-  const [filterCampaigns, setFilterCampaigns] = useState(['All']);
 
-  const uniqueMarkets = useMemo(() => Array.from(new Set(data.map(x => x.market))).filter(Boolean).sort(), [data]);
+  const uniqueChannels = useMemo(() => Array.from(new Set(data.map(x => x.channel))).filter(Boolean).sort(), [data]);
   const uniqueLanguages = useMemo(() => Array.from(new Set(data.map(x => x.language))).filter(Boolean).sort(), [data]);
-  const uniqueCampaigns = useMemo(() => Array.from(new Set(data.map(x => x.campaignName))).filter(Boolean).sort(), [data]);
 
   // Aggregate creative performance
   const creativeTabData = useMemo(() => {
+    const maxDate = d3.max(data, d => d.date);
+    const twoDaysAgo = maxDate ? new Date(maxDate.getTime() - 48 * 60 * 60 * 1000) : new Date();
+
     const filtered = data.filter(d => {
-      if (!filterMarkets.includes('All') && !filterMarkets.includes(d.market)) return false;
+      if (!filterChannels.includes('All') && !filterChannels.includes(d.channel)) return false;
       if (!filterLanguages.includes('All') && !filterLanguages.includes(d.language)) return false;
-      if (!filterCampaigns.includes('All') && !filterCampaigns.includes(d.campaignName)) return false;
       return true;
     });
 
@@ -88,14 +88,17 @@ export default function CreativeView({ data, exRate, exSym, formatShort }) {
       const ctr = imp > 0 ? clk / imp : 0;
       const cpc = clk > 0 ? cst / clk : 0;
       const cpv = views > 0 ? cst / views : 0;
+      const isLive = rows.some(r => r.date && r.date >= twoDaysAgo && r.cost > 0);
+      const status = isLive ? 'Live' : 'Paused';
       
       return {
         adName,
         creativeName: rows[0].creativeName,
         campaignName: rows[0].campaignName,
         adImageUrl: rows[0].adImageUrl,
-        market: rows[0].market,
+        channel: rows[0].channel,
         language: rows[0].language,
+        status,
         impressions: imp,
         clicks: clk,
         cost: cst,
@@ -105,7 +108,7 @@ export default function CreativeView({ data, exRate, exSym, formatShort }) {
         cpv,
       };
     }).sort((a,b) => b.cost - a.cost); // sort by spend
-  }, [data, filterMarkets, filterLanguages, filterCampaigns, exRate]);
+  }, [data, filterChannels, filterLanguages, exRate]);
 
   const topCTR = [...creativeTabData].filter(x => x.impressions > 500).sort((a,b) => b.ctr - a.ctr).slice(0, 10);
   const topCPC = [...creativeTabData].filter(x => x.clicks > 10).sort((a,b) => a.cpc - b.cpc).slice(0, 10); // Lowest CPC
@@ -193,9 +196,8 @@ export default function CreativeView({ data, exRate, exSym, formatShort }) {
       </div>
 
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-4 mb-8 border-b border-[#74FA93]/20 pb-6">
-        <MultiSelectDropdown label="Market" options={uniqueMarkets} selected={filterMarkets} onChange={setFilterMarkets} />
+        <MultiSelectDropdown label="Channel" options={uniqueChannels} selected={filterChannels} onChange={setFilterChannels} />
         <MultiSelectDropdown label="Language" options={uniqueLanguages} selected={filterLanguages} onChange={setFilterLanguages} />
-        <MultiSelectDropdown label="Campaign" options={uniqueCampaigns} selected={filterCampaigns} onChange={setFilterCampaigns} />
       </div>
 
       <div className="flex flex-wrap justify-between items-end gap-4 mb-6 mt-4">
@@ -224,9 +226,14 @@ export default function CreativeView({ data, exRate, exSym, formatShort }) {
                   )}
                </div>
                <div className="p-6 flex-1 flex flex-col">
-                  <h4 className="text-sm font-black text-[#F1EAD8] break-words whitespace-normal mb-4 leading-tight truncate" title={c.creativeName}>
-                     {c.creativeName}
-                  </h4>
+                  <div className="flex justify-between items-start mb-4 gap-2">
+                     <h4 className="text-sm font-black text-[#F1EAD8] break-words whitespace-normal leading-tight truncate" title={c.creativeName}>
+                        {c.creativeName}
+                     </h4>
+                     <span className={`px-2 py-1 text-[8px] font-black uppercase tracking-widest rounded-md whitespace-nowrap ${c.status === 'Live' ? 'bg-[#74FA93]/20 text-[#74FA93]' : 'bg-gray-500/20 text-gray-400'}`}>
+                        {c.status}
+                     </span>
+                  </div>
                   <div className="grid grid-cols-2 gap-3 mb-4 flex-1">
                      <div className="bg-[#0C272D] rounded-xl p-3 border border-[#74FA93]/10">
                        <p className="text-[10px] font-black uppercase text-[#CBBB9D] tracking-widest mb-1">Spend</p>
@@ -256,6 +263,7 @@ export default function CreativeView({ data, exRate, exSym, formatShort }) {
                  <tr className="bg-[#0C272D] border-b border-[#74FA93]/20">
                     <th className="px-6 py-4 text-[10px] font-black text-[#CBBB9D] uppercase tracking-widest">Preview</th>
                     <th className="px-6 py-4 text-[10px] font-black text-[#CBBB9D] uppercase tracking-widest">Creative Name</th>
+                    <th className="px-6 py-4 text-[10px] font-black text-[#CBBB9D] uppercase tracking-widest">Status</th>
                     <th className="px-6 py-4 text-[10px] font-black text-[#CBBB9D] uppercase tracking-widest">Spend</th>
                     <th className="px-6 py-4 text-[10px] font-black text-[#CBBB9D] uppercase tracking-widest">CTR</th>
                     <th className="px-6 py-4 text-[10px] font-black text-[#CBBB9D] uppercase tracking-widest">CPC</th>
@@ -273,13 +281,18 @@ export default function CreativeView({ data, exRate, exSym, formatShort }) {
                        <td className="px-6 py-4 text-sm font-bold text-[#F1EAD8] whitespace-nowrap max-w-[250px] truncate" title={c.creativeName}>
                           {c.creativeName}
                        </td>
+                       <td className="px-6 py-4">
+                          <span className={`px-2 py-1 text-[8px] font-black uppercase tracking-widest rounded-md ${c.status === 'Live' ? 'bg-[#74FA93]/20 text-[#74FA93]' : 'bg-gray-500/20 text-gray-400'}`}>
+                            {c.status}
+                          </span>
+                       </td>
                        <td className="px-6 py-4 text-sm font-bold text-rose-400 whitespace-nowrap">{exSym}{formatShort(c.cost)}</td>
                        <td className="px-6 py-4 text-sm font-bold text-[#736BED] whitespace-nowrap">{(c.ctr*100).toFixed(2)}%</td>
                        <td className="px-6 py-4 text-sm font-bold text-[#74FA93] whitespace-nowrap">{exSym}{d3.format(",.2f")(c.cpc)}</td>
                        <td className="px-6 py-4 text-sm font-bold text-amber-400 whitespace-nowrap">{formatShort(c.views)}</td>
                     </tr>
                  ))}
-                 {paginatedData.length === 0 && <tr><td colSpan={6} className="px-6 py-8 text-center text-[#CBBB9D] text-sm font-bold">No creatives match the current filters</td></tr>}
+                 {paginatedData.length === 0 && <tr><td colSpan={7} className="px-6 py-8 text-center text-[#CBBB9D] text-sm font-bold">No creatives match the current filters</td></tr>}
               </tbody>
            </table>
         </div>

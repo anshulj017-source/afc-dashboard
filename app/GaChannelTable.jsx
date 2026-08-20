@@ -4,7 +4,8 @@ import * as d3 from 'd3';
 import { Search, ChevronDown } from 'lucide-react';
 import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer, AreaChart, Area } from 'recharts';
 
-export const GaChannelTable = ({ aggData, rawData, formatShort }) => {
+export const GaChannelTable = ({ rawData, formatShort }) => {
+  const [viewBy, setViewBy] = useState('sourceMedium'); // 'sourceMedium' or 'country'
   const [searchTerm, setSearchTerm] = useState('');
   const [sortKey, setSortKey] = useState('sessions');
   const [sortDir, setSortDir] = useState('desc');
@@ -25,7 +26,23 @@ export const GaChannelTable = ({ aggData, rawData, formatShort }) => {
     setMounted(true);
   }, []);
 
-  const filteredAgg = aggData.filter(d => d.sourceMedium.toLowerCase().includes(searchTerm.toLowerCase()));
+  const aggData = useMemo(() => {
+    return Array.from(d3.rollup(rawData, 
+      v => ({
+        sessions: d3.sum(v, d => d.sessions),
+        users: d3.sum(v, d => d.users),
+        engagedSessions: d3.sum(v, d => d.engagedSessions),
+        newUsers: d3.sum(v, d => d.newUsers),
+        avgSessionDuration: d3.mean(v.filter(d => d.sessions > 0), d => d.avgSessionDuration) || 0
+      }),
+      d => viewBy === 'sourceMedium' ? d.sourceMedium : d.country
+    )).map(([dimension, metrics]) => ({
+      dimension,
+      ...metrics
+    }));
+  }, [rawData, viewBy]);
+
+  const filteredAgg = aggData.filter(d => d.dimension.toLowerCase().includes(searchTerm.toLowerCase()));
   const sortedAgg = [...filteredAgg].sort((a, b) => {
     let valA = a[sortKey];
     let valB = b[sortKey];
@@ -36,7 +53,8 @@ export const GaChannelTable = ({ aggData, rawData, formatShort }) => {
 
   useEffect(() => {
     setCurrentPage(1);
-  }, [searchTerm, sortKey, sortDir, rowsPerPage]);
+    setSelectedChannels([]);
+  }, [searchTerm, sortKey, sortDir, rowsPerPage, viewBy]);
 
   const totalPages = Math.ceil(sortedAgg.length / rowsPerPage);
   const paginatedAgg = sortedAgg.slice((currentPage - 1) * rowsPerPage, currentPage * rowsPerPage);
@@ -57,7 +75,7 @@ export const GaChannelTable = ({ aggData, rawData, formatShort }) => {
 
   const toggleAll = () => {
     if (selectedChannels.length === sortedAgg.length) setSelectedChannels([]);
-    else setSelectedChannels(sortedAgg.map(d => d.sourceMedium));
+    else setSelectedChannels(sortedAgg.map(d => d.dimension));
   };
 
   const openSingle = (channel) => {
@@ -76,7 +94,7 @@ export const GaChannelTable = ({ aggData, rawData, formatShort }) => {
   // Prepare chart data
   const chartData = useMemo(() => {
     if (!modalOpen) return [];
-    const relevantRaw = rawData.filter(d => modalChannels.includes(d.sourceMedium) && d.dateObj);
+    const relevantRaw = rawData.filter(d => modalChannels.includes(viewBy === 'sourceMedium' ? d.sourceMedium : d.country) && d.dateObj);
     
     const timeKeyFunc = trendTimeframe === 'Daily' 
       ? d => d3.timeFormat("%b %d")(d.dateObj)
@@ -93,7 +111,7 @@ export const GaChannelTable = ({ aggData, rawData, formatShort }) => {
     return sortedGrouped.map(([timeLabel, rows]) => {
       const obj = { time: timeLabel };
       modalChannels.forEach(ch => {
-        const chRows = rows.filter(r => r.sourceMedium === ch);
+        const chRows = rows.filter(r => (viewBy === 'sourceMedium' ? r.sourceMedium : r.country) === ch);
         let val = 0;
         if (trendMetric === 'sessions') val = d3.sum(chRows, r => r.sessions);
         if (trendMetric === 'users') val = d3.sum(chRows, r => r.users);
@@ -109,8 +127,19 @@ export const GaChannelTable = ({ aggData, rawData, formatShort }) => {
   return (
     <div className="bg-[#113A42] p-6 rounded-3xl border border-[#74FA93]/20 shadow-xl relative">
       <div className="flex justify-between items-center mb-6 flex-wrap gap-4">
-        <h3 className="text-xl font-black text-[#F1EAD8]">Source / Medium Analysis</h3>
+        <h3 className="text-xl font-black text-[#F1EAD8]">Web Traffic Analysis</h3>
         <div className="flex items-center gap-4">
+          <div className="flex bg-[#0C272D] rounded-full p-1 border border-[#74FA93]/20">
+            {['sourceMedium', 'country'].map(v => (
+              <button 
+                key={v} 
+                onClick={() => setViewBy(v)} 
+                className={`px-4 py-1.5 rounded-full text-xs font-bold transition-all ${viewBy === v ? 'bg-[#74FA93] text-[#0C272D]' : 'text-[#74FA93] hover:text-white'}`}
+              >
+                {v === 'sourceMedium' ? 'Source / Medium' : 'Country'}
+              </button>
+            ))}
+          </div>
           <div className="relative">
             <Search size={16} className="absolute left-3 top-1/2 transform -translate-y-1/2 text-[#74FA93]" />
             <input 
@@ -139,7 +168,7 @@ export const GaChannelTable = ({ aggData, rawData, formatShort }) => {
                 <input type="checkbox" checked={selectedChannels.length === sortedAgg.length && sortedAgg.length > 0} onChange={toggleAll} className="accent-[#74FA93] cursor-pointer" />
               </th>
               {[
-                { key: 'sourceMedium', label: 'Source / Medium' },
+                { key: 'dimension', label: viewBy === 'sourceMedium' ? 'Source / Medium' : 'Country' },
                 { key: 'sessions', label: 'Sessions' },
                 { key: 'users', label: 'Users' },
                 { key: 'engagedSessions', label: 'Engaged' },
@@ -157,11 +186,11 @@ export const GaChannelTable = ({ aggData, rawData, formatShort }) => {
           </thead>
           <tbody>
             {paginatedAgg.map((row, i) => (
-              <tr key={i} onClick={() => openSingle(row.sourceMedium)} className="border-b border-[#74FA93]/10 hover:bg-[#74FA93]/10 transition-colors cursor-pointer group">
+              <tr key={i} onClick={() => openSingle(row.dimension)} className="border-b border-[#74FA93]/10 hover:bg-[#74FA93]/10 transition-colors cursor-pointer group">
                 <td className="px-3 py-3 w-12 text-center" onClick={e => e.stopPropagation()}>
-                  <input type="checkbox" checked={selectedChannels.includes(row.sourceMedium)} onChange={(e) => toggleSelect(row.sourceMedium, e)} className="accent-[#74FA93] cursor-pointer" />
+                  <input type="checkbox" checked={selectedChannels.includes(row.dimension)} onChange={(e) => toggleSelect(row.dimension, e)} className="accent-[#74FA93] cursor-pointer" />
                 </td>
-                <td className="px-3 py-3 text-sm font-bold text-white group-hover:text-[#74FA93] transition-colors">{row.sourceMedium}</td>
+                <td className="px-3 py-3 text-sm font-bold text-white group-hover:text-[#74FA93] transition-colors">{row.dimension}</td>
                 <td className="px-3 py-3 text-sm font-medium text-[#F1EAD8]">{d3.format(",")(row.sessions)}</td>
                 <td className="px-3 py-3 text-sm font-medium text-[#F1EAD8]">{d3.format(",")(row.users)}</td>
                 <td className="px-3 py-3 text-sm font-medium text-[#F1EAD8]">{d3.format(",")(row.engagedSessions)}</td>

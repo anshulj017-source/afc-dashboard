@@ -766,7 +766,7 @@ export default function App() {
             </div>
           </div>
           
-          <GaChannelTable aggData={gaSourceData} rawData={filteredGaData} formatShort={formatShort} />
+          <GaChannelTable rawData={filteredGaData} formatShort={formatShort} />
         </div>
       );
     }
