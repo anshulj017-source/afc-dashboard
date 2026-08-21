@@ -902,7 +902,8 @@ export default function App() {
       <div className="flex flex-1 overflow-hidden">
         {/* SIDEBAR TABS */}
         <div className="w-64 border-r border-[#c88214]/10 bg-[#011414] flex flex-col gap-2 overflow-y-auto z-20 relative">
-          <div className="p-6 pb-2">
+          <div className="pattern-overlay absolute inset-0 z-0 pointer-events-none" style={{ opacity: 0.20 }}></div>
+          <div className="p-6 pb-2 relative z-10">
             <div className="text-[10px] font-black text-[#6fa89f] uppercase tracking-widest mb-4 px-4">Navigation</div>
           {NAV_ITEMS.map(t => {
             const active = activeTab === t.id;
