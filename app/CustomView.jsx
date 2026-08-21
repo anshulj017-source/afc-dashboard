@@ -349,7 +349,11 @@ export default function CustomView({ adData = [], exRate = 1, exSym = "$", forma
           // Slide 1: Title
           let slide = pres.addSlide({ masterName: "MASTER_SLIDE" });
           slide.addText("Dashboard Snapshot Report", { x: 0.5, y: 2, w: "90%", h: 1, fontSize: 36, bold: true, color: "FFFFFF", align: 'center' });
-          let filterText = `Filters Applied:\nChannels: ${fChannels.length ? fChannels.join(', ') : 'All'}\nWeeks: ${fWeeks.length ? fWeeks.join(', ') : 'All'}`;
+          
+          let durationStr = (dateRange && dateRange.start && dateRange.end) ? `${dateRange.start} to ${dateRange.end}` : 'All Time';
+          let tourneyStr = (filterCampaigns && filterCampaigns.length > 0 && !filterCampaigns.includes('All')) ? filterCampaigns.join(', ') : 'All Tournaments';
+          
+          let filterText = `Duration: ${durationStr}\nTournament: ${tourneyStr}`;
           slide.addText(filterText, { x: 0.5, y: 3.5, w: "90%", h: 2, fontSize: 14, color: "CBBB9D", align: 'center', valign: 'top' });
 
           // DOM Snapshots
