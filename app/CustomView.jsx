@@ -255,7 +255,10 @@ export default function CustomView({ adData = [], exRate = 1, exSym = "$", forma
           
           pres.defineSlideMaster({
             title: "MASTER_SLIDE",
-            background: { color: "0C272D" }
+            background: { color: "0C272D" },
+            objects: [
+              { image: { x: 8.5, y: 0.2, w: 1.3, h: 0.8, path: window.location.origin + "/loc-logo/Saudi 2027-07.png", sizing: { type: "contain" } } }
+            ]
           });
 
           // Helper to capture DOM and add as slide
