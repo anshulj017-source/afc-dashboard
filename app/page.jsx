@@ -708,7 +708,7 @@ export default function App() {
     if (activeTab === 'detailed') {
       return (
         <div className="w-full h-full">
-          <CustomView adData={filteredAdData} exRate={exRate} exSym={exSym} formatShort={formatShort} filterCampaigns={filterCampaigns} dateRange={dateRange} userRole={userRole} />
+          <CustomView adData={filteredAdData} exRate={exRate} exSym={exSym} formatShort={formatShort} filterCampaigns={filterCampaigns} filterMarkets={filterMarkets} dateRange={dateRange} userRole={userRole} />
         </div>
       );
     }

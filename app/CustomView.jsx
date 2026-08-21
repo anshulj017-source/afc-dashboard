@@ -110,12 +110,14 @@ const MultiSelectDropdown = ({ label, options, selected, onChange, className = "
 };
 
 
-export default function CustomView({ adData = [], exRate = 1, exSym = "$", formatShort = (v)=>v, filterCampaigns = [], dateRange = {start:'', end:''}, userRole = 'admin' }) {
+export default function CustomView({ adData = [], exRate = 1, exSym = "$", formatShort = (v)=>v, filterCampaigns = [], filterMarkets = [], dateRange = {start:'', end:''}, userRole = 'admin' }) {
   
   const [isGenerating, setIsGenerating] = useState(false);
+  const hasMarketFilter = filterMarkets && filterMarkets.length > 0 && !filterMarkets.includes('All');
   
   const kpiRef = useRef(null);
   const chartsRef = useRef(null);
+  const marketChartsRef = useRef(null);
   const tableRef = useRef(null);
   
   // Data enrichment (Add Week)
@@ -198,6 +200,28 @@ export default function CustomView({ adData = [], exRate = 1, exSym = "$", forma
   }, [filteredData, exRate]);
 
 
+  const marketTrendData = useMemo(() => {
+      if (!hasMarketFilter) return [];
+      const grouped = d3.groups(filteredData, d => d.dateObj ? d3.timeFormat("%b %d")(d.dateObj) : 'Unknown');
+      return grouped.map(([date, vals]) => {
+         const obj = { date, sortDate: vals[0].dateObj };
+         const byMarket = d3.groups(vals, d => d.country);
+         byMarket.forEach(([mkt, mktVals]) => {
+             obj[`${mkt} Spend`] = d3.sum(mktVals, d => d.cost) * exRate;
+             obj[`${mkt} Impressions`] = d3.sum(mktVals, d => d.impressions);
+         });
+         return obj;
+      }).filter(d => d.date !== 'Unknown').sort((a,b) => a.sortDate - b.sortDate);
+  }, [filteredData, exRate, hasMarketFilter]);
+
+  const marketMixData = useMemo(() => {
+      if (!hasMarketFilter) return [];
+      return d3.groups(filteredData, d => d.country).map(([market, vals]) => ({
+          name: market || 'Unknown',
+          value: d3.sum(vals, d => d.cost) * exRate
+      })).sort((a,b) => b.value - a.value);
+  }, [filteredData, exRate, hasMarketFilter]);
+
   const AVAILABLE_METRICS = useMemo(() => {
     const base = [
       { key: 'cost', label: 'Spend', format: v => `${exSym}${d3.format(",.2f")((v||0) * exRate)}` },
@@ -230,6 +254,7 @@ export default function CustomView({ adData = [], exRate = 1, exSym = "$", forma
       
       const mappedData = filteredData.map(d => ({
           week: d.week,
+          market: hasMarketFilter ? (d.country || 'Unknown') : 'All Markets',
           campaignName: hasCampFilter ? d.campaignName : 'All Campaigns',
           channel: hasChanFilter ? d.channel : 'All Channels',
           cost: d.cost || 0,
@@ -241,9 +266,10 @@ export default function CustomView({ adData = [], exRate = 1, exSym = "$", forma
           videoCompletions: d.videoCompletions || 0
       }));
 
-      const groups = d3.groups(mappedData, d => d.week, d => d.campaignName, d => d.channel);
+      const groups = d3.groups(mappedData, d => d.week, d => d.market, d => d.campaignName, d => d.channel);
       const rows = [];
-      groups.forEach(([week, camps]) => {
+      groups.forEach(([week, markets]) => {
+        markets.forEach(([market, camps]) => {
           camps.forEach(([camp, chans]) => {
               chans.forEach(([chan, items]) => {
                   const impressions = d3.sum(items, i => i.impressions);
@@ -253,6 +279,7 @@ export default function CustomView({ adData = [], exRate = 1, exSym = "$", forma
                   const videoCompletions = d3.sum(items, i => i.videoCompletions);
                   rows.push({
                       week,
+                      market,
                       campaignName: camp,
                       channel: chan,
                       cost,
@@ -270,6 +297,7 @@ export default function CustomView({ adData = [], exRate = 1, exSym = "$", forma
                   });
               });
           });
+        });
       });
       // Sort week numerically, then campaign
       return rows.sort((a,b) => {
@@ -278,7 +306,7 @@ export default function CustomView({ adData = [], exRate = 1, exSym = "$", forma
          if (wa !== wb) return wa - wb;
          return a.campaignName.localeCompare(b.campaignName);
       });
-  }, [filteredData, filterCampaigns, fChannels]);
+  }, [filteredData, filterCampaigns, fChannels, hasMarketFilter]);
 
   const generatePpt = async () => {
       if (isGenerating) return;
@@ -361,6 +389,9 @@ export default function CustomView({ adData = [], exRate = 1, exSym = "$", forma
               await addSnapshotSlide(kpiRef, "KPI Goal Pacing");
           }
           await addSnapshotSlide(chartsRef, "Performance & Channel Mix");
+          if (hasMarketFilter) {
+              await addSnapshotSlide(marketChartsRef, "Market Performance & Mix");
+          }
           await addSnapshotSlide(tableRef, "Data Breakdown");
 
           await pres.writeFile({ fileName: `AFC_Dashboard_Snapshot_${new Date().getTime()}.pptx` });
@@ -537,6 +568,63 @@ export default function CustomView({ adData = [], exRate = 1, exSym = "$", forma
                  </div>
               </div>
            </div>
+
+           {/* MARKET CHARTS */}
+           {hasMarketFilter && (
+             <div ref={marketChartsRef} className="grid grid-cols-1 xl:grid-cols-3 gap-6 mb-8 mt-8">
+                <div className="card-surface backdrop-blur-2xl/80 backdrop-blur-xl border border-[#c88214]/10 rounded-[2rem] p-8 xl:col-span-2 shadow-xl">
+                   <h3 className="text-lg font-black text-white mb-8 flex items-center gap-2 uppercase tracking-widest text-sm">
+                     <TrendingUp className="text-[#c88214] w-5 h-5" /> Market Performance Trend
+                   </h3>
+                   <div className="h-72">
+                     <ResponsiveContainer width="100%" height="100%">
+                       <LineChart data={marketTrendData} margin={{ top: 10, right: 30, left: 0, bottom: 0 }}>
+                         <CartesianGrid strokeDasharray="3 3" stroke="#ffffff05" vertical={false} />
+                         <XAxis dataKey="date" stroke="#6fa89f" fontSize={12} tickLine={false} axisLine={false} />
+                         {userRole !== 'non-finance' && <YAxis yAxisId="left" stroke="#74FA93" fontSize={12} tickLine={false} axisLine={false} tickFormatter={formatShort} />}
+                         <YAxis yAxisId={userRole === 'non-finance' ? "left" : "right"} orientation={userRole === 'non-finance' ? "left" : "right"} stroke="#c88214" fontSize={12} tickLine={false} axisLine={false} tickFormatter={formatShort} />
+                         <RechartsTooltip contentStyle={{ backgroundColor: '#0C272D', borderColor: '#74FA9320', color: '#fff', borderRadius: '16px', boxShadow: '0 10px 30px rgba(0,0,0,0.5)' }} />
+                         <Legend wrapperStyle={{ paddingTop: '20px' }} />
+                         
+                         {filterMarkets.map((mkt, idx) => {
+                             if (mkt === 'All') return null;
+                             const color1 = COLORS[idx % COLORS.length];
+                             const color2 = COLORS[(idx + 2) % COLORS.length];
+                             return (
+                               <React.Fragment key={mkt}>
+                                 {userRole !== 'non-finance' && <Line yAxisId="left" type="monotone" name={`${mkt} Spend`} dataKey={`${mkt} Spend`} stroke={color1} strokeWidth={3} dot={false} />}
+                                 <Line yAxisId={userRole === 'non-finance' ? "left" : "right"} type="monotone" name={`${mkt} Impressions`} dataKey={`${mkt} Impressions`} stroke={color2} strokeWidth={3} strokeDasharray="5 5" dot={false} />
+                               </React.Fragment>
+                             );
+                         })}
+                       </LineChart>
+                     </ResponsiveContainer>
+                   </div>
+                </div>
+
+                <div className="card-surface backdrop-blur-2xl/80 backdrop-blur-xl border border-[#c88214]/10 rounded-[2rem] p-8 shadow-xl">
+                   <h3 className="text-lg font-black text-white mb-8 flex items-center gap-2 uppercase tracking-widest text-sm">
+                     <Activity className="text-[#c88214] w-5 h-5" /> Market Mix
+                   </h3>
+                   <div className="h-72">
+                     <ResponsiveContainer width="100%" height="100%">
+                       <PieChart>
+                         <Pie data={marketMixData} innerRadius={60} outerRadius={85} paddingAngle={5} dataKey="value" stroke="none">
+                           {marketMixData.map((entry, index) => (
+                             <Cell key={`cell-${index}`} fill={COLORS[index % COLORS.length]} />
+                           ))}
+                         </Pie>
+                         <RechartsTooltip 
+                            contentStyle={{ backgroundColor: '#0C272D', borderColor: '#74FA9320', color: '#fff', borderRadius: '16px', fontSize: '12px' }}
+                            formatter={(val) => `${exSym}${d3.format(",.2f")(val)}`}
+                         />
+                         <Legend wrapperStyle={{ paddingTop: '20px', fontSize: '12px' }} />
+                       </PieChart>
+                     </ResponsiveContainer>
+                   </div>
+                </div>
+             </div>
+           )}
            </div>
 
            {/* Data Table */}
@@ -557,6 +645,7 @@ export default function CustomView({ adData = [], exRate = 1, exSym = "$", forma
                  <thead>
                     <tr className="border-b border-[#c88214]/20">
                        <th className="py-4 px-4 text-[#6fa89f] font-bold text-xs uppercase tracking-widest">Week</th>
+                       <th className="py-4 px-4 text-[#6fa89f] font-bold text-xs uppercase tracking-widest">Market</th>
                        <th className="py-4 px-4 text-[#6fa89f] font-bold text-xs uppercase tracking-widest">Campaign</th>
                        <th className="py-4 px-4 text-[#6fa89f] font-bold text-xs uppercase tracking-widest">Channel</th>
                        {selectedMetrics.map((metricKey) => {
@@ -574,6 +663,7 @@ export default function CustomView({ adData = [], exRate = 1, exSym = "$", forma
                     {tableDataByWeek.slice(0, 50).map((d, i) => (
                        <tr key={i} className="border-b border-white/5 hover:bg-white/5 transition-colors">
                           <td className="py-4 px-4 text-white text-sm font-medium">{d.week}</td>
+                          <td className="py-4 px-4 text-white text-sm font-bold">{d.market}</td>
                           <td className="py-4 px-4 text-white text-sm font-bold">{d.campaignName}</td>
                           <td className="py-4 px-4 text-[#c88214] text-sm font-bold">{d.channel}</td>
                           {selectedMetrics.map((metricKey) => {
