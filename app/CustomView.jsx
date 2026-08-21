@@ -568,6 +568,7 @@ export default function CustomView({ adData = [], exRate = 1, exSym = "$", forma
                  </div>
               </div>
            </div>
+           </div>
 
            {/* MARKET CHARTS */}
            {hasMarketFilter && (
@@ -625,7 +626,6 @@ export default function CustomView({ adData = [], exRate = 1, exSym = "$", forma
                 </div>
              </div>
            )}
-           </div>
 
            {/* Data Table */}
            <div ref={tableRef} className="card-surface backdrop-blur-2xl/80 backdrop-blur-xl border border-[#c88214]/10 rounded-[2rem] p-8 shadow-xl overflow-x-auto custom-scrollbar">
