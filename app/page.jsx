@@ -741,8 +741,15 @@ export default function App() {
         return d.sessions;
       };
 
-      const maxVal = d3.max(mapDataGrouped, getMapVal) || 1;
-      const colorScale = d3.scaleSequential(d3.interpolate('#065c5d', '#c88214')).domain([0, maxVal]);
+      const getDiscreteColor = (val) => {
+        if (!val || val < 100) return '#4b5563';
+        if (val < 1000) return '#34d399';
+        if (val < 10000) return '#10b981';
+        if (val < 30000) return '#059669';
+        if (val < 50000) return '#047857';
+        if (val <= 100000) return '#065f46';
+        return '#064e3b';
+      };
 
       return (
         <div className="space-y-8">
@@ -778,7 +785,24 @@ export default function App() {
               </div>
             </div>
             
-            <div className="w-full h-[500px] bg-[#011414]/50 rounded-2xl overflow-hidden border border-[#c88214]/10">
+            <div className="w-full h-[500px] bg-[#011414]/50 rounded-2xl overflow-hidden border border-[#c88214]/10 relative">
+              <div className="absolute bottom-6 left-6 bg-[#011414]/80 backdrop-blur-md border border-[#c88214]/20 p-4 rounded-xl flex flex-col gap-2 z-10 w-40 shadow-2xl">
+                <span className="text-[10px] font-black text-[#6fa89f] uppercase tracking-widest mb-1">{mapMetric}</span>
+                {[
+                  { label: '> 100k', color: '#064e3b' },
+                  { label: '50k - 100k', color: '#065f46' },
+                  { label: '30k - 50k', color: '#047857' },
+                  { label: '10k - 30k', color: '#059669' },
+                  { label: '1k - 10k', color: '#10b981' },
+                  { label: '100 - 1k', color: '#34d399' },
+                  { label: '< 100', color: '#4b5563' }
+                ].map(item => (
+                  <div key={item.label} className="flex items-center gap-3">
+                    <div className="w-3 h-3 rounded-full" style={{ backgroundColor: item.color }}></div>
+                    <span className="text-xs font-medium text-[#eef7f5]">{item.label}</span>
+                  </div>
+                ))}
+              </div>
               <ComposableMap projection="geoMercator" projectionConfig={{ scale: 100 }} width={800} height={400}>
                 <ZoomableGroup>
                   <Geographies geography={GEO_URL}>
@@ -788,7 +812,7 @@ export default function App() {
                         const normName = normalizeMarket(countryName);
                         const data = mapDataDict[normName];
                         const val = getMapVal(data);
-                        const fill = val > 0 ? colorScale(val) : '#1A4D57';
+                        const fill = getDiscreteColor(val);
                         
                         return (
                           <Geography
