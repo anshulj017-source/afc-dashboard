@@ -867,11 +867,11 @@ export default function App() {
         <div className="flex gap-3 flex-wrap flex-1 justify-end items-end relative z-10">
           <div className="flex flex-col gap-1">
              <span className="text-[10px] font-black text-[#6fa89f] uppercase tracking-widest block">Start Date</span>
-             <input type="date" value={dateRange.start} onClick={e => e.target.showPicker && e.target.showPicker()} onChange={e => setDateRange(prev => ({...prev, start: e.target.value}))} className="w-[160px] cursor-pointer px-2.5 py-1.5 bg-[#065c5d] border border-[#c88214]/30 rounded-lg text-xs font-bold text-[#eef7f5] outline-none focus:border-[#c88214] [&::-webkit-calendar-picker-indicator]:cursor-pointer [&::-webkit-calendar-picker-indicator]:opacity-100" />
+             <input type="date" value={dateRange.start} onClick={e => e.target.showPicker && e.target.showPicker()} onChange={e => setDateRange(prev => ({...prev, start: e.target.value}))} className="w-[160px] cursor-pointer px-2.5 py-1.5 surface-inset border border-[#c88214]/30 rounded-lg text-xs font-bold text-[#eef7f5] outline-none focus:border-[#c88214] transition-colors [&::-webkit-calendar-picker-indicator]:cursor-pointer [&::-webkit-calendar-picker-indicator]:opacity-100" />
           </div>
           <div className="flex flex-col gap-1">
              <span className="text-[10px] font-black text-[#6fa89f] uppercase tracking-widest block">End Date</span>
-             <input type="date" value={dateRange.end} onClick={e => e.target.showPicker && e.target.showPicker()} onChange={e => setDateRange(prev => ({...prev, end: e.target.value}))} className="w-[160px] cursor-pointer px-2.5 py-1.5 bg-[#065c5d] border border-[#c88214]/30 rounded-lg text-xs font-bold text-[#eef7f5] outline-none focus:border-[#c88214] [&::-webkit-calendar-picker-indicator]:cursor-pointer [&::-webkit-calendar-picker-indicator]:opacity-100" />
+             <input type="date" value={dateRange.end} onClick={e => e.target.showPicker && e.target.showPicker()} onChange={e => setDateRange(prev => ({...prev, end: e.target.value}))} className="w-[160px] cursor-pointer px-2.5 py-1.5 surface-inset border border-[#c88214]/30 rounded-lg text-xs font-bold text-[#eef7f5] outline-none focus:border-[#c88214] transition-colors [&::-webkit-calendar-picker-indicator]:cursor-pointer [&::-webkit-calendar-picker-indicator]:opacity-100" />
           </div>
 
           { (activeTab !== 'campaign' && activeTab !== 'webtraffic') ? (
