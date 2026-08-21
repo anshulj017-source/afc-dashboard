@@ -26,20 +26,25 @@ const MetricCard = ({ label, value, color = "text-[#c88214]" }) => {
   );
 };
 
-const MultiSelectDropdown = ({ label, options, selected, onChange }) => {
+const MultiSelectDropdown = ({ label, options, selected, onChange, className = "flex-1 relative min-w-[180px]" }) => {
   const [isOpen, setIsOpen] = useState(false);
   const [searchTerm, setSearchTerm] = useState('');
 
-  const filteredOptions = options.filter(o => o.toLowerCase().includes(searchTerm.toLowerCase()));
+  const isObject = options.length > 0 && typeof options[0] === 'object';
+  
+  const filteredOptions = options.filter(o => {
+    const text = isObject ? o.label : o;
+    return text.toLowerCase().includes(searchTerm.toLowerCase());
+  });
 
   return (
-    <div className="flex-1 relative min-w-[180px]">
-      <span className="text-[10px] font-black uppercase text-[#6fa89f] mb-1.5 tracking-widest block">{label}</span>
+    <div className={className}>
+      {label && <span className="text-[10px] font-black uppercase text-[#6fa89f] mb-1.5 tracking-widest block">{label}</span>}
       <div 
         onClick={() => setIsOpen(!isOpen)}
         className="w-full px-4 py-3 card-surface backdrop-blur-2xl border border-[#c88214]/20 rounded-xl text-sm font-black text-[#c88214] shadow-sm cursor-pointer flex justify-between items-center transition-colors hover:border-[#c88214]/50"
       >
-        <span className="truncate pr-4">{selected.length === 0 ? 'All Selected' : selected.join(', ')}</span>
+        <span className="truncate pr-4">{selected.length === 0 ? 'All Selected' : (isObject ? `${selected.length} Selected` : selected.join(', '))}</span>
         <ChevronDown className={`w-4 h-4 flex-shrink-0 transition-transform ${isOpen ? 'rotate-180' : ''}`} />
       </div>
       {isOpen && (
@@ -61,29 +66,33 @@ const MultiSelectDropdown = ({ label, options, selected, onChange }) => {
                 </div>
               </div>
               <div className="overflow-y-auto p-2 flex-1 custom-scrollbar">
+                {!isObject && (
                 <div 
                   onClick={() => { onChange([]); setIsOpen(false); setSearchTerm(''); }} 
                   className={`px-3 py-2.5 rounded-lg text-sm font-bold cursor-pointer flex justify-between items-center transition-colors ${selected.length === 0 ? 'bg-[#c88214]/20 text-[#c88214]' : 'text-white hover:bg-[#011414]'}`}
                 >
                   All <Check className={`w-4 h-4 ${selected.length === 0 ? 'opacity-100' : 'opacity-0'}`} />
                 </div>
+                )}
                 {filteredOptions.map(opt => {
-                  const isSel = selected.includes(opt);
+                  const key = isObject ? opt.key : opt;
+                  const text = isObject ? opt.label : opt;
+                  const isSel = selected.includes(key);
                   return (
                     <div 
-                      key={opt} 
+                      key={key} 
                       onClick={() => {
                         let next = [...selected];
                         if (isSel) {
-                          next = next.filter(n => n !== opt);
+                          next = next.filter(n => n !== key);
                         } else { 
-                          next.push(opt); 
+                          next.push(key); 
                         }
                         onChange(next);
                       }} 
                       className={`px-3 py-2.5 mt-1 rounded-lg text-sm font-bold cursor-pointer flex justify-between items-center transition-colors ${isSel ? 'bg-[#c88214]/20 text-[#c88214]' : 'text-white hover:bg-[#011414]'}`}
                     >
-                      <span className="truncate pr-4">{opt}</span> 
+                      <span className="truncate pr-4">{text}</span> 
                       <Check className={`w-4 h-4 flex-shrink-0 ${isSel ? 'opacity-100' : 'opacity-0'}`} />
                     </div>
                   )
@@ -189,6 +198,31 @@ export default function CustomView({ adData = [], exRate = 1, exSym = "$", forma
   }, [filteredData, exRate]);
 
 
+  const AVAILABLE_METRICS = useMemo(() => {
+    const base = [
+      { key: 'cost', label: 'Spend', format: v => `${exSym}${d3.format(",.2f")((v||0) * exRate)}` },
+      { key: 'impressions', label: 'Impressions', format: v => d3.format(",")((v||0)) },
+      { key: 'clicks', label: 'Clicks', format: v => d3.format(",")((v||0)) },
+      { key: 'videoViews', label: 'Video Views', format: v => formatShort(v||0) },
+      { key: 'videoViews6s', label: '6s Views', format: v => formatShort(v||0) },
+      { key: 'videoViews15s', label: '15s Views', format: v => formatShort(v||0) },
+      { key: 'videoCompletions', label: 'Completed Views', format: v => formatShort(v||0) },
+      { key: 'cpc', label: 'CPC', format: v => `${exSym}${d3.format(",.2f")((v||0) * exRate)}` },
+      { key: 'cpm', label: 'CPM', format: v => `${exSym}${d3.format(",.2f")((v||0) * exRate)}` },
+      { key: 'ctr', label: 'CTR', format: v => `${(v||0).toFixed(2)}%` },
+      { key: 'cpv', label: 'CPV', format: v => `${exSym}${d3.format(",.4f")((v||0) * exRate)}` },
+      { key: 'cpcv', label: 'CPCV', format: v => `${exSym}${d3.format(",.4f")((v||0) * exRate)}` }
+    ];
+    if (userRole === 'non-finance') {
+      return base.filter(m => !['cost', 'cpc', 'cpm', 'cpv', 'cpcv'].includes(m.key));
+    }
+    return base;
+  }, [exRate, exSym, userRole]);
+
+  const [selectedMetrics, setSelectedMetrics] = useState(
+    userRole === 'non-finance' ? ['impressions', 'clicks', 'ctr', 'videoViews'] : ['cost', 'impressions', 'clicks']
+  );
+
   // Table Aggregation by Week
   const tableDataByWeek = useMemo(() => {
       const hasCampFilter = filterCampaigns.length > 0 && !filterCampaigns.includes('All');
@@ -198,9 +232,13 @@ export default function CustomView({ adData = [], exRate = 1, exSym = "$", forma
           week: d.week,
           campaignName: hasCampFilter ? d.campaignName : 'All Campaigns',
           channel: hasChanFilter ? d.channel : 'All Channels',
-          cost: d.cost,
-          impressions: d.impressions,
-          clicks: d.clicks
+          cost: d.cost || 0,
+          impressions: d.impressions || 0,
+          clicks: d.clicks || 0,
+          videoViews: d.videoViews || 0,
+          videoViews6s: d.videoViews6s || 0,
+          videoViews15s: d.videoViews15s || 0,
+          videoCompletions: d.videoCompletions || 0
       }));
 
       const groups = d3.groups(mappedData, d => d.week, d => d.campaignName, d => d.channel);
@@ -208,13 +246,27 @@ export default function CustomView({ adData = [], exRate = 1, exSym = "$", forma
       groups.forEach(([week, camps]) => {
           camps.forEach(([camp, chans]) => {
               chans.forEach(([chan, items]) => {
+                  const impressions = d3.sum(items, i => i.impressions);
+                  const clicks = d3.sum(items, i => i.clicks);
+                  const cost = d3.sum(items, i => i.cost);
+                  const videoViews = d3.sum(items, i => i.videoViews);
+                  const videoCompletions = d3.sum(items, i => i.videoCompletions);
                   rows.push({
                       week,
                       campaignName: camp,
                       channel: chan,
-                      cost: d3.sum(items, i => i.cost),
-                      impressions: d3.sum(items, i => i.impressions),
-                      clicks: d3.sum(items, i => i.clicks),
+                      cost,
+                      impressions,
+                      clicks,
+                      videoViews,
+                      videoViews6s: d3.sum(items, i => i.videoViews6s),
+                      videoViews15s: d3.sum(items, i => i.videoViews15s),
+                      videoCompletions,
+                      ctr: impressions > 0 ? (clicks / impressions) * 100 : 0,
+                      cpm: impressions > 0 ? (cost / impressions) * 1000 : 0,
+                      cpc: clicks > 0 ? cost / clicks : 0,
+                      cpv: videoViews > 0 ? cost / videoViews : 0,
+                      cpcv: videoCompletions > 0 ? cost / videoCompletions : 0
                   });
               });
           });
@@ -485,18 +537,33 @@ export default function CustomView({ adData = [], exRate = 1, exSym = "$", forma
 
            {/* Data Table */}
            <div ref={tableRef} className="card-surface backdrop-blur-2xl/80 backdrop-blur-xl border border-[#c88214]/10 rounded-[2rem] p-8 shadow-xl overflow-x-auto custom-scrollbar">
-              <h3 className="text-lg font-black text-white mb-6 flex items-center gap-2 uppercase tracking-widest text-sm">
-                 <TableProperties className="text-[#c88214] w-5 h-5" /> Data Breakdown
-              </h3>
+              <div className="flex flex-col md:flex-row justify-between md:items-center mb-6 gap-4">
+                 <h3 className="text-lg font-black text-white flex items-center gap-2 uppercase tracking-widest text-sm">
+                    <TableProperties className="text-[#c88214] w-5 h-5" /> Data Breakdown
+                 </h3>
+                 <MultiSelectDropdown 
+                   label=""
+                   options={AVAILABLE_METRICS} 
+                   selected={selectedMetrics} 
+                   onChange={setSelectedMetrics} 
+                   className="relative min-w-[220px]"
+                 />
+              </div>
               <table className="w-full text-left border-collapse">
                  <thead>
                     <tr className="border-b border-[#c88214]/20">
                        <th className="py-4 px-4 text-[#6fa89f] font-bold text-xs uppercase tracking-widest">Week</th>
                        <th className="py-4 px-4 text-[#6fa89f] font-bold text-xs uppercase tracking-widest">Campaign</th>
                        <th className="py-4 px-4 text-[#6fa89f] font-bold text-xs uppercase tracking-widest">Channel</th>
-                       {userRole !== 'non-finance' && <th className="py-4 px-4 text-[#6fa89f] font-bold text-xs uppercase tracking-widest text-right">Spend</th>}
-                       <th className="py-4 px-4 text-[#6fa89f] font-bold text-xs uppercase tracking-widest text-right">Impressions</th>
-                       <th className="py-4 px-4 text-[#6fa89f] font-bold text-xs uppercase tracking-widest text-right">Clicks</th>
+                       {selectedMetrics.map((metricKey) => {
+                          const mDef = AVAILABLE_METRICS.find(m => m.key === metricKey);
+                          if (!mDef) return null;
+                          return (
+                            <th key={metricKey} className="py-4 px-4 text-[#6fa89f] font-bold text-xs uppercase tracking-widest text-right">
+                              {mDef.label}
+                            </th>
+                          )
+                       })}
                     </tr>
                  </thead>
                  <tbody>
@@ -505,9 +572,15 @@ export default function CustomView({ adData = [], exRate = 1, exSym = "$", forma
                           <td className="py-4 px-4 text-white text-sm font-medium">{d.week}</td>
                           <td className="py-4 px-4 text-white text-sm font-bold">{d.campaignName}</td>
                           <td className="py-4 px-4 text-[#c88214] text-sm font-bold">{d.channel}</td>
-                          {userRole !== 'non-finance' && <td className="py-4 px-4 text-white text-sm font-bold text-right">{exSym}{d3.format(",.2f")(d.cost * exRate)}</td>}
-                          <td className="py-4 px-4 text-white text-sm font-bold text-right">{d3.format(",.0f")(d.impressions)}</td>
-                          <td className="py-4 px-4 text-white text-sm font-bold text-right">{d3.format(",.0f")(d.clicks)}</td>
+                          {selectedMetrics.map((metricKey) => {
+                             const mDef = AVAILABLE_METRICS.find(m => m.key === metricKey);
+                             if (!mDef) return null;
+                             return (
+                               <td key={metricKey} className="py-4 px-4 text-white text-sm font-bold text-right">
+                                 {mDef.format(d[metricKey])}
+                               </td>
+                             )
+                          })}
                        </tr>
                     ))}
                  </tbody>
