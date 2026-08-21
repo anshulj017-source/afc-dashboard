@@ -742,7 +742,7 @@ export default function App() {
       };
 
       const maxVal = d3.max(mapDataGrouped, getMapVal) || 1;
-      const colorScale = d3.scaleSequential(d3.interpolate('#1A4D57', '#74FA93')).domain([0, maxVal]);
+      const colorScale = d3.scaleSequential(d3.interpolate('#065c5d', '#c88214')).domain([0, maxVal]);
 
       return (
         <div className="space-y-8">
@@ -778,15 +778,7 @@ export default function App() {
               </div>
             </div>
             
-            <div className="w-full h-[500px] bg-[#011414]/50 rounded-2xl overflow-hidden border border-[#c88214]/10 relative">
-              <div className="absolute bottom-6 left-6 bg-[#011414]/80 backdrop-blur-md border border-[#74FA93]/20 p-3 rounded-xl flex flex-col gap-2 z-10">
-                <span className="text-[10px] font-black text-[#6fa89f] uppercase tracking-widest">{mapMetric}</span>
-                <div className="w-32 h-2 rounded-full bg-gradient-to-r from-[#1A4D57] to-[#74FA93]"></div>
-                <div className="flex justify-between text-xs font-medium text-[#eef7f5]">
-                  <span>0</span>
-                  <span>{d3.format(".2s")(maxVal)}</span>
-                </div>
-              </div>
+            <div className="w-full h-[500px] bg-[#011414]/50 rounded-2xl overflow-hidden border border-[#c88214]/10">
               <ComposableMap projection="geoMercator" projectionConfig={{ scale: 100 }} width={800} height={400}>
                 <ZoomableGroup>
                   <Geographies geography={GEO_URL}>
