@@ -5,13 +5,14 @@ import { ChevronDown, Calendar, Layers, Activity } from 'lucide-react';
 
 const COLORS = ['#74FA93', '#c88214', '#00937b', '#EF4444', '#065c5d', '#10B981', '#eef7f5', '#6fa89f'];
 
-export default function CampaignView({ adData, exRate = 1, exSym = '$', formatShort = (v) => v, userRole }) {
+export default function CampaignView({ adData, plannedData = [], exRate = 1, exSym = '$', formatShort = (v) => v, userRole, filterMarkets }) {
   const [selectedCampaign, setSelectedCampaign] = useState('');
   const [selectedPhases, setSelectedPhases] = useState([]);
   const [selectedChannels, setSelectedChannels] = useState({}); // { phaseName: [channelNames] }
+  const [viewMode, setViewMode] = useState('overall'); // 'overall' or 'planned'
 
   // 1. Process Campaigns
-  const campaigns = useMemo(() => {
+  const campaigns = useMemo(() => { console.log("CampaignView adData length:", adData.length, "Unique:", Array.from(new Set(adData.map(d => d.campaignName))));
     return Array.from(new Set(adData.map(d => d.campaignName))).sort();
   }, [adData]);
 
@@ -158,6 +159,81 @@ export default function CampaignView({ adData, exRate = 1, exSym = '$', formatSh
     });
     return grouped.sort((a,b) => b.spend - a.spend);
   }, [campaignData, selectedCampaign, selectedPhases, selectedChannels]);
+
+  // Calculate planned table data based on selections
+  const plannedTableData = useMemo(() => {
+    if (!selectedCampaign || !plannedData || plannedData.length === 0) return [];
+    
+    let pData = plannedData;
+    let actualData = campaignData;
+    
+    if (filterMarkets && filterMarkets.length > 0 && !filterMarkets.includes('All')) {
+      pData = pData.filter(d => filterMarkets.includes(d.targetMarket));
+    }
+    
+    if (selectedPhases.length > 0) {
+      pData = pData.filter(d => selectedPhases.includes(d.phase));
+      actualData = actualData.filter(d => selectedPhases.includes(d.phase));
+      
+      const hasAnyChannelSelection = selectedPhases.some(p => selectedChannels[p] && selectedChannels[p].length > 0);
+      if (hasAnyChannelSelection) {
+        pData = pData.filter(d => {
+          const activeChs = selectedChannels[d.phase] || [];
+          return activeChs.length === 0 || activeChs.includes(d.channel);
+        });
+        actualData = actualData.filter(d => {
+          const activeChs = selectedChannels[d.phase] || [];
+          return activeChs.length === 0 || activeChs.includes(d.channel);
+        });
+      }
+    }
+
+    const groupedPlanned = d3.groups(pData, d => `${d.channel}_${d.buyingType}`).map(([key, rows]) => {
+      const channel = rows[0].channel;
+      const buyingType = rows[0].buyingType;
+      const plannedCost = d3.sum(rows, d => d.plannedCost);
+      const bookedUnits = d3.sum(rows, d => d.bookedUnits);
+      
+      const matchingActual = actualData.filter(d => 
+        d.channel.toLowerCase() === channel.toLowerCase() && 
+        d.buyingType.toLowerCase() === buyingType.toLowerCase()
+      );
+      
+      const deliveredCost = d3.sum(matchingActual, d => d.cost);
+      
+      let deliveredUnits = 0;
+      const bt = buyingType.toUpperCase();
+      if (bt.includes('CPM')) {
+        deliveredUnits = d3.sum(matchingActual, d => d.impressions);
+      } else if (bt.includes('CPC')) {
+        deliveredUnits = d3.sum(matchingActual, d => d.clicks);
+      } else if (bt.includes('CPV')) {
+        deliveredUnits = d3.sum(matchingActual, d => d.videoViews);
+      } else {
+        deliveredUnits = d3.sum(matchingActual, d => d.impressions); // fallback
+      }
+
+      return {
+        channel,
+        buyingType,
+        plannedCost,
+        deliveredCost,
+        bookedUnits,
+        deliveredUnits,
+        pctDelivered: bookedUnits > 0 ? (deliveredUnits / bookedUnits) * 100 : 0,
+        pctPacing: plannedCost > 0 ? (deliveredCost / plannedCost) * 100 : 0
+      };
+    });
+    
+    return groupedPlanned.sort((a,b) => b.plannedCost - a.plannedCost);
+  }, [campaignData, plannedData, selectedCampaign, selectedPhases, selectedChannels, filterMarkets]);
+
+  // Reset viewMode if selected campaign is not Gulf Cup
+  React.useEffect(() => {
+    if (selectedCampaign !== 'Gulf Cup' && viewMode === 'planned') {
+      setViewMode('overall');
+    }
+  }, [selectedCampaign, viewMode]);
 
   return (
     <div className="flex flex-col gap-8 w-full max-w-7xl mx-auto">
@@ -349,18 +425,38 @@ export default function CampaignView({ adData, exRate = 1, exSym = '$', formatSh
       )}
 
       {/* Metrics Table */}
-      {selectedCampaign && tableData.length > 0 && (
+      {selectedCampaign && (tableData.length > 0 || plannedTableData.length > 0) && (
         <div className="card-surface backdrop-blur-2xl p-8 rounded-3xl border border-[#c88214]/20 shadow-xl overflow-hidden">
           <div className="flex justify-between items-center mb-6">
             <h3 className="text-xl font-black text-[#eef7f5] flex items-center gap-3">
               <Activity className="text-[#c88214]" /> Performance Metrics Breakdown
               <InfoTooltip definition="Definition for Performance Metrics Breakdown" />
             </h3>
-            <span className="text-xs font-bold text-[#6fa89f] bg-[#011414] px-4 py-2 rounded-lg border border-[#c88214]/10">
-              Based on Selection
-            </span>
+            
+            <div className="flex items-center gap-4">
+              <div className="flex bg-[#011414] rounded-lg p-1 border border-[#c88214]/20">
+                <button 
+                  onClick={() => setViewMode('overall')} 
+                  className={`px-4 py-2 rounded-lg text-xs font-bold transition-all ${viewMode === 'overall' ? 'gradient-gold text-[#043e3f] shadow-[0_0_15px_rgba(200,130,20,0.35)]' : 'text-[#6fa89f] hover:bg-[#c88214]/10 hover:text-[#c88214] border border-[#c88214]/20'}`}
+                >
+                  Overall Data
+                </button>
+                <button 
+                  onClick={() => { if (selectedCampaign === 'Gulf Cup') setViewMode('planned'); }}
+                  disabled={selectedCampaign !== 'Gulf Cup'}
+                  className={`px-4 py-2 rounded-lg text-xs font-bold transition-all ${viewMode === 'planned' ? 'gradient-gold text-[#043e3f] shadow-[0_0_15px_rgba(200,130,20,0.35)]' : 'text-[#6fa89f] hover:bg-[#c88214]/10 hover:text-[#c88214] border border-[#c88214]/20'} ${selectedCampaign !== 'Gulf Cup' ? 'opacity-50 cursor-not-allowed bg-black/20' : ''}`}
+                  title={selectedCampaign !== 'Gulf Cup' ? 'Only available for live campaigns (Gulf Cup)' : ''}
+                >
+                  Planned v/s Delivered
+                </button>
+              </div>
+              <span className="text-xs font-bold text-[#6fa89f] bg-[#011414] px-4 py-2 rounded-lg border border-[#c88214]/10">
+                Based on Selection
+              </span>
+            </div>
           </div>
           <div className="overflow-x-auto custom-scrollbar">
+            {viewMode === 'overall' ? (
             <table className="w-full text-left border-collapse">
               <thead>
                 <tr className="border-b border-[#c88214]/20">
@@ -426,6 +522,57 @@ export default function CampaignView({ adData, exRate = 1, exSym = '$', formatSh
                 })()}
               </tbody>
             </table>
+            ) : (
+              <table className="w-full text-left border-collapse">
+                <thead>
+                  <tr className="border-b border-[#c88214]/20">
+                    <th className="py-4 px-4 text-[10px] font-black text-[#6fa89f] uppercase tracking-widest bg-[#011414]/50 rounded-tl-xl">Channel</th>
+                    <th className="py-4 px-4 text-[10px] font-black text-[#6fa89f] uppercase tracking-widest bg-[#011414]/50">Buying Type</th>
+                    <th className="py-4 px-4 text-[10px] font-black text-[#6fa89f] uppercase tracking-widest bg-[#011414]/50 text-right">Planned Cost</th>
+                    <th className="py-4 px-4 text-[10px] font-black text-[#6fa89f] uppercase tracking-widest bg-[#011414]/50 text-right">Delivered Cost</th>
+                    <th className="py-4 px-4 text-[10px] font-black text-[#6fa89f] uppercase tracking-widest bg-[#011414]/50 text-right">Booked Units</th>
+                    <th className="py-4 px-4 text-[10px] font-black text-[#6fa89f] uppercase tracking-widest bg-[#011414]/50 text-right">Delivered Units</th>
+                    <th className="py-4 px-4 text-[10px] font-black text-[#6fa89f] uppercase tracking-widest bg-[#011414]/50 text-right">% Delivered</th>
+                    <th className="py-4 px-4 text-[10px] font-black text-[#6fa89f] uppercase tracking-widest bg-[#011414]/50 text-right rounded-tr-xl">% Pacing</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {plannedTableData.map((row, i) => (
+                    <tr key={`${row.channel}_${row.buyingType}`} className={`border-b border-[#c88214]/10 hover:bg-[#74FA93]/5 transition-colors ${i % 2 === 0 ? 'bg-transparent' : 'bg-[#011414]/20'}`}>
+                      <td className="py-4 px-4 text-sm font-bold text-[#eef7f5]">{row.channel}</td>
+                      <td className="py-4 px-4 text-sm font-medium text-[#c88214]">{row.buyingType}</td>
+                      <td className="py-4 px-4 text-sm font-medium text-white text-right">{exSym}{d3.format(",.2f")(row.plannedCost * exRate)}</td>
+                      <td className="py-4 px-4 text-sm font-medium text-white text-right">{exSym}{d3.format(",.2f")(row.deliveredCost * exRate)}</td>
+                      <td className="py-4 px-4 text-sm font-medium text-[#6fa89f] text-right">{d3.format(",")(row.bookedUnits)}</td>
+                      <td className="py-4 px-4 text-sm font-medium text-[#6fa89f] text-right">{d3.format(",")(row.deliveredUnits)}</td>
+                      <td className="py-4 px-4 text-sm font-bold text-white text-right">{row.pctDelivered.toFixed(2)}%</td>
+                      <td className="py-4 px-4 text-sm font-bold text-white text-right">{row.pctPacing.toFixed(2)}%</td>
+                    </tr>
+                  ))}
+                  {plannedTableData.length > 0 && (() => {
+                    const tPlannedCost = d3.sum(plannedTableData, d => d.plannedCost);
+                    const tDeliveredCost = d3.sum(plannedTableData, d => d.deliveredCost);
+                    const tBookedUnits = d3.sum(plannedTableData, d => d.bookedUnits);
+                    const tDeliveredUnits = d3.sum(plannedTableData, d => d.deliveredUnits);
+                    const tPctDelivered = tBookedUnits > 0 ? (tDeliveredUnits / tBookedUnits) * 100 : 0;
+                    const tPctPacing = tPlannedCost > 0 ? (tDeliveredCost / tPlannedCost) * 100 : 0;
+                    
+                    return (
+                      <tr className="bg-[#011414]/80 border-t-2 border-[#c88214]/50">
+                        <td className="py-4 px-4 text-sm font-black text-[#c88214]">Total</td>
+                        <td className="py-4 px-4 text-sm font-black text-[#c88214]"></td>
+                        <td className="py-4 px-4 text-sm font-black text-[#c88214] text-right">{exSym}{d3.format(",.2f")(tPlannedCost * exRate)}</td>
+                        <td className="py-4 px-4 text-sm font-black text-[#c88214] text-right">{exSym}{d3.format(",.2f")(tDeliveredCost * exRate)}</td>
+                        <td className="py-4 px-4 text-sm font-black text-[#c88214] text-right">{d3.format(",")(tBookedUnits)}</td>
+                        <td className="py-4 px-4 text-sm font-black text-[#c88214] text-right">{d3.format(",")(tDeliveredUnits)}</td>
+                        <td className="py-4 px-4 text-sm font-black text-[#c88214] text-right">{tPctDelivered.toFixed(2)}%</td>
+                        <td className="py-4 px-4 text-sm font-black text-[#c88214] text-right">{tPctPacing.toFixed(2)}%</td>
+                      </tr>
+                    );
+                  })()}
+                </tbody>
+              </table>
+            )}
           </div>
         </div>
       )}

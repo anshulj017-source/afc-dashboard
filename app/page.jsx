@@ -205,6 +205,7 @@ export default function App() {
   const [adData, setAdData] = useState([]);
   const [gaData, setGaData] = useState([]);
   const [creativeData, setCreativeData] = useState([]);
+  const [plannedData, setPlannedData] = useState([]);
   const [loading, setLoading] = useState(true);
   const [lastUpdated, setLastUpdated] = useState(null);
   const [activeTab, setActiveTab] = useState('summary');
@@ -272,6 +273,7 @@ export default function App() {
           // Find 'DB' prefixed columns dynamically if they exist, otherwise fallback
           const campDB = row['Campaign DB'] || row['Campaign name'] || row['Campaign Name'] || 'Unknown';
           const phaseDB = row['Phase DB'] || row['Phase'] || 'Unknown';
+          const buyingTypeDB = row['Buying Type DB'] || 'Unknown';
           const countryDB = normalizeMarket(row['Country DB'] || row['Country'] || 'Unknown');
           const langDB = row['Language DB'] || row['Language'] || 'Unknown';
           
@@ -295,6 +297,7 @@ export default function App() {
             dateObj: row['Date'] ? new Date(row['Date']) : null,
             campaignName: campDB,
             phase: phaseDB,
+            buyingType: buyingTypeDB,
             country: countryDB,
             language: langDB,
             channel: finalChannel,
@@ -354,13 +357,30 @@ export default function App() {
        }));
     });
 
-    Promise.all([...fetchPromises, gaPromise, creativePromise]).then(results => {
+    // Fetch Planned Data
+    const plannedPromise = d3.csv("/api/sheets?type=planned").then(raw => {
+      return raw.map(row => ({
+        phase: row['Phase'] || 'Unknown',
+        channel: row['Channel'] || 'Unknown',
+        buyingType: row['Buying Type'] || 'Unknown',
+        bookedUnits: parseMetric(row['Booked Units'] || '0'),
+        plannedCost: parseFloat((row['Planned Budget'] || '0').replace(/[^0-9.-]+/g,"")),
+        targetMarket: normalizeMarket(row['Target Market'] || 'Unknown')
+      }));
+    }).catch(err => {
+      console.warn("Failed to fetch planned data:", err);
+      return [];
+    });
+
+    Promise.all([...fetchPromises, gaPromise, creativePromise, plannedPromise]).then(results => {
+      const plannedResults = results.pop();
       const creativeResults = results.pop();
       const gaResults = results.pop();
       const combinedAds = results.flat();
       setAdData(combinedAds);
       setGaData(gaResults);
       setCreativeData(creativeResults);
+      setPlannedData(plannedResults);
       
       const allDates = [...combinedAds, ...gaResults]
         .map(d => d.dateObj || d.date)
@@ -696,7 +716,7 @@ export default function App() {
     if (activeTab === 'campaign') {
       return (
         <div className="w-full h-full">
-           <CampaignView adData={filteredAdData} exRate={exRate} exSym={exSym} formatShort={formatShort} userRole={userRole} />
+           <CampaignView adData={filteredAdData} plannedData={plannedData} exRate={exRate} exSym={exSym} formatShort={formatShort} userRole={userRole} filterMarkets={filterMarkets} />
         </div>
       );
     }

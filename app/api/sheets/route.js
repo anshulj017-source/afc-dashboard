@@ -11,6 +11,8 @@ export async function GET(request) {
     url = process.env.RAW_ADJUST_CSV_URL;
   } else if (type === 'creative') {
     url = process.env.CREATIVE_CSV_URL;
+  } else if (type === 'planned') {
+    url = process.env.PLANNED_DATA_CSV_URL;
   } else if (type === 'afc') {
     const gid = searchParams.get('gid');
     if (!gid) {
