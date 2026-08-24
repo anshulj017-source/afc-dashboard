@@ -206,6 +206,7 @@ export default function App() {
   const [gaData, setGaData] = useState([]);
   const [creativeData, setCreativeData] = useState([]);
   const [loading, setLoading] = useState(true);
+  const [lastUpdated, setLastUpdated] = useState(null);
   const [activeTab, setActiveTab] = useState('summary');
   
   // State: Global Filters
@@ -360,6 +361,7 @@ export default function App() {
       setAdData(combinedAds);
       setGaData(gaResults);
       setCreativeData(creativeResults);
+      setLastUpdated(new Date());
       setLoading(false);
     }).catch(err => {
       console.error(err);
@@ -861,6 +863,11 @@ export default function App() {
           <div>
             <h1 className="text-xl font-black text-white tracking-tight uppercase">Local Organising Committee</h1>
             <p className="text-[10px] font-black text-[#c88214] uppercase tracking-[0.2em]">Tournament Performance Dashboard</p>
+            {lastUpdated && (
+              <p className="text-[9px] font-bold text-[#6fa89f] mt-1 uppercase tracking-wider opacity-80">
+                Last Updated: {lastUpdated.toLocaleString('en-US', { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' })}
+              </p>
+            )}
           </div>
         </div>
         
