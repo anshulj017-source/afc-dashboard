@@ -361,7 +361,17 @@ export default function App() {
       setAdData(combinedAds);
       setGaData(gaResults);
       setCreativeData(creativeResults);
-      setLastUpdated(new Date());
+      
+      const allDates = [...combinedAds, ...gaResults]
+        .map(d => d.dateObj || d.date)
+        .filter(d => d instanceof Date && !isNaN(d));
+      if (allDates.length > 0) {
+        const maxDate = new Date(Math.max(...allDates));
+        setLastUpdated(maxDate);
+      } else {
+        setLastUpdated(new Date());
+      }
+      
       setLoading(false);
     }).catch(err => {
       console.error(err);
@@ -865,7 +875,7 @@ export default function App() {
             <p className="text-[10px] font-black text-[#c88214] uppercase tracking-[0.2em]">Tournament Performance Dashboard</p>
             {lastUpdated && (
               <p className="text-[9px] font-bold text-[#6fa89f] mt-1 uppercase tracking-wider opacity-80">
-                Last Updated: {lastUpdated.toLocaleString('en-US', { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' })}
+                Data up to: {lastUpdated.toLocaleDateString('en-US', { year: 'numeric', month: 'short', day: 'numeric' })}
               </p>
             )}
           </div>
