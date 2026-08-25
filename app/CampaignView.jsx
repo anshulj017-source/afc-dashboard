@@ -238,7 +238,7 @@ export default function CampaignView({ adData, plannedData = [], exRate = 1, exS
   return (
     <div className="flex flex-col gap-8 w-full max-w-7xl mx-auto">
       {/* Top Controls */}
-      <div className="card-surface backdrop-blur-2xl p-6 rounded-3xl border border-[#c88214]/20 shadow-xl flex flex-col md:flex-row gap-6 items-start md:items-center justify-between">
+      <div className="card-surface backdrop-blur-2xl p-6 rounded-3xl border border-[#c88214]/20 shadow-xl flex flex-col md:flex-row gap-6 items-start md:items-center justify-between export-slide" data-title="Tournament Top Stats">
         <div className="flex-1 w-full md:w-auto">
           <label className="text-[10px] font-black text-[#6fa89f] uppercase tracking-widest mb-2 block flex items-center gap-2">
             <Layers size={14} /> Selected Tournament
@@ -298,7 +298,7 @@ export default function CampaignView({ adData, plannedData = [], exRate = 1, exS
 
       {/* Timeline Gantt Chart */}
       {selectedCampaign && selectedPhases.length > 0 && timeScale && (
-        <div className="card-surface backdrop-blur-2xl p-8 rounded-3xl border border-[#c88214]/20 shadow-xl overflow-hidden relative">
+        <div className="card-surface backdrop-blur-2xl p-8 rounded-3xl border border-[#c88214]/20 shadow-xl overflow-hidden relative export-slide" data-title="Tournament Timeline">
           <div className="flex justify-between items-center mb-10">
             <h3 className="text-xl font-black text-[#eef7f5] flex items-center gap-3">
               <Calendar className="text-[#c88214]" /> Tournament Timeline
@@ -426,7 +426,7 @@ export default function CampaignView({ adData, plannedData = [], exRate = 1, exS
 
       {/* Metrics Table */}
       {selectedCampaign && (tableData.length > 0 || plannedTableData.length > 0) && (
-        <div className="card-surface backdrop-blur-2xl p-8 rounded-3xl border border-[#c88214]/20 shadow-xl overflow-hidden">
+        <div className="card-surface backdrop-blur-2xl p-8 rounded-3xl border border-[#c88214]/20 shadow-xl overflow-hidden export-slide" data-title="Planned vs Delivered">
           <div className="flex justify-between items-center mb-6">
             <h3 className="text-xl font-black text-[#eef7f5] flex items-center gap-3">
               <Activity className="text-[#c88214]" /> Performance Metrics Breakdown

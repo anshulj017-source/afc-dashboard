@@ -320,7 +320,7 @@ export default function MarketView({ adData, gaData, exRate = 1, exSym = '$', fo
       )}
 
       {/* MARKET SELECTION GRID */}
-      <div className={`card-surface backdrop-blur-2xl border border-[#c88214]/20 rounded-3xl p-6 md:p-8 transition-all ${selectedMarkets.length > 0 ? 'mt-0' : ''}`}>
+      <div className={`card-surface backdrop-blur-2xl border border-[#c88214]/20 rounded-3xl p-6 md:p-8 transition-all ${selectedMarkets.length > 0 ? 'mt-0' : ''} export-slide`} data-title="Market Top Stats">
         <div className="flex flex-col md:flex-row md:items-center justify-between mb-6 gap-4">
           <div>
             <h3 className="text-xl font-black text-white">Compare Markets</h3>
@@ -377,7 +377,7 @@ export default function MarketView({ adData, gaData, exRate = 1, exSym = '$', fo
         <div className="space-y-6 animate-[fadeIn_0.4s_ease-out]">
           
           {/* KPI MATRIX */}
-          <div className="card-surface backdrop-blur-2xl border border-[#c88214]/20 rounded-3xl p-6 overflow-hidden">
+          <div className="card-surface backdrop-blur-2xl border border-[#c88214]/20 rounded-3xl p-6 overflow-hidden export-slide" data-title="Top Performing Markets">
              <h3 className="text-lg font-black text-white mb-6">Market Performance Matrix</h3>
              <div className="overflow-x-auto">
                 <table className="w-full text-left border-collapse whitespace-nowrap">
@@ -416,7 +416,7 @@ export default function MarketView({ adData, gaData, exRate = 1, exSym = '$', fo
           <div className="grid grid-cols-1 xl:grid-cols-2 gap-6">
             
             {/* TREND CHART */}
-            <div className="card-surface backdrop-blur-2xl border border-[#c88214]/20 rounded-3xl p-6">
+            <div className="card-surface backdrop-blur-2xl border border-[#c88214]/20 rounded-3xl p-6 export-slide" data-title="Comparison Trend">
               <div className="flex items-center justify-between mb-6">
                 <h3 className="text-lg font-black text-white flex items-center gap-2">
                   <TrendingUp className="text-[#c88214] w-5 h-5" /> Comparison Trend
@@ -450,7 +450,7 @@ export default function MarketView({ adData, gaData, exRate = 1, exSym = '$', fo
             </div>
 
             {/* TOURNAMENT BREAKDOWN CHART */}
-            <div className="card-surface backdrop-blur-2xl border border-[#c88214]/20 rounded-3xl p-6">
+            <div className="card-surface backdrop-blur-2xl border border-[#c88214]/20 rounded-3xl p-6 export-slide" data-title="Market Channels">
               <h3 className="text-lg font-black text-white mb-6 flex items-center gap-2">
                 <BarChart3 className="text-[#c88214] w-5 h-5" /> Top Tournaments Across Markets
                 <InfoTooltip definition="Definition for Top Tournaments Across Markets" />
@@ -476,7 +476,7 @@ export default function MarketView({ adData, gaData, exRate = 1, exSym = '$', fo
             </div>
             
             {/* CHANNEL BREAKDOWN CHART */}
-            <div className="card-surface backdrop-blur-2xl border border-[#c88214]/20 rounded-3xl p-6 xl:col-span-2">
+            <div className="card-surface backdrop-blur-2xl border border-[#c88214]/20 rounded-3xl p-6 xl:col-span-2 export-slide" data-title="Top Tournaments Across Markets">
               <h3 className="text-lg font-black text-white mb-6 flex items-center gap-2">
                 <BarChart3 className="text-[#c88214] w-5 h-5" /> Top Channels Across Markets
               </h3>
@@ -502,7 +502,7 @@ export default function MarketView({ adData, gaData, exRate = 1, exSym = '$', fo
           </div>
           
           {/* TOURNAMENT DATA TABLE */}
-          <div className="card-surface backdrop-blur-2xl border border-[#c88214]/20 rounded-3xl p-6 overflow-hidden">
+          <div className="card-surface backdrop-blur-2xl border border-[#c88214]/20 rounded-3xl p-6 overflow-hidden export-slide" data-title="Detailed Market Metrics">
              <div className="flex flex-col md:flex-row items-start md:items-center justify-between mb-6 gap-4">
                <h3 className="text-lg font-black text-white flex items-center gap-2">Detailed Tournament Metrics <InfoTooltip definition="Definition for Detailed Tournament Metrics" /></h3>
                <div className="flex flex-wrap gap-2">

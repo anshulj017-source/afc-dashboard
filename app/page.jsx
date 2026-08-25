@@ -209,6 +209,7 @@ export default function App() {
   const [loading, setLoading] = useState(true);
   const [lastUpdated, setLastUpdated] = useState(null);
   const [activeTab, setActiveTab] = useState('summary');
+  const [isGenerating, setIsGenerating] = useState(false);
   
   // State: Global Filters
   const [dateRange, setDateRange] = useState({ start: '', end: '' });
@@ -572,11 +573,106 @@ export default function App() {
 
   // Removed unused getTotals
 
+  const generatePpt = async () => {
+      if (isGenerating) return;
+      setIsGenerating(true);
+      try {
+          if (!window.PptxGenJS) {
+              await new Promise((resolve, reject) => {
+                  const script = document.createElement('script');
+                  script.src = 'https://cdn.jsdelivr.net/npm/pptxgenjs@4.0.1/dist/pptxgen.bundle.js';
+                  script.onload = resolve;
+                  script.onerror = reject;
+                  document.head.appendChild(script);
+              });
+          }
+          if (!window.htmlToImage) {
+              await new Promise((resolve, reject) => {
+                  const script = document.createElement('script');
+                  script.src = 'https://cdn.jsdelivr.net/npm/html-to-image@1.11.11/dist/html-to-image.js';
+                  script.onload = resolve;
+                  script.onerror = reject;
+                  document.head.appendChild(script);
+              });
+          }
+          
+          let pres = new window.PptxGenJS();
+          
+          pres.defineSlideMaster({
+            title: "MASTER_SLIDE",
+            background: { color: "0C272D" },
+            objects: [
+              { image: { x: 8.8, y: 0.2, w: 0.65, h: 0.75, path: window.location.origin + "/loc-logo/Saudi 2027-10.png", sizing: { type: "contain" } } }
+            ]
+          });
+
+          const mainScroll = document.querySelector('main');
+          
+          const addSnapshotSlide = async (element, title) => {
+             if (element) {
+                try {
+                   if (mainScroll) {
+                      mainScroll.scrollTop = element.offsetTop - 150;
+                   } else {
+                      element.scrollIntoView({ behavior: 'instant', block: 'center' });
+                   }
+                   await new Promise(r => setTimeout(r, 200));
+                   const imgData = await window.htmlToImage.toPng(element, { 
+                       backgroundColor: '#0C272D',
+                       pixelRatio: 2
+                   });
+                   let slide = pres.addSlide({ masterName: "MASTER_SLIDE" });
+                   slide.addText(title, { x: 0.5, y: 0.3, w: "90%", h: 0.5, fontSize: 20, bold: true, color: "74FA93" });
+                   const img = new Image();
+                   img.src = imgData;
+                   await new Promise(r => img.onload = r);
+                   const imgRatio = img.width / img.height;
+                   let w = 9;
+                   let h = w / imgRatio;
+                   if (h > 4.5) {
+                      h = 4.5;
+                      w = h * imgRatio;
+                   }
+                   slide.addImage({ data: imgData, x: 0.5, y: 0.9, w: w, h: h });
+                } catch (captureErr) {
+                   console.error(`Error capturing snapshot for ${title}:`, captureErr);
+                   let errMsg = captureErr.message || captureErr.toString() || "Unknown Error";
+                   let slide = pres.addSlide({ masterName: "MASTER_SLIDE" });
+                   slide.addText(`${title}\n(Snapshot Capture Failed)\n${errMsg}`, { x: 0.5, y: 2, w: "90%", h: 2, fontSize: 16, bold: true, color: "EF476F", align: 'center' });
+                }
+             }
+          };
+
+          let slide = pres.addSlide({ masterName: "MASTER_SLIDE" });
+          slide.addText("Dashboard Snapshot Report", { x: 0.5, y: 2, w: "90%", h: 1, fontSize: 36, bold: true, color: "FFFFFF", align: 'center' });
+          
+          let durationStr = (dateRange && dateRange.start && dateRange.end) ? `${dateRange.start} to ${dateRange.end}` : 'All Time';
+          let tourneyStr = (filterCampaigns && filterCampaigns.length > 0 && !filterCampaigns.includes('All')) ? filterCampaigns.join(', ') : 'All Tournaments';
+          
+          let filterText = `Duration: ${durationStr}\nTournament: ${tourneyStr}`;
+          slide.addText(filterText, { x: 0.5, y: 3.5, w: "90%", h: 2, fontSize: 14, color: "CBBB9D", align: 'center', valign: 'top' });
+
+          const slides = document.querySelectorAll('.export-slide');
+          for (let i = 0; i < slides.length; i++) {
+             const title = slides[i].getAttribute('data-title') || `Slide ${i + 1}`;
+             await addSnapshotSlide(slides[i], title);
+          }
+
+          if (mainScroll) mainScroll.scrollTo({ top: 0, behavior: 'smooth' });
+
+          await pres.writeFile({ fileName: `AFC_Dashboard_Snapshot_${new Date().getTime()}.pptx` });
+      } catch (err) {
+          console.error("PPTX Error", err);
+          alert("Error generating PPTX: " + (err.message || err.toString()));
+      }
+      setIsGenerating(false);
+  };
+
   const renderContent = () => {
     if (activeTab === 'summary') {
       return (
         <div className="space-y-8">
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 export-slide" data-title="Summary Metrics">
             {userRole !== 'non-finance' && (
               <MetricCard definition="The total amount of money spent on advertising campaigns across all channels." label="Total Spend" value={`${exSym}${formatShort(agg.cost * exRate)}`} color="text-white" icon={DollarSign} />
             )}
@@ -591,7 +687,7 @@ export default function App() {
           
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-8 mb-8">
              {/* Chart 1: Monthly Spend vs Impressions */}
-             <div className="card-surface backdrop-blur-2xl p-6 rounded-3xl border border-[#c88214]/20 shadow-xl h-[400px]">
+             <div className="card-surface backdrop-blur-2xl p-6 rounded-3xl border border-[#c88214]/20 shadow-xl h-[400px] export-slide" data-title="Monthly Trend">
                 <h3 className="text-[#eef7f5] font-black mb-4 flex items-center gap-2">
                   {userRole === 'non-finance' ? 'Monthly Clicks vs Impressions' : 'Monthly Spend vs Impressions'} 
                   <InfoTooltip definition={userRole === 'non-finance' ? "A trend analysis comparing clicks against impressions generated over time." : "A trend analysis comparing the total advertising spend against the number of impressions generated over time."} />
@@ -624,7 +720,7 @@ export default function App() {
              </div>
              
              {/* Chart 2: Performance by Channel */}
-             <div className="card-surface backdrop-blur-2xl p-6 rounded-3xl border border-[#c88214]/20 shadow-xl h-[400px] flex flex-col">
+             <div className="card-surface backdrop-blur-2xl p-6 rounded-3xl border border-[#c88214]/20 shadow-xl h-[400px] flex flex-col export-slide" data-title="Channel Performance">
                 <div className="flex justify-between items-start mb-4">
                   <h3 className="text-[#eef7f5] font-black flex items-center gap-2">{perfMetric} by Channel <InfoTooltip definition="A breakdown of key performance indicators (like CPM, CPC, CTR) segmented by the advertising channel." /></h3>
                   <div className="flex gap-2">
@@ -670,7 +766,7 @@ export default function App() {
           </div>
 
           {/* Chart 3: Top Countries Web Traffic (Full Width) */}
-          <div className="card-surface backdrop-blur-2xl p-6 rounded-3xl border border-[#c88214]/20 shadow-xl h-[400px] mb-8 flex flex-col">
+          <div className="card-surface backdrop-blur-2xl p-6 rounded-3xl border border-[#c88214]/20 shadow-xl h-[400px] mb-8 flex flex-col export-slide" data-title="Web Traffic by Country">
             <div className="flex justify-between items-start mb-4">
               <h3 className="text-[#eef7f5] font-black flex items-center gap-2">Top Countries by Web Traffic <InfoTooltip definition="A geographical representation showing which countries generate the highest volume of web traffic." /></h3>
               <div className="flex bg-[#011414] p-1 rounded-lg border border-[#c88214]/20">
@@ -929,6 +1025,16 @@ export default function App() {
                    <button onClick={() => setCurrency('SAR')} className={`px-2.5 py-1 text-xs font-bold rounded-md transition-colors ${currency === 'SAR' ? 'gradient-gold text-[#043e3f]' : 'text-slate-400 hover:text-white'}`}>SAR</button>
                  </div>
                </div>
+             )}
+             {(dateRange.start || dateRange.end) && activeTab !== 'summary' && (
+               <button 
+                 onClick={generatePpt}
+                 disabled={isGenerating}
+                 title="Export Dashboard to PPTX"
+                 className="p-1.5 bg-[#74FA93]/10 border border-[#74FA93]/30 text-[#74FA93] rounded-lg hover:bg-[#74FA93]/20 hover:text-white transition-colors flex items-center justify-center disabled:opacity-50"
+               >
+                 {isGenerating ? <RefreshCw className="w-3.5 h-3.5 animate-spin" /> : <Download className="w-3.5 h-3.5"/>}
+               </button>
              )}
              <button onClick={resetFilters} className="px-3 py-1.5 bg-[#c88214]/10 border border-[#c88214]/50 text-[#c88214] text-[10px] uppercase font-black rounded-lg hover:bg-[#c88214]/20 hover:text-white transition-colors flex items-center justify-center gap-1"><RefreshCw className="w-3 h-3"/> Reset</button>
              <button onClick={handleSignOut} className="px-3 py-1.5 bg-red-500/10 border border-red-500/30 text-red-400 text-[10px] uppercase font-black rounded-lg hover:bg-red-500/20 hover:text-red-300 transition-colors flex items-center justify-center gap-1">Sign Out</button>

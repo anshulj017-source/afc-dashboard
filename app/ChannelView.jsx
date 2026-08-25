@@ -241,7 +241,7 @@ export default function ChannelView({ adData, exRate = 1, exSym = '$', formatSho
       )}
 
       {/* CHANNEL SELECTION GRID */}
-      <div className={`card-surface backdrop-blur-2xl border border-[#c88214]/20 rounded-3xl p-6 md:p-8 transition-all ${selectedChannels.length > 0 ? 'mt-0' : ''}`}>
+      <div className={`card-surface backdrop-blur-2xl border border-[#c88214]/20 rounded-3xl p-6 md:p-8 transition-all ${selectedChannels.length > 0 ? 'mt-0' : ''} export-slide`} data-title="Channel Top Stats">
         <div className="flex flex-col md:flex-row md:items-center justify-between mb-6 gap-4">
           <div>
             <h3 className="text-xl font-black text-white">Compare Channels</h3>
@@ -291,7 +291,7 @@ export default function ChannelView({ adData, exRate = 1, exSym = '$', formatSho
         <div className="space-y-6 animate-[fadeIn_0.4s_ease-out]">
           
           {/* KPI MATRIX */}
-          <div className="card-surface backdrop-blur-2xl border border-[#c88214]/20 rounded-3xl p-6 overflow-hidden">
+          <div className="card-surface backdrop-blur-2xl border border-[#c88214]/20 rounded-3xl p-6 overflow-hidden export-slide" data-title="Top Performing Campaigns">
              <h3 className="text-lg font-black text-white mb-6">Channel Performance Matrix</h3>
              <div className="overflow-x-auto">
                 <table className="w-full text-left border-collapse whitespace-nowrap">
@@ -329,7 +329,7 @@ export default function ChannelView({ adData, exRate = 1, exSym = '$', formatSho
           <div className="grid grid-cols-1 xl:grid-cols-2 gap-6">
             
             {/* TREND CHART */}
-            <div className="card-surface backdrop-blur-2xl border border-[#c88214]/20 rounded-3xl p-6">
+            <div className="card-surface backdrop-blur-2xl border border-[#c88214]/20 rounded-3xl p-6 export-slide" data-title="Ad Format Performance">
               <div className="flex items-center justify-between mb-6">
                 <h3 className="text-lg font-black text-white flex items-center gap-2">
                   <TrendingUp className="text-[#c88214] w-5 h-5" /> Comparison Trend
@@ -363,7 +363,7 @@ export default function ChannelView({ adData, exRate = 1, exSym = '$', formatSho
             </div>
 
             {/* TOURNAMENT BREAKDOWN CHART */}
-            <div className="card-surface backdrop-blur-2xl border border-[#c88214]/20 rounded-3xl p-6">
+            <div className="card-surface backdrop-blur-2xl border border-[#c88214]/20 rounded-3xl p-6 export-slide" data-title="Buying Type Performance">
               <h3 className="text-lg font-black text-white mb-6 flex items-center gap-2">
                 <BarChart3 className="text-[#c88214] w-5 h-5" /> Top Tournaments Across Channels
                 <InfoTooltip definition="Definition for Top Tournaments" />
@@ -390,7 +390,7 @@ export default function ChannelView({ adData, exRate = 1, exSym = '$', formatSho
           </div>
           
           {/* TOURNAMENT DATA TABLE */}
-          <div className="card-surface backdrop-blur-2xl border border-[#c88214]/20 rounded-3xl p-6 overflow-hidden">
+          <div className="card-surface backdrop-blur-2xl border border-[#c88214]/20 rounded-3xl p-6 overflow-hidden export-slide" data-title="Detailed Channel Metrics">
              <div className="flex flex-col md:flex-row items-start md:items-center justify-between mb-6 gap-4">
                <h3 className="text-lg font-black text-white flex items-center gap-2">Detailed Tournament Metrics <InfoTooltip definition="Definition for Detailed Tournament Metrics" /></h3>
                <div className="flex flex-wrap gap-2">

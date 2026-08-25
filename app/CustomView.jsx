@@ -112,13 +112,8 @@ const MultiSelectDropdown = ({ label, options, selected, onChange, className = "
 
 export default function CustomView({ adData = [], exRate = 1, exSym = "$", formatShort = (v)=>v, filterCampaigns = [], filterMarkets = [], dateRange = {start:'', end:''}, userRole = 'admin' }) {
   
-  const [isGenerating, setIsGenerating] = useState(false);
   const hasMarketFilter = filterMarkets && filterMarkets.length > 0 && !filterMarkets.includes('All');
-  
-  const kpiRef = useRef(null);
-  const chartsRef = useRef(null);
-  const marketChartsRef = useRef(null);
-  const tableRef = useRef(null);
+
   
   // Data enrichment (Add Week)
   const enrichedData = useMemo(() => {
@@ -159,25 +154,6 @@ export default function CustomView({ adData = [], exRate = 1, exSym = "$", forma
       }
   }, [filteredData, exRate]);
 
-  // KPI Tracking State
-  const kpiStorageKey = `kpi_afc_tracker`;
-  const [kpi, setKpi] = useState({ isOpen: false, isSet: false, budget: '', impressions: '', clicks: '', views: '' });
-
-  // Load KPI goals 
-  useEffect(() => {
-    const saved = sessionStorage.getItem(kpiStorageKey);
-    if (saved) {
-        try { 
-          setKpi(JSON.parse(saved)); 
-        } catch(e){}
-    }
-  }, [kpiStorageKey]);
-
-  useEffect(() => {
-    if(kpi.isOpen || kpi.isSet) {
-       sessionStorage.setItem(kpiStorageKey, JSON.stringify(kpi));
-    }
-  }, [kpi, kpiStorageKey]);
 
   // Trend Data for Line Chart
   const trendData = useMemo(() => {
@@ -308,181 +284,6 @@ export default function CustomView({ adData = [], exRate = 1, exSym = "$", forma
       });
   }, [filteredData, filterCampaigns, fChannels, hasMarketFilter]);
 
-  const generatePpt = async () => {
-      if (isGenerating) return;
-      setIsGenerating(true);
-      try {
-          if (!window.PptxGenJS) {
-              await new Promise((resolve, reject) => {
-                  const script = document.createElement('script');
-                  script.src = 'https://cdn.jsdelivr.net/npm/pptxgenjs@4.0.1/dist/pptxgen.bundle.js';
-                  script.onload = resolve;
-                  script.onerror = reject;
-                  document.head.appendChild(script);
-              });
-          }
-          if (!window.domtoimage) {
-              await new Promise((resolve, reject) => {
-                  const script = document.createElement('script');
-                  script.src = 'https://cdn.jsdelivr.net/npm/dom-to-image-more@3.10.2/dist/dom-to-image-more.min.js';
-                  script.onload = resolve;
-                  script.onerror = reject;
-                  document.head.appendChild(script);
-              });
-          }
-          
-          let pres = new window.PptxGenJS();
-          
-          pres.defineSlideMaster({
-            title: "MASTER_SLIDE",
-            background: { color: "0C272D" },
-            objects: [
-              { image: { x: 8.8, y: 0.2, w: 0.65, h: 0.75, path: window.location.origin + "/loc-logo/Saudi 2027-10.png", sizing: { type: "contain" } } }
-            ]
-          });
-
-          // Helper to capture DOM and add as slide
-          const addSnapshotSlide = async (ref, title) => {
-             if (ref && ref.current) {
-                try {
-                   // dom-to-image-more is much more robust for SVGs and modern CSS
-                   const imgData = await window.domtoimage.toPng(ref.current, { bgcolor: '#0C272D', scale: 2 });
-                   
-                   let slide = pres.addSlide({ masterName: "MASTER_SLIDE" });
-                   slide.addText(title, { x: 0.5, y: 0.3, w: "90%", h: 0.5, fontSize: 20, bold: true, color: "74FA93" });
-                   
-                   // Load image to get dimensions
-                   const img = new Image();
-                   img.src = imgData;
-                   await new Promise(r => img.onload = r);
-                   
-                   const imgRatio = img.width / img.height;
-                   let w = 9;
-                   let h = w / imgRatio;
-                   if (h > 4.5) {
-                      h = 4.5;
-                      w = h * imgRatio;
-                   }
-                   
-                   slide.addImage({ data: imgData, x: 0.5, y: 0.9, w: w, h: h });
-                } catch (captureErr) {
-                   console.error(`Error capturing snapshot for ${title}:`, captureErr);
-                   let errMsg = captureErr.message || captureErr.toString() || "Unknown Error";
-                   let slide = pres.addSlide({ masterName: "MASTER_SLIDE" });
-                   slide.addText(`${title}\n(Snapshot Capture Failed)\n${errMsg}`, { x: 0.5, y: 2, w: "90%", h: 2, fontSize: 16, bold: true, color: "EF476F", align: 'center' });
-                }
-             }
-          };
-
-          // Slide 1: Title
-          let slide = pres.addSlide({ masterName: "MASTER_SLIDE" });
-          slide.addText("Dashboard Snapshot Report", { x: 0.5, y: 2, w: "90%", h: 1, fontSize: 36, bold: true, color: "FFFFFF", align: 'center' });
-          
-          let durationStr = (dateRange && dateRange.start && dateRange.end) ? `${dateRange.start} to ${dateRange.end}` : 'All Time';
-          let tourneyStr = (filterCampaigns && filterCampaigns.length > 0 && !filterCampaigns.includes('All')) ? filterCampaigns.join(', ') : 'All Tournaments';
-          
-          let filterText = `Duration: ${durationStr}\nTournament: ${tourneyStr}`;
-          slide.addText(filterText, { x: 0.5, y: 3.5, w: "90%", h: 2, fontSize: 14, color: "CBBB9D", align: 'center', valign: 'top' });
-
-          // DOM Snapshots
-          if (kpi.isSet) {
-              await addSnapshotSlide(kpiRef, "KPI Goal Pacing");
-          }
-          await addSnapshotSlide(chartsRef, "Performance & Channel Mix");
-          if (hasMarketFilter) {
-              await addSnapshotSlide(marketChartsRef, "Market Performance & Mix");
-          }
-          await addSnapshotSlide(tableRef, "Data Breakdown");
-
-          await pres.writeFile({ fileName: `AFC_Dashboard_Snapshot_${new Date().getTime()}.pptx` });
-      } catch (err) {
-          console.error("PPTX Error", err);
-          alert("Error generating PPTX: " + (err.message || err.toString()));
-      }
-      setIsGenerating(false);
-  };
-
-  const renderKpiTracker = () => {
-    const hasCampaign = filterCampaigns.length > 0 && !filterCampaigns.includes('All');
-    const hasDate = (dateRange.start && dateRange.end) || fWeeks.length > 0;
-    const canSetKpi = hasCampaign && hasDate;
-
-    if (!canSetKpi) {
-      return (
-        <div className="mb-8 w-full border border-dashed border-[#c88214]/20 rounded-[2rem] p-8 text-[#6fa89f]/50 flex items-center justify-center gap-3 font-bold text-sm card-surface backdrop-blur-2xl/50 cursor-not-allowed">
-          <Target className="w-5 h-5 opacity-50" /> KPI Tracker (Requires at least one Campaign AND a Date Range or Week filter to activate)
-        </div>
-      );
-    }
-
-    if (kpi.isOpen && !kpi.isSet) {
-      return (
-        <div className="mb-8 card-surface backdrop-blur-2xl p-8 rounded-[2rem] border border-[#c88214]/30 shadow-xl relative overflow-hidden animate-in fade-in slide-in-from-top-4">
-           <div className="absolute top-0 right-0 w-32 h-32 bg-[#c88214]/10 rounded-full blur-3xl"></div>
-           <div className="flex justify-between items-center mb-6 relative z-10">
-             <h4 className="text-sm font-black text-white uppercase tracking-widest flex items-center gap-2">
-               <Target className="w-4 h-4 text-[#c88214]" /> Configure KPI Targets
-             </h4>
-             <button onClick={() => setKpi({...kpi, isOpen: false})} className="text-[#6fa89f] hover:text-white"><Zap className="w-4 h-4 rotate-45"/></button>
-           </div>
-           <div className="grid grid-cols-2 md:grid-cols-4 gap-4 relative z-10">
-              <input type="number" placeholder={`Budget (${exSym})`} value={kpi.budget} onChange={e=>setKpi({...kpi, budget: e.target.value})} className="w-full text-xs font-bold text-white bg-[#011414] border border-[#c88214]/20 rounded-xl px-4 py-3 outline-none focus:border-[#c88214]" />
-              <input type="number" placeholder="Target Impressions" value={kpi.impressions} onChange={e=>setKpi({...kpi, impressions: e.target.value})} className="w-full text-xs font-bold text-white bg-[#011414] border border-[#c88214]/20 rounded-xl px-4 py-3 outline-none focus:border-[#c88214]" />
-              <input type="number" placeholder="Target Clicks" value={kpi.clicks} onChange={e=>setKpi({...kpi, clicks: e.target.value})} className="w-full text-xs font-bold text-white bg-[#011414] border border-[#c88214]/20 rounded-xl px-4 py-3 outline-none focus:border-[#c88214]" />
-              <input type="number" placeholder="Target Views" value={kpi.views} onChange={e=>setKpi({...kpi, views: e.target.value})} className="w-full text-xs font-bold text-white bg-[#011414] border border-[#c88214]/20 rounded-xl px-4 py-3 outline-none focus:border-[#c88214]" />
-           </div>
-           <button onClick={() => setKpi({...kpi, isSet: true, isOpen: false})} className="mt-6 w-full bg-[#74FA93] text-[#0C272D] rounded-xl py-3 font-black text-sm shadow-lg shadow-[#74FA93]/20 transition-all hover:scale-[1.01] relative z-10">Track Pacing Against Live Data</button>
-        </div>
-      );
-    }
-
-    if (kpi.isSet) {
-      const bPct = Math.min((actuals.spend / (parseFloat(kpi.budget) || 1)) * 100, 100);
-      const impPct = Math.min((actuals.impressions / (parseFloat(kpi.impressions) || 1)) * 100, 100);
-      const clkPct = Math.min((actuals.clicks / (parseFloat(kpi.clicks) || 1)) * 100, 100);
-      const viewPct = Math.min((actuals.views / (parseFloat(kpi.views) || 1)) * 100, 100);
-
-      const ProgressBar = ({ label, actual, target, pct, isCurr, color = "bg-[#74FA93]" }) => (
-        <div>
-          <div className="flex justify-between items-end text-xs font-bold text-[#6fa89f] mb-2">
-            <span>{label}</span>
-            <span className="text-white text-right">
-              Delivered: {isCurr ? `${exSym}${formatShort(actual)}` : formatShort(actual)} <span className={color.replace('bg-','text-')}>({pct.toFixed(1)}%)</span><br/>
-              <span className="text-[10px] text-white/50 font-medium">Target: {isCurr ? `${exSym}${formatShort(target)}` : formatShort(target)}</span>
-            </span>
-          </div>
-          <div className="h-2 bg-[#011414] rounded-full overflow-hidden border border-[#c88214]/10">
-            <div className={`h-full ${color} rounded-full relative`} style={{ width: `${pct}%` }}>
-              <div className="absolute inset-0 bg-white/20 w-full animate-[shimmer_2s_infinite]"></div>
-            </div>
-          </div>
-        </div>
-      );
-
-      return (
-        <div ref={kpiRef} className="mb-8 card-surface backdrop-blur-2xl p-8 rounded-[2rem] border border-[#c88214]/30 shadow-xl animate-in fade-in">
-           <div className="flex justify-between items-center mb-6">
-             <h4 className="text-sm font-black text-white uppercase tracking-widest flex items-center gap-2">
-               <Target className="w-4 h-4 text-[#c88214]" /> Goal Pacing Tracker
-             </h4>
-             <button onClick={() => setKpi({...kpi, isSet: false, isOpen: true})} className="text-xs font-black uppercase tracking-widest text-[#c88214] hover:text-white">Edit Goals</button>
-           </div>
-           <div className="grid grid-cols-1 md:grid-cols-2 gap-x-8 gap-y-6">
-              {userRole !== 'non-finance' && <ProgressBar label="Budget Delivery" actual={actuals.spend} target={kpi.budget} pct={bPct} isCurr color="bg-[#74FA93]" />}
-              <ProgressBar label="Impressions Generated" actual={actuals.impressions} target={kpi.impressions} pct={impPct} color="bg-[#6fa89f]" />
-              <ProgressBar label="Clicks Generated" actual={actuals.clicks} target={kpi.clicks} pct={clkPct} color="bg-[#c88214]" />
-              <ProgressBar label="Video Views" actual={actuals.views} target={kpi.views} pct={viewPct} color="bg-[#007542]" />
-           </div>
-        </div>
-      );
-    }
-
-    return (
-      <button onClick={() => setKpi({...kpi, isOpen: true})} className="mb-8 w-full border border-dashed border-[#c88214]/30 rounded-[2rem] p-6 text-[#c88214] hover:text-white hover:border-[#c88214]/80 hover:bg-[#74FA93]/5 transition-all flex items-center justify-center gap-3 font-bold text-sm">
-        <Target className="w-5 h-5 text-[#c88214]" /> Set Campaign Goal & KPI Pacing Tracker
-      </button>
-    );
-  };
 
 
   return (
@@ -501,23 +302,13 @@ export default function CustomView({ adData = [], exRate = 1, exSym = "$", forma
         <div className="flex flex-wrap gap-4 items-end w-full xl:w-auto relative z-40">
            <MultiSelectDropdown label="Week" options={optWeeks} selected={fWeeks} onChange={setFWeeks} />
            <MultiSelectDropdown label="Channel" options={optChannels} selected={fChannels} onChange={setFChannels} />
-           
-           <button 
-             onClick={generatePpt}
-             disabled={isGenerating}
-             className="bg-gradient-to-r from-[#74FA93] to-[#45d468] hover:scale-[1.02] text-[#0C272D] font-black px-8 py-3.5 rounded-xl flex items-center gap-2 transition-all ml-auto shadow-[0_0_20px_rgba(116,250,147,0.3)] disabled:opacity-50 disabled:scale-100"
-           >
-              {isGenerating ? 'Capturing...' : <><Download className="w-5 h-5" /> Export PPTX</>}
-           </button>
         </div>
       </div>
-
-      {renderKpiTracker()}
 
       {/* DYNAMIC CHARTS */}
       {filteredData.length > 0 ? (
          <>
-           <div ref={chartsRef}>
+           <div className="export-slide" data-title="Performance & Channel Mix">
              <div className={`grid grid-cols-2 md:grid-cols-${userRole === 'non-finance' ? '3' : '4'} gap-6 mb-8`}>
               {userRole !== 'non-finance' && <MetricCard label="Total Spend" value={`${exSym}${formatShort(actuals.spend)}`} />}
               <MetricCard label="Impressions" value={formatShort(actuals.impressions)} color="text-[#6fa89f]" />
@@ -572,7 +363,7 @@ export default function CustomView({ adData = [], exRate = 1, exSym = "$", forma
 
            {/* MARKET CHARTS */}
            {hasMarketFilter && (
-             <div ref={marketChartsRef} className="grid grid-cols-1 xl:grid-cols-3 gap-6 mb-8 mt-8">
+             <div className="grid grid-cols-1 xl:grid-cols-3 gap-6 mb-8 mt-8 export-slide" data-title="Market Performance & Mix">
                 <div className="card-surface backdrop-blur-2xl/80 backdrop-blur-xl border border-[#c88214]/10 rounded-[2rem] p-8 xl:col-span-2 shadow-xl">
                    <h3 className="text-lg font-black text-white mb-8 flex items-center gap-2 uppercase tracking-widest text-sm">
                      <TrendingUp className="text-[#c88214] w-5 h-5" /> Market Performance Trend
@@ -628,7 +419,7 @@ export default function CustomView({ adData = [], exRate = 1, exSym = "$", forma
            )}
 
            {/* Data Table */}
-           <div ref={tableRef} className="card-surface backdrop-blur-2xl/80 backdrop-blur-xl border border-[#c88214]/10 rounded-[2rem] p-8 shadow-xl overflow-x-auto custom-scrollbar">
+           <div className="card-surface backdrop-blur-2xl/80 backdrop-blur-xl border border-[#c88214]/10 rounded-[2rem] p-8 shadow-xl overflow-x-auto custom-scrollbar export-slide" data-title="Data Breakdown">
               <div className="flex flex-col md:flex-row justify-between md:items-center mb-6 gap-4">
                  <h3 className="text-lg font-black text-white flex items-center gap-2 uppercase tracking-widest text-sm">
                     <TableProperties className="text-[#c88214] w-5 h-5" /> Data Breakdown

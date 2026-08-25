@@ -136,7 +136,7 @@ export default function CreativeView({ data, exRate = 1, exSym = '$', formatShor
       </div>
       
       {/* TOP 10 SUMMARY GRAPHS */}
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 mb-8">
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 mb-8 export-slide" data-title="Creative Overview">
          <div className="card-surface backdrop-blur-2xl rounded-2xl border border-[#c88214]/20 p-6 shadow-xl flex flex-col">
             <h3 className="text-sm font-black text-[#eef7f5] uppercase tracking-widest mb-4 flex items-center gap-2"><BarChart3 className="w-4 h-4 text-[#c88214]"/> Top 10 by CTR</h3>
             <div className="flex-1 space-y-3">
@@ -196,7 +196,7 @@ export default function CreativeView({ data, exRate = 1, exSym = '$', formatShor
          )}
       </div>
 
-      <div className="card-surface backdrop-blur-2xl p-6 rounded-2xl border border-[#c88214]/20 break-inside-avoid mb-8 shadow-lg">
+      <div className="card-surface backdrop-blur-2xl p-6 rounded-2xl border border-[#c88214]/20 break-inside-avoid mb-8 shadow-lg export-slide" data-title="AI Creative Insights">
          <h4 className="text-sm font-black text-[#c88214] uppercase tracking-widest mb-2 flex items-center gap-2"><Zap className="w-4 h-4 text-[#c88214]" /> AI Creative Insights</h4>
          <p className="text-sm text-[#eef7f5] font-medium">{insightText}</p>
       </div>
@@ -267,7 +267,7 @@ export default function CreativeView({ data, exRate = 1, exSym = '$', formatShor
           ))}
         </div>
       ) : (
-        <div className="card-surface backdrop-blur-2xl rounded-3xl border border-[#c88214]/20 overflow-x-auto shadow-xl">
+        <div className="card-surface backdrop-blur-2xl rounded-3xl border border-[#c88214]/20 overflow-x-auto shadow-xl export-slide" data-title="Creative Data Breakdown">
            <table className="w-full text-left border-collapse">
               <thead>
                  <tr className="bg-[#011414] border-b border-[#c88214]/20">
