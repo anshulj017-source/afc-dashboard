@@ -97,7 +97,7 @@ export async function GET(request: Request) {
           // TikTok limits ad_ids filtering. We will chunk them in batches of 50.
           const videoIds: string[] = [];
           const imageIds: string[] = [];
-          const adToMediaMap: Record<string, { type: 'video' | 'image' | 'unknown', id: string, name: string, tiktokItemId?: string }> = {};
+          const adToMediaMap: Record<string, { type: 'video' | 'image' | 'unknown', id: string, name: string, tiktokItemId?: string, status?: string }> = {};
           
           for (let i = 0; i < adIds.length; i += 50) {
             const chunk = adIds.slice(i, i + 50);
@@ -197,12 +197,12 @@ export async function GET(request: Request) {
                    const oRes = await fetch(oembedUrl);
                    const oData = await oRes.json();
                    if (oData && oData.thumbnail_url) {
-                      // Map the thumbnail back
-                      m.id = m.tiktokItemId; // use tiktok item id as the media id
-                      mediaCoverMap[m.tiktokItemId] = { 
+                      const itemId = m.tiktokItemId || '';
+                      m.id = itemId; // use tiktok item id as the media id
+                      mediaCoverMap[itemId] = { 
                          coverUrl: oData.thumbnail_url,
                          // we can't get raw mp4 from oembed, but we can set the tiktok link as postUrl
-                         postUrl: `https://www.tiktok.com/video/${m.tiktokItemId}`
+                         postUrl: `https://www.tiktok.com/video/${itemId}`
                       };
                    }
                 } catch(err) {}
