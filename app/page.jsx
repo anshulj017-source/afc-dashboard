@@ -283,9 +283,11 @@ export default function App() {
           let finalChannel = ch.name;
           if (ch.subCol !== undefined && vals[ch.subCol] && vals[ch.subCol].trim() !== '') {
             const rawSub = vals[ch.subCol].trim();
-            if (rawSub.toLowerCase() === 'youtube') {
+            const lowerSub = rawSub.toLowerCase();
+            const knownMarkets = ['ksa', 'gcc', 'australia', 'jordan', 'vietnam', 'malaysia', 'singapore', 'thailand', 'qatar', 'uae', 'oman', 'bahrain', 'kuwait', 'iraq', 'yemen', 'china', 'japan', 'south korea', 'indonesia'];
+            if (lowerSub === 'youtube') {
               finalChannel = 'YouTube';
-            } else {
+            } else if (!knownMarkets.includes(lowerSub)) {
               finalChannel = rawSub;
             }
           } else if (finalChannel === 'Google') {
@@ -422,6 +424,7 @@ export default function App() {
             cost: parseMetric(row['Cost (USD)']),
             market: row['Country DB'] || 'Unknown',
             language: row['Language DB'] || 'Unknown',
+            status: row['Status'] || row['Ad Delivery'] || row['Operation Status'] || 'Unknown',
             channel: 'Meta'
           };
       });
@@ -461,19 +464,21 @@ export default function App() {
               creativeName: item.adName || 'Unknown',
               adImageUrl: item.thumbnailUrl || '',
               videoUrl: item.videoUrl || '',
+              postUrl: item.postUrl || '',
               impressions: parseMetric(item.metrics?.impressions),
               clicks: parseMetric(item.metrics?.clicks),
               views: parseMetric(item.metrics?.video_play_actions), // Using video_play_actions if available, fallback mapped later if needed
               thruPlays: 0,
-              cost: parseMetric(item.metrics?.spend),
+              cost: parseFloat(item.metrics?.spend) || 0,
               market: 'Unknown',
               language: 'Unknown',
+              status: item.status || 'Unknown',
               channel: 'TikTok'
             };
           });
         })
         .catch(err => {
-          console.error("Failed to fetch TikTok creatives:", err);
+          console.error("Error fetching TikTok creatives:", err);
           return [];
         });
 

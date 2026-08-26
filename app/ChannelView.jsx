@@ -440,6 +440,7 @@ export default function ChannelView({ adData, exRate = 1, exSym = '$', formatSho
                       const tViews6s = d3.sum(campaignBreakdown, d => d.views6s);
                       const tViews15s = d3.sum(campaignBreakdown, d => d.views15s);
                       const tCompletions = d3.sum(campaignBreakdown, d => d.completions);
+                      const tPurchases = d3.sum(campaignBreakdown, d => Number(d.purchases) || 0);
 
                       const totals = {
                         spend: tSpend,
@@ -449,6 +450,7 @@ export default function ChannelView({ adData, exRate = 1, exSym = '$', formatSho
                         views6s: tViews6s,
                         views15s: tViews15s,
                         completions: tCompletions,
+                        purchases: tPurchases,
                         ctr: tImp > 0 ? (tClicks / tImp) * 100 : 0,
                         cpc: tClicks > 0 ? tSpend / tClicks : 0,
                         cpm: tImp > 0 ? (tSpend / tImp) * 1000 : 0,

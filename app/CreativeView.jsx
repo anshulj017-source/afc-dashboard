@@ -66,6 +66,7 @@ export default function CreativeView({ data, exRate = 1, exSym = '$', formatShor
   
   const [filterChannels, setFilterChannels] = useState(['All']);
   const [filterLanguages, setFilterLanguages] = useState(['All']);
+  const [filterStatuses, setFilterStatuses] = useState(['All']);
 
   const uniqueChannels = useMemo(() => Array.from(new Set(data.map(x => x.channel))).filter(Boolean).sort(), [data]);
   const uniqueLanguages = useMemo(() => Array.from(new Set(data.map(x => x.language))).filter(Boolean).sort(), [data]);
@@ -109,8 +110,9 @@ export default function CreativeView({ data, exRate = 1, exSym = '$', formatShor
         cpc,
         cpv,
       };
-    }).sort((a,b) => b.cost - a.cost); // sort by spend
-  }, [data, filterChannels, filterLanguages, exRate]);
+    }).filter(c => filterStatuses.includes('All') || filterStatuses.includes(c.status))
+    .sort((a,b) => b.cost - a.cost); // sort by spend
+  }, [data, filterChannels, filterLanguages, filterStatuses, exRate]);
 
   const topCTR = [...creativeTabData].filter(x => x.impressions > 500).sort((a,b) => b.ctr - a.ctr).slice(0, 10);
   const topCPC = [...creativeTabData].filter(x => x.clicks > 10).sort((a,b) => a.cpc - b.cpc).slice(0, 10); // Lowest CPC
@@ -225,6 +227,7 @@ export default function CreativeView({ data, exRate = 1, exSym = '$', formatShor
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-4 mb-8 border-b border-[#c88214]/20 pb-6">
         <MultiSelectDropdown label="Channel" options={uniqueChannels} selected={filterChannels} onChange={setFilterChannels} />
         <MultiSelectDropdown label="Language" options={uniqueLanguages} selected={filterLanguages} onChange={setFilterLanguages} />
+        <MultiSelectDropdown label="Status" options={['Live', 'Paused']} selected={filterStatuses} onChange={setFilterStatuses} />
       </div>
 
       <div className="flex flex-wrap justify-between items-end gap-4 mb-6 mt-4">
@@ -243,11 +246,29 @@ export default function CreativeView({ data, exRate = 1, exSym = '$', formatShor
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
           {paginatedData.map((c, i) => (
             <div key={i} className="card-surface backdrop-blur-2xl rounded-3xl border border-[#c88214]/20 shadow-xl overflow-hidden group flex flex-col hover:-translate-y-1 transition-transform">
-               <div onClick={(e) => { 
-                  if(c.adImageUrl) window.open(c.adImageUrl, '_blank');
-               }} className={`h-48 bg-[#011414] relative overflow-hidden flex items-center justify-center group-hover:bg-[#1A4D57] transition-colors block ${c.adImageUrl ? 'cursor-pointer' : 'cursor-default'}`}>
+               <div 
+                  onMouseEnter={(e) => {
+                     const vid = e.currentTarget.querySelector('video');
+                     if(vid) { vid.play().catch(()=>{}); }
+                  }}
+                  onMouseLeave={(e) => {
+                     const vid = e.currentTarget.querySelector('video');
+                     if(vid) { vid.pause(); vid.currentTime = 0; }
+                  }}
+                  onClick={(e) => { 
+                  if(c.adImageUrl || c.videoUrl || c.postUrl) window.open(c.videoUrl || c.postUrl || c.adImageUrl, '_blank');
+               }} className={`h-48 bg-[#011414] relative overflow-hidden flex items-center justify-center group-hover:bg-[#1A4D57] transition-colors block ${c.adImageUrl || c.videoUrl || c.postUrl ? 'cursor-pointer' : 'cursor-default'}`}>
+                  {c.videoUrl && (
+                     <video 
+                        src={c.videoUrl} 
+                        muted 
+                        loop 
+                        playsInline
+                        className="absolute inset-0 w-full h-full object-cover opacity-0 group-hover:opacity-100 transition-opacity duration-300 z-10 pointer-events-none"
+                     />
+                  )}
                   {c.adImageUrl ? (
-                     <img src={c.adImageUrl} alt={c.creativeName} className="object-cover w-full h-full" onError={(e) => { e.target.onerror = null; e.target.src = 'https://via.placeholder.com/400x300/0C272D/74FA93?text=Preview+Unavailable'; }} />
+                     <img src={c.adImageUrl} alt={c.creativeName} className={`object-cover w-full h-full ${c.videoUrl ? 'group-hover:opacity-0 transition-opacity duration-300' : ''}`} onError={(e) => { e.target.onerror = null; e.target.src = 'https://via.placeholder.com/400x300/0C272D/74FA93?text=Preview+Unavailable'; }} />
                   ) : (
                      <img src={`https://placehold.co/400x300/0C272D/74FA93?text=No+Preview`} alt="No Preview" className="object-cover w-full h-full opacity-50 grayscale" />
                   )}
@@ -303,10 +324,34 @@ export default function CreativeView({ data, exRate = 1, exSym = '$', formatShor
               </thead>
               <tbody>
                  {paginatedData.map((c, i) => (
-                    <tr key={i} className="border-b border-[#c88214]/10 hover:bg-[#74FA93]/5 transition-colors">
+                    <tr key={i} className="border-b border-[#c88214]/10 hover:bg-[#74FA93]/5 transition-colors group">
                        <td className="px-6 py-3">
-                          <div className="w-16 h-10 bg-[#011414] rounded-lg overflow-hidden border border-[#c88214]/20">
-                             {c.adImageUrl && <img src={c.adImageUrl} className="w-full h-full object-cover" />}
+                          <div 
+                             onMouseEnter={(e) => {
+                                const vid = e.currentTarget.querySelector('video');
+                                if(vid) { vid.play().catch(()=>{}); }
+                             }}
+                             onMouseLeave={(e) => {
+                                const vid = e.currentTarget.querySelector('video');
+                                if(vid) { vid.pause(); vid.currentTime = 0; }
+                             }}
+                             onClick={(e) => { 
+                                if(c.adImageUrl || c.videoUrl || c.postUrl) window.open(c.videoUrl || c.postUrl || c.adImageUrl, '_blank');
+                             }}
+                             className={`w-16 h-10 bg-[#011414] rounded-lg overflow-hidden border border-[#c88214]/20 relative ${c.adImageUrl || c.videoUrl || c.postUrl ? 'cursor-pointer' : 'cursor-default'}`}
+                          >
+                             {c.videoUrl && (
+                                <video 
+                                   src={c.videoUrl} 
+                                   muted 
+                                   loop 
+                                   playsInline
+                                   className="absolute inset-0 w-full h-full object-cover opacity-0 hover:opacity-100 transition-opacity duration-300 z-10 pointer-events-none"
+                                />
+                             )}
+                             {c.adImageUrl && (
+                                <img src={c.adImageUrl} className={`w-full h-full object-cover ${c.videoUrl ? 'group-hover:opacity-0 transition-opacity duration-300' : ''}`} onError={(e) => { e.target.onerror = null; e.target.style.display = 'none'; }} />
+                             )}
                           </div>
                        </td>
                        <td className="px-6 py-4 text-sm font-bold text-[#eef7f5] whitespace-nowrap max-w-[250px] truncate" title={c.creativeName}>

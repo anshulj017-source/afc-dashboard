@@ -114,15 +114,16 @@ export async function GET(request: Request) {
 
             adList.forEach((ad: any) => {
               const adName = ad.ad_name || ad.ad_id;
+              const status = ad.operation_status === 'ENABLE' ? 'Live' : 'Paused';
               if (ad.video_id) {
                 videoIds.push(ad.video_id);
-                adToMediaMap[ad.ad_id] = { type: 'video', id: ad.video_id, name: adName, tiktokItemId: ad.tiktok_item_id };
+                adToMediaMap[ad.ad_id] = { type: 'video', id: ad.video_id, name: adName, tiktokItemId: ad.tiktok_item_id, status };
               } else if (ad.image_ids && ad.image_ids.length > 0) {
                 imageIds.push(ad.image_ids[0]);
-                adToMediaMap[ad.ad_id] = { type: 'image', id: ad.image_ids[0], name: adName, tiktokItemId: ad.tiktok_item_id };
+                adToMediaMap[ad.ad_id] = { type: 'image', id: ad.image_ids[0], name: adName, tiktokItemId: ad.tiktok_item_id, status };
               } else {
                 // Ensure adName is captured even without media
-                adToMediaMap[ad.ad_id] = { type: 'unknown', id: '', name: adName, tiktokItemId: ad.tiktok_item_id };
+                adToMediaMap[ad.ad_id] = { type: 'unknown', id: '', name: adName, tiktokItemId: ad.tiktok_item_id, status };
               }
             });
           }
@@ -179,6 +180,35 @@ export async function GET(request: Request) {
             }
           }
 
+          console.log(`TikTok Debug: Found ${videoIds.length} videos, ${imageIds.length} images. mediaCoverMap keys: ${Object.keys(mediaCoverMap).length}`);
+
+          // 3b. Fallback for Spark Ads using oEmbed API
+          const missingThumbnails = Object.keys(adToMediaMap).filter(adId => {
+             const m = adToMediaMap[adId];
+             return m.tiktokItemId && (!mediaCoverMap[m.id] || !mediaCoverMap[m.id].coverUrl);
+          });
+          
+          if (missingThumbnails.length > 0) {
+             console.log(`TikTok Debug: Fetching oEmbed for ${missingThumbnails.length} Spark Ads`);
+             await Promise.all(missingThumbnails.map(async (adId) => {
+                const m = adToMediaMap[adId];
+                try {
+                   const oembedUrl = `https://www.tiktok.com/oembed?url=https://www.tiktok.com/video/${m.tiktokItemId}`;
+                   const oRes = await fetch(oembedUrl);
+                   const oData = await oRes.json();
+                   if (oData && oData.thumbnail_url) {
+                      // Map the thumbnail back
+                      m.id = m.tiktokItemId; // use tiktok item id as the media id
+                      mediaCoverMap[m.tiktokItemId] = { 
+                         coverUrl: oData.thumbnail_url,
+                         // we can't get raw mp4 from oembed, but we can set the tiktok link as postUrl
+                         postUrl: `https://www.tiktok.com/video/${m.tiktokItemId}`
+                      };
+                   }
+                } catch(err) {}
+             }));
+          }
+
           // 4. Merge the thumbnails back into the main reporting data
           enrichedData = adsData.map((item: any) => {
             const adId = item.dimensions.ad_id;
@@ -188,9 +218,11 @@ export async function GET(request: Request) {
               ...item,
               thumbnailUrl: mediaData ? mediaData.coverUrl : null,
               videoUrl: mediaData ? mediaData.videoUrl : null,
+              postUrl: mediaData ? (mediaData as any).postUrl : null,
               tiktokItemId: media?.tiktokItemId || null,
               adName: media ? media.name : adId,
-              platform: 'tiktok' // Added platform flag for your UI
+              platform: 'tiktok', // Added platform flag for your UI
+              status: media?.status || 'Unknown'
             };
           });
           
