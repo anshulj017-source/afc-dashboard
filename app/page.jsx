@@ -216,6 +216,7 @@ export default function App() {
   const [filterCampaigns, setFilterCampaigns] = useState(['All']);
   const [filterMarkets, setFilterMarkets] = useState(['All']);
   const [filterPaidOrganic, setFilterPaidOrganic] = useState(['All']);
+  const [filterGa4Properties, setFilterGa4Properties] = useState(['All']);
   
   // State: Currency
   const [currency, setCurrency] = useState('SAR'); // 'USD' or 'SAR'
@@ -344,7 +345,8 @@ export default function App() {
             checkouts: parseMetric(row['Checkouts']),
             purchases: parseMetric(row['Purchases']),
             campaignName,
-            paidOrganic
+            paidOrganic,
+            ga4Property: row['GA4 property'] || 'Unknown'
           };
       });
     });
@@ -414,6 +416,7 @@ export default function App() {
     setFilterCampaigns(['All']);
     setFilterMarkets(['All']);
     setFilterPaidOrganic(['All']);
+    setFilterGa4Properties(['All']);
     setDateRange({ start: '', end: '' });
   };
 
@@ -423,6 +426,7 @@ export default function App() {
     return Array.from(new Set(combined)).filter(Boolean).sort();
   }, [adData, gaData]);
   const uniquePaidOrganic = useMemo(() => Array.from(new Set(gaData.map(d => d.paidOrganic))).sort(), [gaData]);
+  const uniqueGa4Properties = useMemo(() => Array.from(new Set(gaData.map(d => d.ga4Property))).filter(Boolean).sort(), [gaData]);
 
   // Apply filters to Ad Data
   const filteredAdData = useMemo(() => {
@@ -441,11 +445,12 @@ export default function App() {
       if (!filterCampaigns.includes('All') && !filterCampaigns.includes(d.campaignName)) return false;
       if (!filterMarkets.includes('All') && !filterMarkets.includes(d.country)) return false;
       if (!filterPaidOrganic.includes('All') && !filterPaidOrganic.includes(d.paidOrganic)) return false;
+      if (!filterGa4Properties.includes('All') && !filterGa4Properties.includes(d.ga4Property)) return false;
       if (dateRange.start && d.dateObj && d.dateObj < new Date(dateRange.start)) return false;
       if (dateRange.end && d.dateObj && d.dateObj > new Date(dateRange.end)) return false;
       return true;
     });
-  }, [gaData, filterCampaigns, filterMarkets, filterPaidOrganic, dateRange]);
+  }, [gaData, filterCampaigns, filterMarkets, filterPaidOrganic, filterGa4Properties, dateRange]);
 
   const agg = useMemo(() => {
     const cost = d3.sum(filteredAdData, d => d.cost);
@@ -898,7 +903,12 @@ export default function App() {
       return (
         <div className="space-y-8">
           <div className="flex justify-between items-center card-surface backdrop-blur-2xl p-6 rounded-3xl border border-[#c88214]/20 shadow-xl mb-4 flex-wrap gap-4 relative z-20">
-            <h2 className="text-2xl font-black text-white flex items-center gap-3"><MonitorPlay className="text-[#c88214]" /> Web Traffic (GA4)</h2>
+            <div className="flex items-center gap-6">
+              <h2 className="text-2xl font-black text-white flex items-center gap-3"><MonitorPlay className="text-[#c88214]" /> Web Traffic (GA4)</h2>
+              <div className="flex items-end">
+                <MultiSelect label="GA4 Property" options={uniqueGa4Properties} selected={filterGa4Properties} onChange={setFilterGa4Properties} />
+              </div>
+            </div>
             <div className="flex gap-4 items-end">
               <MultiSelect label="Paid / Organic" options={uniquePaidOrganic} selected={filterPaidOrganic} onChange={setFilterPaidOrganic} />
             </div>
