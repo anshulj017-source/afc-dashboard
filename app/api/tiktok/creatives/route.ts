@@ -34,7 +34,7 @@ export async function GET(request: Request) {
     
     // Select the metrics you want to show on the dashboard
     // Note: removed 'conversions' as it caused a 40002 error. We can add specific conversion events later if needed.
-    const metrics = ['spend', 'impressions', 'clicks', 'ctr', 'cpc', 'app_install', 'purchase'];
+    const metrics = ['spend', 'impressions', 'clicks', 'ctr', 'cpc', 'app_install', 'purchase', 'video_play_actions'];
     reportUrl.searchParams.append('metrics', JSON.stringify(metrics));
     
     reportUrl.searchParams.append('start_date', startDate);

@@ -400,25 +400,35 @@ export default function App() {
           };
       });
 
-      const creativeResults = metaCreativeRaw.map(row => ({
-          date: row['Date'] ? new Date(row['Date']) : null,
-          campaignName: row['Campaign name'] || row['Campaign DB'] || 'Unknown',
-          adName: row['Ad name'] || 'Unknown',
-          creativeName: row['Creative Name'] || row['Ad name'] || 'Unknown',
-          adImageUrl: row['Ad creative image URL'] || '',
-          impressions: parseMetric(row['Impressions']),
-          clicks: parseMetric(row['Link clicks']),
-          views: parseMetric(row['Three-second video views']),
-          thruPlays: parseMetric(row['ThruPlay actions']),
-          cost: parseMetric(row['Cost (USD)']),
-          market: row['Country DB'] || 'Unknown',
-          language: row['Language DB'] || 'Unknown',
-          channel: 'Meta'
-       }));
+      const creativeResults = metaCreativeRaw.map(row => {
+          let cName = row['Campaign name'] || row['Campaign DB'] || 'Unknown';
+          const cNameUpper = cName.toUpperCase();
+          if (cNameUpper.includes('AC27')) cName = 'AC27';
+          else if (cNameUpper.includes('ACLE')) cName = 'ACLE';
+          else if (cNameUpper.includes('FAN ID')) cName = 'Fan ID';
+          else if (cNameUpper.includes('GULF CUP')) cName = 'Gulf Cup';
+          else if (cNameUpper.includes('UNDER 17') || cNameUpper.includes('U17')) cName = 'Under 17';
+          
+          return {
+            date: row['Date'] ? new Date(row['Date']) : null,
+            campaignName: cName,
+            adName: row['Ad name'] || 'Unknown',
+            creativeName: row['Creative Name'] || row['Ad name'] || 'Unknown',
+            adImageUrl: row['Ad creative image URL'] || '',
+            impressions: parseMetric(row['Impressions']),
+            clicks: parseMetric(row['Link clicks']),
+            views: parseMetric(row['Three-second video views']),
+            thruPlays: parseMetric(row['ThruPlay actions']),
+            cost: parseMetric(row['Cost (USD)']),
+            market: row['Country DB'] || 'Unknown',
+            language: row['Language DB'] || 'Unknown',
+            channel: 'Meta'
+          };
+      });
 
       // Fetch Planned Data
-      d3.csv("/api/sheets?type=planned").then(raw => {
-        const plannedResults = raw.map(row => ({
+      const fetchPlanned = d3.csv("/api/sheets?type=planned").then(raw => {
+        return raw.map(row => ({
           phase: row['Phase'] || 'Unknown',
           channel: row['Channel'] || 'Unknown',
           buyingType: row['Buying Type'] || 'Unknown',
@@ -426,10 +436,51 @@ export default function App() {
           plannedCost: parseFloat((row['Planned Budget'] || '0').replace(/[^0-9.-]+/g,"")),
           targetMarket: normalizeMarket(row['Target Market'] || 'Unknown')
         }));
-        
+      });
+
+      // Fetch TikTok Creatives
+      const fetchTikTok = fetch('/api/tiktok/creatives?advertiser_id=7598486787190997008')
+        .then(res => res.json())
+        .then(json => {
+          if (!json.success || !json.data) return [];
+          return json.data.map(item => {
+            let cName = item.adName || 'Unknown'; // TikTok API fallback mapping for campaign name if present
+            // Try to extract standard campaign names from TikTok naming conventions
+            const cNameUpper = cName.toUpperCase();
+            if (cNameUpper.includes('AC27')) cName = 'AC27';
+            else if (cNameUpper.includes('ACLE')) cName = 'ACLE';
+            else if (cNameUpper.includes('FAN ID')) cName = 'Fan ID';
+            else if (cNameUpper.includes('GULF CUP')) cName = 'Gulf Cup';
+            else if (cNameUpper.includes('UNDER 17') || cNameUpper.includes('U17')) cName = 'Under 17';
+            else cName = 'Unknown';
+            
+            return {
+              date: item.dimensions?.stat_time_day ? new Date(item.dimensions.stat_time_day) : null,
+              campaignName: cName,
+              adName: item.adName || 'Unknown',
+              creativeName: item.adName || 'Unknown',
+              adImageUrl: item.thumbnailUrl || '',
+              videoUrl: item.videoUrl || '',
+              impressions: parseMetric(item.metrics?.impressions),
+              clicks: parseMetric(item.metrics?.clicks),
+              views: parseMetric(item.metrics?.video_play_actions), // Using video_play_actions if available, fallback mapped later if needed
+              thruPlays: 0,
+              cost: parseMetric(item.metrics?.spend),
+              market: 'Unknown',
+              language: 'Unknown',
+              channel: 'TikTok'
+            };
+          });
+        })
+        .catch(err => {
+          console.error("Failed to fetch TikTok creatives:", err);
+          return [];
+        });
+
+      Promise.all([fetchPlanned, fetchTikTok]).then(([plannedResults, tiktokResults]) => {
         setAdData(combinedAds);
         setGaData(gaResults);
-        setCreativeData(creativeResults);
+        setCreativeData([...creativeResults, ...tiktokResults]);
         setPlannedData(plannedResults);
         
         const allDates = [...combinedAds, ...gaResults]

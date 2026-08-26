@@ -43,7 +43,7 @@ export default function ChannelView({ adData, exRate = 1, exSym = '$', formatSho
       const clicks = d3.sum(vals, d => d.clicks);
       const spend = d3.sum(vals, d => d.cost);
       const views = d3.sum(vals, d => d.videoViews);
-      const purchases = d3.sum(vals, d => d.purchases || 0);
+      const purchases = d3.sum(vals, d => Number(d.purchases) || 0);
       
       const cpm = impressions > 0 ? (spend / impressions) * 1000 : Infinity;
       const cpc = clicks > 0 ? (spend / clicks) : Infinity;
@@ -140,6 +140,7 @@ export default function ChannelView({ adData, exRate = 1, exSym = '$', formatSho
         const views6s = d3.sum(vals, d => d.videoViews6s);
         const views15s = d3.sum(vals, d => d.videoViews15s);
         const completions = d3.sum(vals, d => d.videoCompletions);
+        const purchases = d3.sum(vals, d => Number(d.purchases) || 0);
         
         flattened.push({
           channel,
@@ -151,6 +152,7 @@ export default function ChannelView({ adData, exRate = 1, exSym = '$', formatSho
           views6s,
           views15s,
           completions,
+          purchases,
           ctr: impressions > 0 ? (clicks / impressions) * 100 : 0,
           cpc: clicks > 0 ? spend / clicks : 0,
           cpm: impressions > 0 ? (spend / impressions) * 1000 : 0,
