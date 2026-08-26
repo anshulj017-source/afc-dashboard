@@ -1023,7 +1023,7 @@ export default function App() {
              <input type="date" value={dateRange.end} onClick={e => e.target.showPicker && e.target.showPicker()} onChange={e => setDateRange(prev => ({...prev, end: e.target.value}))} className="w-[160px] cursor-pointer px-2.5 py-1.5 surface-inset border border-[#c88214]/30 rounded-lg text-xs font-bold text-[#eef7f5] outline-none focus:border-[#c88214] transition-colors [&::-webkit-calendar-picker-indicator]:cursor-pointer [&::-webkit-calendar-picker-indicator]:opacity-100" />
           </div>
 
-          { (activeTab !== 'campaign' && activeTab !== 'webtraffic') ? (
+          { activeTab !== 'campaign' ? (
             <MultiSelect label="Tournament" options={uniqueCampaigns} selected={filterCampaigns} onChange={setFilterCampaigns} />
           ) : (
             <div className="opacity-30 pointer-events-none" title="Tournament filter is disabled for this view">
