@@ -445,7 +445,7 @@ export default function App() {
       if (dateRange.end && d.dateObj && d.dateObj > new Date(dateRange.end)) return false;
       return true;
     });
-  }, [gaData, filterMarkets, filterPaidOrganic, dateRange]);
+  }, [gaData, filterCampaigns, filterMarkets, filterPaidOrganic, dateRange]);
 
   const agg = useMemo(() => {
     const cost = d3.sum(filteredAdData, d => d.cost);
