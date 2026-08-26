@@ -293,9 +293,9 @@ export default function App() {
           }
           if (finalChannel.toLowerCase() === 'meta') finalChannel = 'META';
 
-          let finalBuyingType = row['Buying Type DB'] && row['Buying Type DB'].trim() !== '' && row['Buying Type DB'] !== 'Unknown' 
-            ? row['Buying Type DB'] 
-            : (finalChannel === 'Google Search' ? 'CPC' : 'CPM');
+          let finalBuyingType = row['Buying Type DB'] && row['Buying Type DB'].trim() !== ''
+            ? row['Buying Type DB'].trim()
+            : 'Unknown';
           
           let rawCost = parseMetric(row['Cost (USD)'] || row['Cost'] || row['Total cost'] || row['Total media cost'] || row['Spend']);
           if (ch.name === 'X') {
