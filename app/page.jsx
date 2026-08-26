@@ -323,10 +323,18 @@ export default function App() {
       return raw
         .filter(row => row['Conversion category'] === 'Purchase/Sale')
         .map(row => {
+          let cName = row['Campaign name'] ? row['Campaign name'].trim() : 'Unknown';
+          const cNameUpper = cName.toUpperCase();
+          if (cNameUpper.includes('AC27')) cName = 'AC27';
+          else if (cNameUpper.includes('ACLE')) cName = 'ACLE';
+          else if (cNameUpper.includes('FAN ID')) cName = 'Fan ID';
+          else if (cNameUpper.includes('GULF CUP')) cName = 'Gulf Cup';
+          else if (cNameUpper.includes('UNDER 17') || cNameUpper.includes('U17')) cName = 'Under 17';
+
           return {
             date: row['Date'],
             dateObj: row['Date'] ? new Date(row['Date']) : null,
-            campaignName: row['Campaign name'] ? row['Campaign name'].trim() : 'Unknown',
+            campaignName: cName,
             phase: 'Unknown',
             buyingType: 'Unknown',
             country: 'Unknown',
