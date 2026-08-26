@@ -3,7 +3,7 @@ import React, { useState, useMemo, useEffect, useRef } from 'react';
 import * as d3 from 'd3';
 import { 
   TrendingUp, Globe, Layers, Activity, DollarSign, MousePointer2, 
-  Eye, Zap, LayoutDashboard, ChevronDown, Search, Check, 
+  Eye, Zap, LayoutDashboard, ChevronDown, Search, Check, ShoppingCart,
   TableProperties, MonitorPlay, BarChart3, Smartphone, List, Download, RefreshCw, Users, Calendar, LayoutTemplate, PieChart, Grid, Map
 } from 'lucide-react';
 import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer, BarChart, Bar, AreaChart, Area } from 'recharts';
@@ -28,9 +28,9 @@ const GEO_URL = "https://unpkg.com/world-atlas@2.0.2/countries-110m.json";
 
 const BASE_URL = "/api/sheets?type=afc";
 const CHANNELS = [
-  { name: 'TikTok', gid: '0', viewsCol: 9, compCol: 11 }, // J=9, L=11 (approx)
-  { name: 'Snapchat', gid: '1220368554', viewsCol: 8, compCol: 10 }, // I=8
-  { name: 'Meta', gid: '796244792', viewsCol: 9, compCol: 11 }, // J=9
+  { name: 'TikTok', gid: '0', viewsCol: 9, compCol: 11, purchCol: 13 }, // J=9, L=11, N=13
+  { name: 'Snapchat', gid: '1220368554', viewsCol: 8, compCol: 10, purchCol: 11 }, // I=8, L=11
+  { name: 'Meta', gid: '796244792', viewsCol: 9, compCol: 11, purchCol: 12 }, // J=9, M=12
   { name: 'DV360', gid: '357397097', viewsCol: 9, compCol: 10, subCol: 11 }, // J=9, K=10, sub=L(11)
   { name: 'X', gid: '1750570025', viewsCol: 9, compCol: 11 }, // J=9
   { name: 'Google', gid: '1637892512', viewsCol: 6, compCol: 7, subCol: 12 }, // G=6, H=7, sub=M(12)
@@ -38,6 +38,7 @@ const CHANNELS = [
 ];
 const GA4_GID = '1861950282';
 const META_CREATIVE_GID = '1841259885';
+const GOOGLE_PURCHASES_GID = '88343342';
 
 // --- HELPERS ---
 const formatShort = (num) => {
@@ -311,15 +312,48 @@ export default function App() {
             videoViews: parseMetric(vals[ch.viewsCol]), // based on user mapping
             videoViews6s: parseMetric(row['6-second video views'] || row['Three-second video views'] || 0),
             videoViews15s: parseMetric(row['15-second video views (focused view)'] || row['ThruPlay actions'] || 0),
-            videoCompletions: parseMetric(vals[ch.compCol]) // approx 100% views mapped column
+            videoCompletions: parseMetric(vals[ch.compCol]), // approx 100% views mapped column
+            purchases: ch.purchCol !== undefined ? parseMetric(vals[ch.purchCol]) : 0
           };
         });
       })
     );
 
-    // Fetch GA4 Data
-    const gaPromise = d3.csv(`${BASE_URL}&gid=${GA4_GID}`).then(raw => {
-      return raw.map(row => {
+    const googlePurchasesPromise = d3.csv(`${BASE_URL}&gid=${GOOGLE_PURCHASES_GID}`).then(raw => {
+      return raw
+        .filter(row => row['Conversion category'] === 'Purchase/Sale')
+        .map(row => {
+          return {
+            date: row['Date'],
+            dateObj: row['Date'] ? new Date(row['Date']) : null,
+            campaignName: row['Campaign name'] ? row['Campaign name'].trim() : 'Unknown',
+            phase: 'Unknown',
+            buyingType: 'Unknown',
+            country: 'Unknown',
+            language: 'Unknown',
+            channel: 'Google',
+            adName: row['Ad group name'] || 'Unknown',
+            cost: 0,
+            impressions: 0,
+            clicks: 0,
+            videoViews: 0,
+            videoViews6s: 0,
+            videoViews15s: 0,
+            videoCompletions: 0,
+            purchases: parseMetric(row['Conversions'])
+          };
+      });
+    });
+
+    Promise.all([
+      Promise.all(fetchPromises),
+      d3.csv(`${BASE_URL}&gid=${GA4_GID}`),
+      d3.csv(`${BASE_URL}&gid=${META_CREATIVE_GID}`),
+      googlePurchasesPromise
+    ]).then(([channelDataArray, gaDataRaw, metaCreativeRaw, googlePurchData]) => {
+      const combinedAds = channelDataArray.flat().concat(googlePurchData);
+      
+      const gaResults = gaDataRaw.map(row => {
         const rawPaid = row['Paid/Organic'] || 'Unknown';
         let paidOrganic = 'Unknown';
         if (rawPaid.toLowerCase() === 'paid') paidOrganic = 'Paid';
@@ -349,11 +383,8 @@ export default function App() {
             ga4Property: row['GA4 property'] || 'Unknown'
           };
       });
-    });
 
-    // Fetch Creative Data
-    const creativePromise = d3.csv(`${BASE_URL}&gid=${META_CREATIVE_GID}`).then(raw => {
-       return raw.map(row => ({
+      const creativeResults = metaCreativeRaw.map(row => ({
           date: row['Date'] ? new Date(row['Date']) : null,
           campaignName: row['Campaign name'] || row['Campaign DB'] || 'Unknown',
           adName: row['Ad name'] || 'Unknown',
@@ -368,44 +399,35 @@ export default function App() {
           language: row['Language DB'] || 'Unknown',
           channel: 'Meta'
        }));
-    });
 
-    // Fetch Planned Data
-    const plannedPromise = d3.csv("/api/sheets?type=planned").then(raw => {
-      return raw.map(row => ({
-        phase: row['Phase'] || 'Unknown',
-        channel: row['Channel'] || 'Unknown',
-        buyingType: row['Buying Type'] || 'Unknown',
-        bookedUnits: parseMetric(row['Booked Units'] || '0'),
-        plannedCost: parseFloat((row['Planned Budget'] || '0').replace(/[^0-9.-]+/g,"")),
-        targetMarket: normalizeMarket(row['Target Market'] || 'Unknown')
-      }));
-    }).catch(err => {
-      console.warn("Failed to fetch planned data:", err);
-      return [];
-    });
-
-    Promise.all([...fetchPromises, gaPromise, creativePromise, plannedPromise]).then(results => {
-      const plannedResults = results.pop();
-      const creativeResults = results.pop();
-      const gaResults = results.pop();
-      const combinedAds = results.flat();
-      setAdData(combinedAds);
-      setGaData(gaResults);
-      setCreativeData(creativeResults);
-      setPlannedData(plannedResults);
-      
-      const allDates = [...combinedAds, ...gaResults]
-        .map(d => d.dateObj || d.date)
-        .filter(d => d instanceof Date && !isNaN(d));
-      if (allDates.length > 0) {
-        const maxDate = new Date(Math.max(...allDates));
-        setLastUpdated(maxDate);
-      } else {
-        setLastUpdated(new Date());
-      }
-      
-      setLoading(false);
+      // Fetch Planned Data
+      d3.csv("/api/sheets?type=planned").then(raw => {
+        const plannedResults = raw.map(row => ({
+          phase: row['Phase'] || 'Unknown',
+          channel: row['Channel'] || 'Unknown',
+          buyingType: row['Buying Type'] || 'Unknown',
+          bookedUnits: parseMetric(row['Booked Units'] || '0'),
+          plannedCost: parseFloat((row['Planned Budget'] || '0').replace(/[^0-9.-]+/g,"")),
+          targetMarket: normalizeMarket(row['Target Market'] || 'Unknown')
+        }));
+        
+        setAdData(combinedAds);
+        setGaData(gaResults);
+        setCreativeData(creativeResults);
+        setPlannedData(plannedResults);
+        
+        const allDates = [...combinedAds, ...gaResults]
+          .map(d => d.dateObj || d.date)
+          .filter(d => d instanceof Date && !isNaN(d));
+        if (allDates.length > 0) {
+          const maxDate = new Date(Math.max(...allDates));
+          setLastUpdated(maxDate);
+        } else {
+          setLastUpdated(new Date());
+        }
+        
+        setLoading(false);
+      });
     }).catch(err => {
       console.error(err);
       setLoading(false);
@@ -460,8 +482,10 @@ export default function App() {
     const views6s = d3.sum(filteredAdData, d => d.videoViews6s);
     const views15s = d3.sum(filteredAdData, d => d.videoViews15s);
     const completions = d3.sum(filteredAdData, d => d.videoCompletions);
+    const purchases = d3.sum(filteredAdData, d => d.purchases || 0);
     const sessions = d3.sum(filteredGaData, d => d.sessions);
-    return { cost, impressions, clicks, views, completions, views6s, views15s, sessions };
+    const gaPurchases = d3.sum(filteredGaData, d => d.purchases || 0);
+    return { cost, impressions, clicks, views, completions, views6s, views15s, sessions, purchases, gaPurchases };
   }, [filteredAdData, filteredGaData]);
 
   const gaSourceData = useMemo(() => {
@@ -697,8 +721,10 @@ export default function App() {
             <MetricCard definition="The total number of times your video ads were watched." label="Video Views" value={formatShort(agg.views)} color="text-[#00937b]" icon={MonitorPlay} />
             <MetricCard definition="The number of times your video ads were watched for at least 6 seconds." label="6s Video Views" value={formatShort(agg.views6s)} color="text-[#eef7f5]" />
             <MetricCard definition="The number of times your video ads were watched for at least 15 seconds." label="15s Video Views" value={formatShort(agg.views15s)} color="text-[#eef7f5]" />
-            <MetricCard definition="The number of times your video ads were watched to completion (100%)." label="Video Completions (100%)" value={formatShort(agg.completions)} color="text-white" icon={Check} />
+            <MetricCard definition="The total number of times your video ads were watched to completion (100%)." label="Video Completions (100%)" value={formatShort(agg.completions)} color="text-white" icon={Check} />
             <MetricCard definition="The total number of sessions on the website originating from the ad campaigns." label="Total Web Sessions" value={formatShort(agg.sessions)} color="text-[#c88214]" icon={Globe} />
+            <MetricCard definition="The total number of purchases reported by the ad managers." label="Purchases" value={formatShort(agg.purchases)} color="text-[#00937b]" icon={ShoppingCart} />
+            <MetricCard definition="The total number of purchases reported by GA4." label="GA4 Purchases" value={formatShort(agg.gaPurchases)} color="text-[#6fa89f]" icon={ShoppingCart} />
           </div>
           
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-8 mb-8">
