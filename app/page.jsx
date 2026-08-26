@@ -36,7 +36,7 @@ const CHANNELS = [
   { name: 'Google', gid: '1637892512', viewsCol: 6, compCol: 7, subCol: 12 }, // G=6, H=7, sub=M(12)
   { name: 'Amazon', gid: '770767992', viewsCol: 10, compCol: 10, subCol: 11 } // K=10, sub=L(11)
 ];
-const GA4_GID = '954158669';
+const GA4_GID = '1861950282';
 const META_CREATIVE_GID = '1841259885';
 
 // --- HELPERS ---
@@ -334,6 +334,11 @@ export default function App() {
           engagedSessions: parseMetric(row['Engaged sessions']),
           newUsers: parseMetric(row['New users']),
           avgSessionDuration: parseMetric(row['Average session length (sec)']),
+          itemViews: parseMetric(row['Item views']),
+          addToCarts: parseMetric(row['Add-to-carts']),
+          checkouts: parseMetric(row['Checkouts']),
+          purchases: parseMetric(row['Purchases']),
+          campaignName: row['Campaign DB'] || 'Unknown',
           paidOrganic
         };
       });
@@ -428,6 +433,7 @@ export default function App() {
   // Apply filters to GA Data (only Date and Market apply)
   const filteredGaData = useMemo(() => {
     return gaData.filter(d => {
+      if (!filterCampaigns.includes('All') && !filterCampaigns.includes(d.campaignName)) return false;
       if (!filterMarkets.includes('All') && !filterMarkets.includes(d.country)) return false;
       if (!filterPaidOrganic.includes('All') && !filterPaidOrganic.includes(d.paidOrganic)) return false;
       if (dateRange.start && d.dateObj && d.dateObj < new Date(dateRange.start)) return false;
@@ -847,6 +853,11 @@ export default function App() {
       const totalGaEngaged = d3.sum(filteredGaData, d => d.engagedSessions);
       const totalGaNewUsers = d3.sum(filteredGaData, d => d.newUsers);
       
+      const totalItemViews = d3.sum(filteredGaData, d => d.itemViews);
+      const totalAddToCart = d3.sum(filteredGaData, d => d.addToCarts);
+      const totalCheckouts = d3.sum(filteredGaData, d => d.checkouts);
+      const totalPurchases = d3.sum(filteredGaData, d => d.purchases);
+      
       const gaWithSessions = filteredGaData.filter(d => d.sessions > 0);
       const totalGaMarkets = new Set(gaWithSessions.map(d => d.country)).size;
       
@@ -888,13 +899,18 @@ export default function App() {
             </div>
           </div>
 
-          <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-4">
+          <div className="grid grid-cols-2 md:grid-cols-5 lg:grid-cols-5 gap-4">
             <MetricCard definition="A session is a group of user interactions with your website that take place within a given time frame." label="Sessions" value={formatShort(totalGaSessions)} icon={Eye} color="text-white" />
             <MetricCard definition="The total number of distinct geographic markets (countries) reached." label="Total Markets" value={d3.format(",")(totalGaMarkets)} icon={Globe} color="text-[#c88214]" />
             <MetricCard definition="The number of sessions that lasted longer than 10 seconds, had a conversion event, or had 2 or more screen or page views." label="Engaged Sessions" value={formatShort(totalGaEngaged)} icon={Activity} color="text-[#6fa89f]" />
             <MetricCard definition="The number of users who interacted with your site or launched your app for the first time." label="New Users" value={formatShort(totalGaNewUsers)} icon={TrendingUp} color="text-white" />
             <MetricCard definition="The total number of unique users who logged an event." label="Total Users" value={formatShort(totalGaUsers)} icon={MousePointer2} color="text-[#c88214]" />
-            <MetricCard definition="The average duration (in seconds) of user sessions." label="Avg Session (s)" value={d3.format(",.1f")(avgDuration)} icon={List} color="text-[#6fa89f]" />
+            
+            <MetricCard definition="The total number of times items were viewed." label="Item Views" value={formatShort(totalItemViews)} icon={Eye} color="text-[#6fa89f]" />
+            <MetricCard definition="The total number of times items were added to the cart." label="Add to Carts" value={formatShort(totalAddToCart)} icon={Activity} color="text-white" />
+            <MetricCard definition="The total number of times users initiated a checkout." label="Checkouts" value={formatShort(totalCheckouts)} icon={MousePointer2} color="text-[#c88214]" />
+            <MetricCard definition="The total number of completed purchases." label="Purchases" value={formatShort(totalPurchases)} icon={TrendingUp} color="text-[#6fa89f]" />
+            <MetricCard definition="The average duration (in seconds) of user sessions." label="Avg Session (s)" value={d3.format(",.1f")(avgDuration)} icon={List} color="text-white" />
           </div>
 
           <div className="card-surface backdrop-blur-2xl p-6 rounded-3xl border border-[#c88214]/20 shadow-xl relative">

@@ -33,7 +33,11 @@ export const GaChannelTable = ({ rawData, formatShort }) => {
         users: d3.sum(v, d => d.users),
         engagedSessions: d3.sum(v, d => d.engagedSessions),
         newUsers: d3.sum(v, d => d.newUsers),
-        avgSessionDuration: d3.mean(v.filter(d => d.sessions > 0), d => d.avgSessionDuration) || 0
+        avgSessionDuration: d3.mean(v.filter(d => d.sessions > 0), d => d.avgSessionDuration) || 0,
+        itemViews: d3.sum(v, d => d.itemViews),
+        addToCarts: d3.sum(v, d => d.addToCarts),
+        checkouts: d3.sum(v, d => d.checkouts),
+        purchases: d3.sum(v, d => d.purchases)
       }),
       d => viewBy === 'sourceMedium' ? d.sourceMedium : d.country
     )).map(([dimension, metrics]) => ({
@@ -174,6 +178,10 @@ export const GaChannelTable = ({ rawData, formatShort }) => {
                 { key: 'engagedSessions', label: 'Engaged' },
                 { key: 'newUsers', label: 'New Users' },
                 { key: 'avgSessionDuration', label: 'Avg Duration' },
+                { key: 'itemViews', label: 'Item Views' },
+                { key: 'addToCarts', label: 'Add to Carts' },
+                { key: 'checkouts', label: 'Checkouts' },
+                { key: 'purchases', label: 'Purchases' },
               ].map(col => (
                 <th key={col.key} onClick={() => handleSort(col.key)} className="px-3 py-3 text-[10px] font-black text-[#6fa89f] uppercase tracking-widest whitespace-nowrap cursor-pointer hover:text-[#c88214] transition-colors">
                   <div className="flex items-center gap-1">
@@ -196,6 +204,10 @@ export const GaChannelTable = ({ rawData, formatShort }) => {
                 <td className="px-3 py-3 text-sm font-medium text-[#eef7f5]">{d3.format(",")(row.engagedSessions)}</td>
                 <td className="px-3 py-3 text-sm font-medium text-[#eef7f5]">{d3.format(",")(row.newUsers)}</td>
                 <td className="px-3 py-3 text-sm font-medium text-[#6fa89f]">{d3.format(",.1f")(row.avgSessionDuration)}s</td>
+                <td className="px-3 py-3 text-sm font-medium text-[#6fa89f]">{d3.format(",")(row.itemViews)}</td>
+                <td className="px-3 py-3 text-sm font-medium text-[#6fa89f]">{d3.format(",")(row.addToCarts)}</td>
+                <td className="px-3 py-3 text-sm font-medium text-[#6fa89f]">{d3.format(",")(row.checkouts)}</td>
+                <td className="px-3 py-3 text-sm font-medium text-[#6fa89f]">{d3.format(",")(row.purchases)}</td>
               </tr>
             ))}
             {sortedAgg.length === 0 && <tr><td colSpan={7} className="px-6 py-8 text-center text-[#6fa89f] text-sm">No channels found</td></tr>}
@@ -206,6 +218,10 @@ export const GaChannelTable = ({ rawData, formatShort }) => {
               const tNewUsers = d3.sum(sortedAgg, d => d.newUsers);
               const totalDuration = d3.sum(sortedAgg, d => d.avgSessionDuration * d.sessions);
               const tAvgDuration = tSessions > 0 ? totalDuration / tSessions : 0;
+              const tItemViews = d3.sum(sortedAgg, d => d.itemViews);
+              const tAddToCart = d3.sum(sortedAgg, d => d.addToCarts);
+              const tCheckouts = d3.sum(sortedAgg, d => d.checkouts);
+              const tPurchases = d3.sum(sortedAgg, d => d.purchases);
               
               return (
                 <tr className="bg-[#011414]/80 border-t-2 border-[#c88214]/50 hover:bg-[#c88214]/10 transition-colors">
@@ -216,6 +232,10 @@ export const GaChannelTable = ({ rawData, formatShort }) => {
                   <td className="px-3 py-3 text-sm font-black text-[#c88214]">{d3.format(",")(tEngaged)}</td>
                   <td className="px-3 py-3 text-sm font-black text-[#c88214]">{d3.format(",")(tNewUsers)}</td>
                   <td className="px-3 py-3 text-sm font-black text-[#c88214]">{d3.format(",.1f")(tAvgDuration)}s</td>
+                  <td className="px-3 py-3 text-sm font-black text-[#c88214]">{d3.format(",")(tItemViews)}</td>
+                  <td className="px-3 py-3 text-sm font-black text-[#c88214]">{d3.format(",")(tAddToCart)}</td>
+                  <td className="px-3 py-3 text-sm font-black text-[#c88214]">{d3.format(",")(tCheckouts)}</td>
+                  <td className="px-3 py-3 text-sm font-black text-[#c88214]">{d3.format(",")(tPurchases)}</td>
                 </tr>
               );
             })()}
