@@ -347,7 +347,7 @@ export default function App() {
             buyingType: 'Unknown',
             country: 'Unknown',
             language: 'Unknown',
-            channel: 'Google',
+            channel: 'Google Search',
             adName: row['Ad group name'] || 'Unknown',
             cost: 0,
             impressions: 0,
@@ -880,7 +880,7 @@ export default function App() {
     if (activeTab === 'channel') {
       return (
         <div className="w-full h-full">
-          <ChannelView adData={coreAdData} exRate={exRate} exSym={exSym} formatShort={formatShort} userRole={userRole} />
+          <ChannelView adData={filteredAdData} exRate={exRate} exSym={exSym} formatShort={formatShort} userRole={userRole} />
         </div>
       );
     }

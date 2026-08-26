@@ -22,6 +22,7 @@ export default function ChannelView({ adData, exRate = 1, exSym = '$', formatSho
       { key: 'views6s', label: '6s Views', format: v => d3.format(",")(v) },
       { key: 'views15s', label: '15s Views', format: v => d3.format(",")(v) },
       { key: 'completions', label: 'Completed Views', format: v => d3.format(",")(v) },
+      { key: 'purchases', label: 'Purchases', format: v => d3.format(",")(v) },
       { key: 'cpc', label: 'CPC', format: v => `${exSym}${d3.format(",.2f")(v * exRate)}` },
       { key: 'cpm', label: 'CPM', format: v => `${exSym}${d3.format(",.2f")(v * exRate)}` },
       { key: 'ctr', label: 'CTR', format: v => `${v.toFixed(2)}%` },
@@ -42,6 +43,7 @@ export default function ChannelView({ adData, exRate = 1, exSym = '$', formatSho
       const clicks = d3.sum(vals, d => d.clicks);
       const spend = d3.sum(vals, d => d.cost);
       const views = d3.sum(vals, d => d.videoViews);
+      const purchases = d3.sum(vals, d => d.purchases || 0);
       
       const cpm = impressions > 0 ? (spend / impressions) * 1000 : Infinity;
       const cpc = clicks > 0 ? (spend / clicks) : Infinity;
@@ -54,6 +56,7 @@ export default function ChannelView({ adData, exRate = 1, exSym = '$', formatSho
         impressions,
         clicks,
         views,
+        purchases,
         cpm,
         cpc,
         ctr,
@@ -304,7 +307,7 @@ export default function ChannelView({ adData, exRate = 1, exSym = '$', formatSho
                     </tr>
                   </thead>
                   <tbody>
-                    {(userRole === 'non-finance' ? ['impressions', 'clicks', 'ctr', 'views'] : ['spend', 'impressions', 'clicks', 'ctr', 'cpm']).map((metricKey, i) => {
+                    {(userRole === 'non-finance' ? ['impressions', 'clicks', 'ctr', 'views', 'purchases'] : ['spend', 'impressions', 'clicks', 'ctr', 'cpm', 'purchases']).map((metricKey, i) => {
                        const metricDef = AVAILABLE_METRICS.find(m => m.key === metricKey);
                        if (!metricDef) return null;
                        return (
