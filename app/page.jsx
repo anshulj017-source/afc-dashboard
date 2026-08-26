@@ -277,7 +277,6 @@ export default function App() {
           const rawCampDB = row['Campaign DB'] || row['Campaign name'] || row['Campaign Name'] || 'Unknown';
           const campDB = rawCampDB.replace(/\r/g, '').trim();
           const phaseDB = row['Phase DB'] || row['Phase'] || 'Unknown';
-          const buyingTypeDB = row['Buying Type DB'] || 'Unknown';
           const countryDB = normalizeMarket(row['Country DB'] || row['Country'] || 'Unknown');
           const langDB = row['Language DB'] || row['Language'] || 'Unknown';
           
@@ -285,11 +284,18 @@ export default function App() {
           if (ch.subCol !== undefined && vals[ch.subCol] && vals[ch.subCol].trim() !== '') {
             const rawSub = vals[ch.subCol].trim();
             if (rawSub.toLowerCase() === 'youtube') {
-              finalChannel = 'Youtube';
+              finalChannel = 'YouTube';
             } else {
               finalChannel = rawSub;
             }
+          } else if (finalChannel === 'Google') {
+            finalChannel = 'Google Search';
           }
+          if (finalChannel.toLowerCase() === 'meta') finalChannel = 'META';
+
+          let finalBuyingType = row['Buying Type DB'] && row['Buying Type DB'].trim() !== '' && row['Buying Type DB'] !== 'Unknown' 
+            ? row['Buying Type DB'] 
+            : (finalChannel === 'Google Search' ? 'CPC' : 'CPM');
           
           let rawCost = parseMetric(row['Cost (USD)'] || row['Cost'] || row['Total cost'] || row['Total media cost'] || row['Spend']);
           if (ch.name === 'X') {
@@ -301,7 +307,7 @@ export default function App() {
             dateObj: row['Date'] ? new Date(row['Date']) : null,
             campaignName: campDB,
             phase: phaseDB,
-            buyingType: buyingTypeDB,
+            buyingType: finalBuyingType,
             country: countryDB,
             language: langDB,
             channel: finalChannel,
