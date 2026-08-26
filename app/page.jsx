@@ -1048,7 +1048,7 @@ export default function App() {
       });
       return (
         <div className="w-full h-full">
-          <CreativeView creativeData={filteredCreativeData} adData={coreAdData} exRate={exRate} exSym={exSym} formatShort={formatShort} userRole={userRole} />
+          <CreativeView data={filteredCreativeData} exRate={exRate} exSym={exSym} formatShort={formatShort} userRole={userRole} />
         </div>
       );
     }

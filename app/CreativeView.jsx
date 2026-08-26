@@ -143,7 +143,14 @@ export default function CreativeView({ data, exRate = 1, exSym = '$', formatShor
                {topCTR.map((c, i) => (
                   <div key={i} className="flex flex-col gap-1">
                      <div className="flex justify-between text-xs text-[#6fa89f]">
-                        <span className="truncate w-3/4">{i+1}. {c.creativeName}</span>
+                        <span className="truncate w-3/4" title={c.creativeName}>
+                          {i+1}.{' '}
+                          {c.adImageUrl ? (
+                            <a href={c.adImageUrl} target="_blank" rel="noopener noreferrer" className="hover:underline hover:text-white transition-colors">{c.creativeName}</a>
+                          ) : (
+                            c.creativeName
+                          )}
+                        </span>
                         <span className="font-bold text-[#c88214]">{(c.ctr*100).toFixed(2)}%</span>
                      </div>
                      <div className="w-full bg-[#011414] h-1.5 rounded-full overflow-hidden">
@@ -162,7 +169,14 @@ export default function CreativeView({ data, exRate = 1, exSym = '$', formatShor
                  {topCPC.map((c, i) => (
                     <div key={i} className="flex flex-col gap-1">
                        <div className="flex justify-between text-xs text-[#6fa89f]">
-                          <span className="truncate w-3/4">{i+1}. {c.creativeName}</span>
+                          <span className="truncate w-3/4" title={c.creativeName}>
+                            {i+1}.{' '}
+                            {c.adImageUrl ? (
+                              <a href={c.adImageUrl} target="_blank" rel="noopener noreferrer" className="hover:underline hover:text-white transition-colors">{c.creativeName}</a>
+                            ) : (
+                              c.creativeName
+                            )}
+                          </span>
                           <span className="font-bold text-[#c88214]">{exSym}{d3.format(",.2f")(c.cpc)}</span>
                        </div>
                        <div className="w-full bg-[#011414] h-1.5 rounded-full overflow-hidden">
@@ -182,7 +196,14 @@ export default function CreativeView({ data, exRate = 1, exSym = '$', formatShor
                  {topCost.map((c, i) => (
                     <div key={i} className="flex flex-col gap-1">
                        <div className="flex justify-between text-xs text-[#6fa89f]">
-                          <span className="truncate w-3/4">{i+1}. {c.creativeName}</span>
+                          <span className="truncate w-3/4" title={c.creativeName}>
+                            {i+1}.{' '}
+                            {c.adImageUrl ? (
+                              <a href={c.adImageUrl} target="_blank" rel="noopener noreferrer" className="hover:underline hover:text-white transition-colors">{c.creativeName}</a>
+                            ) : (
+                              c.creativeName
+                            )}
+                          </span>
                           <span className="font-bold text-rose-400">{exSym}{formatShort(c.cost)}</span>
                        </div>
                        <div className="w-full bg-[#011414] h-1.5 rounded-full overflow-hidden">
