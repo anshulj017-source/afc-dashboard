@@ -129,7 +129,7 @@ export async function GET(request: Request) {
           }
 
           // 3. Query video/info and image/info to get the cover URLs and preview URLs
-          const mediaCoverMap: Record<string, { coverUrl: string, videoUrl?: string }> = {};
+          const mediaCoverMap: Record<string, { coverUrl: string, videoUrl?: string, postUrl?: string }> = {};
           
           if (videoIds.length > 0) {
             const uniqueVideoIds = Array.from(new Set(videoIds));
