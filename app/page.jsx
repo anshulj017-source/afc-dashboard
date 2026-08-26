@@ -335,6 +335,7 @@ export default function App() {
             date: row['Date'],
             dateObj: row['Date'] ? new Date(row['Date']) : null,
             campaignName: cName,
+            isAuxiliaryData: true,
             phase: 'Unknown',
             buyingType: 'Unknown',
             country: 'Unknown',
@@ -468,6 +469,8 @@ export default function App() {
       return true;
     });
   }, [adData, filterCampaigns, filterMarkets, dateRange]);
+
+  const coreAdData = useMemo(() => filteredAdData.filter(d => !d.isAuxiliaryData), [filteredAdData]);
 
   // Apply filters to GA Data (only Date and Market apply)
   const filteredGaData = useMemo(() => {
@@ -862,7 +865,7 @@ export default function App() {
     if (activeTab === 'campaign') {
       return (
         <div className="w-full h-full">
-           <CampaignView adData={filteredAdData} plannedData={plannedData} exRate={exRate} exSym={exSym} formatShort={formatShort} userRole={userRole} filterMarkets={filterMarkets} />
+           <CampaignView adData={coreAdData} plannedData={plannedData} exRate={exRate} exSym={exSym} formatShort={formatShort} userRole={userRole} filterMarkets={filterMarkets} />
         </div>
       );
     }
@@ -870,7 +873,7 @@ export default function App() {
     if (activeTab === 'channel') {
       return (
         <div className="w-full h-full">
-          <ChannelView adData={filteredAdData} exRate={exRate} exSym={exSym} formatShort={formatShort} userRole={userRole} />
+          <ChannelView adData={coreAdData} exRate={exRate} exSym={exSym} formatShort={formatShort} userRole={userRole} />
         </div>
       );
     }
@@ -878,7 +881,7 @@ export default function App() {
     if (activeTab === 'market') {
       return (
         <div className="w-full h-full">
-          <MarketView adData={filteredAdData} gaData={filteredGaData} exRate={exRate} exSym={exSym} formatShort={formatShort} userRole={userRole} />
+          <MarketView adData={coreAdData} gaData={filteredGaData} exRate={exRate} exSym={exSym} formatShort={formatShort} userRole={userRole} />
         </div>
       );
     }
@@ -886,7 +889,7 @@ export default function App() {
     if (activeTab === 'detailed') {
       return (
         <div className="w-full h-full">
-          <CustomView adData={filteredAdData} exRate={exRate} exSym={exSym} formatShort={formatShort} filterCampaigns={filterCampaigns} filterMarkets={filterMarkets} dateRange={dateRange} userRole={userRole} />
+          <CustomView adData={coreAdData} exRate={exRate} exSym={exSym} formatShort={formatShort} filterCampaigns={filterCampaigns} filterMarkets={filterMarkets} dateRange={dateRange} userRole={userRole} />
         </div>
       );
     }
@@ -1037,8 +1040,16 @@ export default function App() {
       );
     }
     if (activeTab === 'creative') {
+      const filteredCreativeData = creativeData.filter(d => {
+        if (!filterCampaigns.includes('All') && !filterCampaigns.includes(d.campaignName)) return false;
+        if (dateRange.start && d.date && d.date < new Date(dateRange.start)) return false;
+        if (dateRange.end && d.date && d.date > new Date(dateRange.end)) return false;
+        return true;
+      });
       return (
-        <CreativeView data={creativeData} exRate={exRate} exSym={exSym} formatShort={formatShort} userRole={userRole} />
+        <div className="w-full h-full">
+          <CreativeView creativeData={filteredCreativeData} adData={coreAdData} exRate={exRate} exSym={exSym} formatShort={formatShort} userRole={userRole} />
+        </div>
       );
     }
     return null;

@@ -13,7 +13,8 @@ const getFlagEmoji = (countryName) => {
     'Australia': 'au', 'Malaysia': 'my', 'Singapore': 'sg', 'Indonesia': 'id', 'India': 'in',
     'Philippines': 'ph', 'Thailand': 'th', 'Vietnam': 'vn', 'South Korea': 'kr', 'Japan': 'jp',
     'Kuwait': 'kw', 'Saudi Arabia': 'sa', 'United Arab Emirates': 'ae', 'Qatar': 'qa',
-    'Bahrain': 'bh', 'Oman': 'om', 'Egypt': 'eg', 'Jordan': 'jo', 'United Kingdom': 'gb', 'United States': 'us'
+    'Bahrain': 'bh', 'Oman': 'om', 'Egypt': 'eg', 'Jordan': 'jo', 'United Kingdom': 'gb', 'United States': 'us',
+    'Iraq': 'iq', 'Yemen': 'ye'
   };
   const code = codes[countryName];
   if (code) {

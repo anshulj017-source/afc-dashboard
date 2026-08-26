@@ -188,31 +188,33 @@ export default function CampaignView({ adData, plannedData = [], exRate = 1, exS
       }
     }
 
-    const groupedPlanned = d3.groups(pData, d => `${d.channel}_${d.buyingType}`).map(([key, rows]) => {
-      const channel = rows[0].channel;
-      const buyingType = rows[0].buyingType;
-      const plannedCost = d3.sum(rows, d => d.plannedCost);
-      const bookedUnits = d3.sum(rows, d => d.bookedUnits);
+    const pKeys = new Set(pData.map(d => `${d.channel.toLowerCase()}_${d.buyingType.toLowerCase()}`));
+    const aKeys = new Set(actualData.map(d => `${d.channel.toLowerCase()}_${d.buyingType.toLowerCase()}`));
+    const allKeys = Array.from(new Set([...pKeys, ...aKeys]));
+
+    const combined = allKeys.map(key => {
+      const pMatching = pData.filter(d => `${d.channel.toLowerCase()}_${d.buyingType.toLowerCase()}` === key);
+      const aMatching = actualData.filter(d => `${d.channel.toLowerCase()}_${d.buyingType.toLowerCase()}` === key);
       
-      const matchingActual = actualData.filter(d => 
-        d.channel.toLowerCase() === channel.toLowerCase() && 
-        d.buyingType.toLowerCase() === buyingType.toLowerCase()
-      );
+      const channel = pMatching.length > 0 ? pMatching[0].channel : aMatching[0].channel;
+      const buyingType = pMatching.length > 0 ? pMatching[0].buyingType : aMatching[0].buyingType;
       
-      const deliveredCost = d3.sum(matchingActual, d => d.cost);
+      const plannedCost = d3.sum(pMatching, d => d.plannedCost || 0);
+      const bookedUnits = d3.sum(pMatching, d => d.bookedUnits || 0);
+      const deliveredCost = d3.sum(aMatching, d => d.cost || 0);
       
       let deliveredUnits = 0;
       const bt = buyingType.toUpperCase();
       if (bt.includes('CPM')) {
-        deliveredUnits = d3.sum(matchingActual, d => d.impressions);
+        deliveredUnits = d3.sum(aMatching, d => d.impressions);
       } else if (bt.includes('CPC')) {
-        deliveredUnits = d3.sum(matchingActual, d => d.clicks);
+        deliveredUnits = d3.sum(aMatching, d => d.clicks);
       } else if (bt.includes('CPV')) {
-        deliveredUnits = d3.sum(matchingActual, d => d.videoViews);
+        deliveredUnits = d3.sum(aMatching, d => d.videoViews);
       } else {
-        deliveredUnits = d3.sum(matchingActual, d => d.impressions); // fallback
+        deliveredUnits = d3.sum(aMatching, d => d.impressions); // fallback
       }
-
+      
       return {
         channel,
         buyingType,
@@ -225,7 +227,7 @@ export default function CampaignView({ adData, plannedData = [], exRate = 1, exS
       };
     });
     
-    return groupedPlanned.sort((a,b) => b.plannedCost - a.plannedCost);
+    return combined.sort((a,b) => b.plannedCost - a.plannedCost);
   }, [campaignData, plannedData, selectedCampaign, selectedPhases, selectedChannels, filterMarkets]);
 
   // Reset viewMode if selected campaign is not Gulf Cup
