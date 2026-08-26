@@ -272,7 +272,8 @@ export default function App() {
         return raw.map(row => {
           const vals = Object.values(row);
           // Find 'DB' prefixed columns dynamically if they exist, otherwise fallback
-          const campDB = row['Campaign DB'] || row['Campaign name'] || row['Campaign Name'] || 'Unknown';
+          const rawCampDB = row['Campaign DB'] || row['Campaign name'] || row['Campaign Name'] || 'Unknown';
+          const campDB = rawCampDB.replace(/\r/g, '').trim();
           const phaseDB = row['Phase DB'] || row['Phase'] || 'Unknown';
           const buyingTypeDB = row['Buying Type DB'] || 'Unknown';
           const countryDB = normalizeMarket(row['Country DB'] || row['Country'] || 'Unknown');
@@ -324,23 +325,27 @@ export default function App() {
         else if (rawPaid.toLowerCase() === 'organic') paidOrganic = 'Organic';
         else paidOrganic = rawPaid;
 
-        return {
-          date: row['Date'],
-          dateObj: row['Date'] ? new Date(row['Date']) : null,
-          sourceMedium: row['Session source / medium'],
-          country: normalizeMarket(row['Country']),
-          sessions: parseMetric(row['Sessions']),
-          users: parseMetric(row['Total users']),
-          engagedSessions: parseMetric(row['Engaged sessions']),
-          newUsers: parseMetric(row['New users']),
-          avgSessionDuration: parseMetric(row['Average session length (sec)']),
-          itemViews: parseMetric(row['Item views']),
-          addToCarts: parseMetric(row['Add-to-carts']),
-          checkouts: parseMetric(row['Checkouts']),
-          purchases: parseMetric(row['Purchases']),
-          campaignName: row['Campaign DB'] || 'Unknown',
-          paidOrganic
-        };
+          const campKey = Object.keys(row).find(k => k && k.trim() === 'Campaign DB');
+          const rawCamp = campKey ? row[campKey] : 'Unknown';
+          const campaignName = (rawCamp || 'Unknown').replace(/\r/g, '').trim();
+          
+          return {
+            date: row['Date'],
+            dateObj: row['Date'] ? new Date(row['Date']) : null,
+            sourceMedium: row['Session source / medium'],
+            country: normalizeMarket(row['Country']),
+            sessions: parseMetric(row['Sessions']),
+            users: parseMetric(row['Total users']),
+            engagedSessions: parseMetric(row['Engaged sessions']),
+            newUsers: parseMetric(row['New users']),
+            avgSessionDuration: parseMetric(row['Average session length (sec)']),
+            itemViews: parseMetric(row['Item views']),
+            addToCarts: parseMetric(row['Add-to-carts']),
+            checkouts: parseMetric(row['Checkouts']),
+            purchases: parseMetric(row['Purchases']),
+            campaignName,
+            paidOrganic
+          };
       });
     });
 
