@@ -961,7 +961,7 @@ export default function App() {
     if (activeTab === 'campaign') {
       return (
         <div className="w-full h-full">
-           <CampaignView adData={coreAdData} plannedData={plannedData} exRate={exRate} exSym={exSym} formatShort={formatShort} userRole={userRole} filterMarkets={filterMarkets} />
+           <CampaignView adData={filteredAdData} plannedData={plannedData} exRate={exRate} exSym={exSym} formatShort={formatShort} userRole={userRole} filterMarkets={filterMarkets} />
         </div>
       );
     }
