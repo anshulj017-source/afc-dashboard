@@ -431,6 +431,7 @@ export default function App() {
             addToCarts: parseMetric(row['Add-to-carts']),
             checkouts: parseMetric(row['Checkouts']),
             purchases: parseMetric(row['Purchases']),
+            gaTickets: parseMetric(row['Item purchase quantity']),
             campaignName,
             paidOrganic,
             ga4Property: row['GA4 property'] || 'Unknown'
@@ -594,7 +595,8 @@ export default function App() {
     const purchases = d3.sum(filteredAdData, d => d.purchases || 0);
     const sessions = d3.sum(filteredGaData, d => d.sessions);
     const gaPurchases = d3.sum(filteredGaData, d => d.purchases || 0);
-    return { cost, impressions, clicks, views, completions, views6s, views15s, sessions, purchases, gaPurchases };
+    const gaTickets = d3.sum(filteredGaData, d => d.gaTickets || 0);
+    return { cost, impressions, clicks, views, completions, views6s, views15s, sessions, purchases, gaPurchases, gaTickets };
   }, [filteredAdData, filteredGaData]);
 
   const gaSourceData = useMemo(() => {
@@ -830,8 +832,8 @@ export default function App() {
             <MetricCard definition="The total number of times your video ads were watched." label="Video Views" value={formatShort(agg.views)} color="text-[#00937b]" icon={MonitorPlay} />
             <MetricCard definition="The total number of times your video ads were watched to completion (100%)." label="Video Completions (100%)" value={formatShort(agg.completions)} color="text-white" icon={Check} />
             <MetricCard definition="The total number of sessions on the website originating from the ad campaigns." label="Total Web Sessions" value={formatShort(agg.sessions)} color="text-[#c88214]" icon={Globe} />
-            <MetricCard definition="The total number of purchases reported by the ad managers." label="Purchases" value={formatShort(agg.purchases)} color="text-[#00937b]" icon={ShoppingCart} />
-            <MetricCard definition="The total number of purchases reported by GA4." label="GA4 Purchases" value={formatShort(agg.gaPurchases)} color="text-[#6fa89f]" icon={ShoppingCart} />
+            <MetricCard definition="The total number of purchases reported by GA4." label="GA4 Purchases" value={formatShort(agg.gaPurchases)} color="text-[#00937b]" icon={ShoppingCart} />
+            <MetricCard definition="The total quantity of tickets sold reported by GA4." label="GA4 Tickets Sales" value={formatShort(agg.gaTickets)} color="text-[#6fa89f]" icon={ShoppingCart} />
           </div>
           
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-8 mb-8">
