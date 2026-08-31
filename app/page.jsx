@@ -28,11 +28,11 @@ const GEO_URL = "https://unpkg.com/world-atlas@2.0.2/countries-110m.json";
 
 const BASE_URL = "/api/sheets?type=afc";
 const CHANNELS = [
-  { name: 'TikTok', gid: '0', viewsCol: 9, compCol: 11, purchCol: 13 }, // J=9, L=11, N=13
+  { name: 'TikTok', gid: '0', viewsCol: 9, compCol: 11 }, // J=9, L=11
   { name: 'Snapchat', gid: '1220368554', viewsCol: 8, compCol: 10, purchCol: 11 }, // I=8, L=11
   { name: 'Meta', gid: '796244792', viewsCol: 9, compCol: 11, purchCol: 12 }, // J=9, M=12
   { name: 'DV360', gid: '357397097', viewsCol: 9, compCol: 10, subCol: 11 }, // J=9, K=10, sub=L(11)
-  { name: 'X', gid: '1750570025', viewsCol: 9, compCol: 11 }, // J=9
+  { name: 'X', gid: '1750570025', viewsCol: 8, compCol: 11 }, // I=8
   { name: 'Google', gid: '1637892512', viewsCol: 6, compCol: 7, subCol: 12 }, // G=6, H=7, sub=M(12)
   { name: 'Amazon', gid: '770767992', viewsCol: 10, compCol: 10, subCol: 11 } // K=10, sub=L(11)
 ];
@@ -363,15 +363,50 @@ export default function App() {
       });
     });
 
+    const tiktokPurchasesPromise = d3.csv(`${BASE_URL}&gid=1963494707`).then(raw => {
+      return raw.map(row => {
+        const vals = Object.values(row);
+        let cName = row['Campaign DB'] || row['Campaign name'] || 'Unknown';
+        const phaseDB = row['Phase DB'] || row['Phase'] || 'Unknown';
+        const countryDB = row['Country DB'] || row['Country'] || 'Unknown';
+        const langDB = row['Language DB'] || row['Language'] || 'Unknown';
+
+        return {
+          date: row['Date'],
+          dateObj: row['Date'] ? new Date(row['Date']) : null,
+          campaignName: cName,
+          isAuxiliaryData: true,
+          phase: phaseDB,
+          buyingType: 'Unknown',
+          country: countryDB,
+          language: langDB,
+          channel: 'TikTok',
+          adName: row['Ad name'] || row['Ad Name'] || 'Unknown',
+          cost: 0,
+          impressions: 0,
+          clicks: 0,
+          videoViews: 0,
+          videoViews6s: 0,
+          videoViews15s: 0,
+          videoCompletions: 0,
+          purchases: parseMetric(vals[5]) // Column F is index 5
+        };
+      });
+    });
+
     Promise.all([
       Promise.all(fetchPromises),
       d3.csv(`${BASE_URL}&gid=${GA4_GID}`),
       d3.csv(`${BASE_URL}&gid=${META_CREATIVE_GID}`),
-      googlePurchasesPromise
-    ]).then(([channelDataArray, gaDataRaw, metaCreativeRaw, googlePurchData]) => {
-      const combinedAds = channelDataArray.flat().concat(googlePurchData);
+      googlePurchasesPromise,
+      tiktokPurchasesPromise
+    ]).then(([channelResults, ga4Raw, metaCreativeRaw, googlePurchases, tiktokPurchases]) => {
+      let combinedAds = [];
+      channelResults.forEach(res => combinedAds = combinedAds.concat(res));
+      combinedAds = combinedAds.concat(googlePurchases);
+      combinedAds = combinedAds.concat(tiktokPurchases);
       
-      const gaResults = gaDataRaw.map(row => {
+      const gaResults = ga4Raw.map(row => {
         const rawPaid = row['Paid/Organic'] || 'Unknown';
         let paidOrganic = 'Unknown';
         if (rawPaid.toLowerCase() === 'paid') paidOrganic = 'Paid';
@@ -793,8 +828,6 @@ export default function App() {
             <MetricCard definition="The total number of times your ads were displayed on screen to users." label="Impressions" value={formatShort(agg.impressions)} color="text-[#c88214]" icon={Eye} />
             <MetricCard definition="The number of times users clicked on your ads." label="Clicks" value={formatShort(agg.clicks)} color="text-[#6fa89f]" icon={MousePointer2} />
             <MetricCard definition="The total number of times your video ads were watched." label="Video Views" value={formatShort(agg.views)} color="text-[#00937b]" icon={MonitorPlay} />
-            <MetricCard definition="The number of times your video ads were watched for at least 6 seconds." label="6s Video Views" value={formatShort(agg.views6s)} color="text-[#eef7f5]" />
-            <MetricCard definition="The number of times your video ads were watched for at least 15 seconds." label="15s Video Views" value={formatShort(agg.views15s)} color="text-[#eef7f5]" />
             <MetricCard definition="The total number of times your video ads were watched to completion (100%)." label="Video Completions (100%)" value={formatShort(agg.completions)} color="text-white" icon={Check} />
             <MetricCard definition="The total number of sessions on the website originating from the ad campaigns." label="Total Web Sessions" value={formatShort(agg.sessions)} color="text-[#c88214]" icon={Globe} />
             <MetricCard definition="The total number of purchases reported by the ad managers." label="Purchases" value={formatShort(agg.purchases)} color="text-[#00937b]" icon={ShoppingCart} />

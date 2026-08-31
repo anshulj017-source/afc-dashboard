@@ -60,15 +60,21 @@ export async function POST(req) {
 export async function PUT(req) {
   try {
     const { adminAuth, adminDb } = getFirebaseAdmin();
-    const { uid, role } = await req.json();
+    const { uid, role, password } = await req.json();
 
     if (!uid) {
       return NextResponse.json({ error: 'UID is required' }, { status: 400 });
     }
 
-    await adminDb.collection('users').doc(uid).set({
-      role: role || 'standard',
-    }, { merge: true });
+    if (role) {
+      await adminDb.collection('users').doc(uid).set({
+        role: role,
+      }, { merge: true });
+    }
+
+    if (password) {
+      await adminAuth.updateUser(uid, { password });
+    }
 
     return NextResponse.json({ success: true });
   } catch (error) {

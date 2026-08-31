@@ -1,6 +1,6 @@
 "use client";
 import React, { useState, useEffect } from 'react';
-import { Trash2, UserPlus, Shield, User, RefreshCw, CheckCircle2 } from 'lucide-react';
+import { Trash2, UserPlus, Shield, User, RefreshCw, CheckCircle2, Key } from 'lucide-react';
 
 export default function AdminView() {
   const [users, setUsers] = useState([]);
@@ -111,6 +111,42 @@ export default function AdminView() {
     }
   };
 
+  const handleChangePassword = async (uid, email) => {
+    const newPassword = window.prompt(`Enter new password for ${email} (minimum 6 characters):`);
+    if (!newPassword) return;
+    if (newPassword.length < 6) {
+      alert('Password must be at least 6 characters long.');
+      return;
+    }
+    
+    try {
+      const res = await fetch('/api/admin/users', {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ uid, password: newPassword })
+      });
+      
+      if (!res.ok) {
+        const data = await res.json();
+        throw new Error(data.error || 'Failed to update password');
+      }
+      
+      alert(`Password successfully updated for ${email}.`);
+    } catch (err) {
+      console.error(err);
+      alert('Error updating user password: ' + err.message);
+    }
+  };
+
+  const formatDate = (dateString) => {
+    if (!dateString) return 'Never logged in';
+    const date = new Date(dateString);
+    return new Intl.DateTimeFormat('en-US', {
+      month: 'short', day: 'numeric', year: 'numeric',
+      hour: 'numeric', minute: '2-digit', hour12: true
+    }).format(date);
+  };
+
   return (
     <div className="flex-1 p-8 overflow-auto pb-32">
       <div className="max-w-6xl mx-auto">
@@ -213,19 +249,20 @@ export default function AdminView() {
                 <tr className="bg-[#011414]/50 border-b border-[#c88214]/10">
                   <th className="py-4 px-6 text-[10px] font-black text-[#6fa89f] uppercase tracking-widest">User Details</th>
                   <th className="py-4 px-6 text-[10px] font-black text-[#6fa89f] uppercase tracking-widest text-center">Role</th>
+                  <th className="py-4 px-6 text-[10px] font-black text-[#6fa89f] uppercase tracking-widest text-center">Last Active</th>
                   <th className="py-4 px-6 text-[10px] font-black text-[#6fa89f] uppercase tracking-widest text-center">Actions</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-white/5">
                 {loading && users.length === 0 ? (
                   <tr>
-                    <td colSpan="3" className="py-12 text-center text-gray-500 font-medium">
+                    <td colSpan="4" className="py-12 text-center text-gray-500 font-medium">
                       Loading users...
                     </td>
                   </tr>
                 ) : users.length === 0 ? (
                   <tr>
-                    <td colSpan="3" className="py-12 text-center text-gray-500 font-medium">
+                    <td colSpan="4" className="py-12 text-center text-gray-500 font-medium">
                       No users found.
                     </td>
                   </tr>
@@ -260,8 +297,20 @@ export default function AdminView() {
                            </select>
                         </div>
                       </td>
+                      <td className="py-4 px-6 text-center">
+                        <div className="text-sm font-medium text-gray-400">
+                          {formatDate(user.lastSignInTime)}
+                        </div>
+                      </td>
                       <td className="py-4 px-6">
-                        <div className="flex justify-center">
+                        <div className="flex justify-center gap-2">
+                          <button 
+                            onClick={() => handleChangePassword(user.uid, user.email)}
+                            className="p-2 bg-blue-500/0 hover:bg-blue-500/10 text-gray-500 hover:text-blue-400 rounded-lg transition-colors"
+                            title="Change Password"
+                          >
+                            <Key className="w-4 h-4" />
+                          </button>
                           <button 
                             onClick={() => handleDeleteUser(user.uid, user.email)}
                             className="p-2 bg-red-500/0 hover:bg-red-500/10 text-gray-500 hover:text-red-400 rounded-lg transition-colors"

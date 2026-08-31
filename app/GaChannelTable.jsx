@@ -39,7 +39,7 @@ export const GaChannelTable = ({ rawData, formatShort }) => {
         checkouts: d3.sum(v, d => d.checkouts),
         purchases: d3.sum(v, d => d.purchases)
       }),
-      d => viewBy === 'sourceMedium' ? d.sourceMedium : d.country
+      d => viewBy === 'sourceMedium' ? d.sourceMedium : viewBy === 'country' ? d.country : d.ga4Property
     )).map(([dimension, metrics]) => ({
       dimension,
       ...metrics
@@ -134,13 +134,13 @@ export const GaChannelTable = ({ rawData, formatShort }) => {
         <h3 className="text-xl font-black text-[#eef7f5]">Web Traffic Analysis</h3>
         <div className="flex items-center gap-4">
           <div className="flex bg-[#011414] rounded-full p-1 border border-[#c88214]/20">
-            {['sourceMedium', 'country'].map(v => (
+            {['sourceMedium', 'country', 'ga4Property'].map(v => (
               <button 
                 key={v} 
                 onClick={() => setViewBy(v)} 
                 className={`px-4 py-1.5 rounded-full text-xs font-bold transition-all ${viewBy === v ? 'gradient-gold text-[#043e3f]' : 'text-[#c88214] hover:text-white'}`}
               >
-                {v === 'sourceMedium' ? 'Source / Medium' : 'Country'}
+                {v === 'sourceMedium' ? 'Source / Medium' : v === 'country' ? 'Country' : 'Property'}
               </button>
             ))}
           </div>
@@ -172,7 +172,7 @@ export const GaChannelTable = ({ rawData, formatShort }) => {
                 <input type="checkbox" checked={selectedChannels.length === sortedAgg.length && sortedAgg.length > 0} onChange={toggleAll} className="accent-[#c88214] cursor-pointer" />
               </th>
               {[
-                { key: 'dimension', label: viewBy === 'sourceMedium' ? 'Source / Medium' : 'Country' },
+                { key: 'dimension', label: viewBy === 'sourceMedium' ? 'Source / Medium' : viewBy === 'country' ? 'Country' : 'Property' },
                 { key: 'sessions', label: 'Sessions' },
                 { key: 'users', label: 'Users' },
                 { key: 'engagedSessions', label: 'Engaged' },
@@ -316,10 +316,19 @@ export const GaChannelTable = ({ rawData, formatShort }) => {
                   {[
                     { key: 'sessions', label: 'Sessions' },
                     { key: 'users', label: 'Users' },
-                    { key: 'engagedSessions', label: 'Engaged' }
-                  ].map(m => (
-                    <button key={m.key} onClick={() => setTrendMetric(m.key)} className={`px-4 py-1.5 rounded-full text-xs font-bold transition-all ${trendMetric === m.key ? 'gradient-gold text-[#043e3f]' : 'text-[#c88214] hover:text-white'}`}>
-                      {m.label}
+                    { key: 'engagedSessions', label: 'Engaged' },
+                    { key: 'newUsers', label: 'New Users' },
+                    { key: 'itemViews', label: 'Item Views' },
+                    { key: 'addToCarts', label: 'Add to Carts' },
+                    { key: 'checkouts', label: 'Checkouts' },
+                    { key: 'purchases', label: 'Purchases' }
+                  ].map(metric => (
+                    <button 
+                      key={metric.key}
+                      onClick={() => setTrendMetric(metric.key)}
+                      className={`px-3 py-1 text-[10px] font-bold rounded-full transition-colors ${trendMetric === metric.key ? 'bg-[#c88214] text-[#043e3f]' : 'text-[#6fa89f] hover:text-[#c88214]'}`}
+                    >
+                      {metric.label}
                     </button>
                   ))}
                 </div>
