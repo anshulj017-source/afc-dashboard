@@ -1002,6 +1002,7 @@ export default function App() {
       const totalAddToCart = d3.sum(filteredGaData, d => d.addToCarts);
       const totalCheckouts = d3.sum(filteredGaData, d => d.checkouts);
       const totalPurchases = d3.sum(filteredGaData, d => d.purchases);
+      const totalGaTickets = d3.sum(filteredGaData, d => d.gaTickets || 0);
       
       const gaWithSessions = filteredGaData.filter(d => d.sessions > 0);
       const totalGaMarkets = new Set(gaWithSessions.map(d => d.country)).size;
@@ -1051,7 +1052,6 @@ export default function App() {
 
           <div className="grid grid-cols-2 md:grid-cols-5 lg:grid-cols-5 gap-4">
             <MetricCard definition="A session is a group of user interactions with your website that take place within a given time frame." label="Sessions" value={formatShort(totalGaSessions)} icon={Eye} color="text-white" />
-            <MetricCard definition="The total number of distinct geographic markets (countries) reached." label="Total Markets" value={d3.format(",")(totalGaMarkets)} icon={Globe} color="text-[#c88214]" />
             <MetricCard definition="The number of sessions that lasted longer than 10 seconds, had a conversion event, or had 2 or more screen or page views." label="Engaged Sessions" value={formatShort(totalGaEngaged)} icon={Activity} color="text-[#6fa89f]" />
             <MetricCard definition="The number of users who interacted with your site or launched your app for the first time." label="New Users" value={formatShort(totalGaNewUsers)} icon={TrendingUp} color="text-white" />
             <MetricCard definition="The total number of unique users who logged an event." label="Total Users" value={formatShort(totalGaUsers)} icon={MousePointer2} color="text-[#c88214]" />
@@ -1061,6 +1061,7 @@ export default function App() {
             <MetricCard definition="The total number of times users initiated a checkout." label="Checkouts" value={formatShort(totalCheckouts)} icon={MousePointer2} color="text-[#c88214]" />
             <MetricCard definition="The total number of completed purchases." label="Purchases" value={formatShort(totalPurchases)} icon={TrendingUp} color="text-[#6fa89f]" />
             <MetricCard definition="The average duration (in seconds) of user sessions." label="Avg Session (s)" value={d3.format(",.1f")(avgDuration)} icon={List} color="text-white" />
+            <MetricCard definition="The total quantity of tickets sold reported by GA4." label="GA4 Tickets Sales" value={formatShort(totalGaTickets)} icon={ShoppingCart} color="text-[#c88214]" />
           </div>
 
           <div className="card-surface backdrop-blur-2xl p-6 rounded-3xl border border-[#c88214]/20 shadow-xl relative">
