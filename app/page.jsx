@@ -332,7 +332,7 @@ export default function App() {
       return raw
         .filter(row => row['Conversion category'] === 'Purchase/Sale')
         .map(row => {
-          let cName = row['Campaign name'] ? row['Campaign name'].trim() : 'Unknown';
+          let cName = row['Campaign DB'] || row['Campaign name'] || 'Unknown';
           const cNameUpper = cName.toUpperCase();
           if (cNameUpper.includes('AC27')) cName = 'AC27';
           else if (cNameUpper.includes('ACLE')) cName = 'ACLE';
@@ -345,10 +345,10 @@ export default function App() {
             dateObj: row['Date'] ? new Date(row['Date']) : null,
             campaignName: cName,
             isAuxiliaryData: true,
-            phase: 'Unknown',
-            buyingType: 'Unknown',
-            country: 'Unknown',
-            language: 'Unknown',
+            phase: row['Phase DB'] || row['Phase'] || 'Unknown',
+            buyingType: row['Buying Type DB'] || 'Unknown',
+            country: normalizeMarket(row['Country DB'] || row['Country'] || 'Unknown'),
+            language: row['Language DB'] || row['Language'] || 'Unknown',
             channel: 'Google Search',
             adName: row['Ad group name'] || 'Unknown',
             cost: 0,
@@ -377,8 +377,8 @@ export default function App() {
           campaignName: cName,
           isAuxiliaryData: true,
           phase: phaseDB,
-          buyingType: 'Unknown',
-          country: countryDB,
+          buyingType: row['Buying Type DB'] || row['Buying Type'] || 'Unknown',
+          country: normalizeMarket(countryDB),
           language: langDB,
           channel: 'TikTok',
           adName: row['Ad name'] || row['Ad Name'] || 'Unknown',
