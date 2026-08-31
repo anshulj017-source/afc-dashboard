@@ -204,6 +204,7 @@ export default function CampaignView({ adData, plannedData = [], exRate = 1, exS
         impressions,
         clicks,
         views,
+        completions: d3.sum(rows, d => d.videoCompletions || 0),
         purchases,
         ctr: impressions > 0 ? (clicks / impressions) * 100 : 0,
         cpm: impressions > 0 ? (spend / impressions) * 1000 : 0,
@@ -539,6 +540,7 @@ export default function CampaignView({ adData, plannedData = [], exRate = 1, exS
                   <th className="py-4 px-4 text-[10px] font-black text-[#6fa89f] uppercase tracking-widest bg-[#011414]/50 text-right">Impressions</th>
                   <th className="py-4 px-4 text-[10px] font-black text-[#6fa89f] uppercase tracking-widest bg-[#011414]/50 text-right">Clicks</th>
                   <th className="py-4 px-4 text-[10px] font-black text-[#6fa89f] uppercase tracking-widest bg-[#011414]/50 text-right">Video Views</th>
+                  <th className="py-4 px-4 text-[10px] font-black text-[#6fa89f] uppercase tracking-widest bg-[#011414]/50 text-right">Completed Views</th>
                   <th className="py-4 px-4 text-[10px] font-black text-[#6fa89f] uppercase tracking-widest bg-[#011414]/50 text-right">Purchases</th>
                   <th className={`py-4 px-4 text-[10px] font-black text-[#6fa89f] uppercase tracking-widest bg-[#011414]/50 text-right ${userRole === 'non-finance' ? 'rounded-tr-xl' : ''}`}>CTR</th>
                   {userRole !== 'non-finance' && (
@@ -558,6 +560,7 @@ export default function CampaignView({ adData, plannedData = [], exRate = 1, exS
                     <td className="py-4 px-4 text-sm font-medium text-[#c88214] text-right">{d3.format(",")(row.impressions)}</td>
                     <td className="py-4 px-4 text-sm font-medium text-[#6fa89f] text-right">{d3.format(",")(row.clicks)}</td>
                     <td className="py-4 px-4 text-sm font-medium text-[#c88214] text-right">{formatShort(row.views)}</td>
+                    <td className="py-4 px-4 text-sm font-medium text-white text-right">{formatShort(row.completions)}</td>
                     <td className="py-4 px-4 text-sm font-medium text-white text-right">{d3.format(",")(row.purchases)}</td>
                     <td className="py-4 px-4 text-sm font-bold text-white text-right">{row.ctr.toFixed(2)}%</td>
                     {userRole !== 'non-finance' && (
@@ -574,6 +577,7 @@ export default function CampaignView({ adData, plannedData = [], exRate = 1, exS
                   const tImp = d3.sum(tableData, d => d.impressions);
                   const tClicks = d3.sum(tableData, d => d.clicks);
                   const tViews = d3.sum(tableData, d => d.views);
+                  const tCompletions = d3.sum(tableData, d => d.completions);
                   const tPurchases = d3.sum(tableData, d => d.purchases);
                   const tCtr = tImp > 0 ? (tClicks / tImp) * 100 : 0;
                   const tCpm = tImp > 0 ? (tSpend / tImp) * 1000 : 0;
@@ -586,6 +590,7 @@ export default function CampaignView({ adData, plannedData = [], exRate = 1, exS
                       <td className="py-4 px-4 text-sm font-black text-[#c88214] text-right">{d3.format(",")(tImp)}</td>
                       <td className="py-4 px-4 text-sm font-black text-[#c88214] text-right">{d3.format(",")(tClicks)}</td>
                       <td className="py-4 px-4 text-sm font-black text-[#c88214] text-right">{formatShort(tViews)}</td>
+                      <td className="py-4 px-4 text-sm font-black text-[#c88214] text-right">{formatShort(tCompletions)}</td>
                       <td className="py-4 px-4 text-sm font-black text-[#c88214] text-right">{d3.format(",")(tPurchases)}</td>
                       <td className="py-4 px-4 text-sm font-black text-[#c88214] text-right">{tCtr.toFixed(2)}%</td>
                       {userRole !== 'non-finance' && (
