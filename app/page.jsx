@@ -574,7 +574,16 @@ export default function App() {
   // Apply filters to GA Data (only Date and Market apply)
   const filteredGaData = useMemo(() => {
     return gaData.filter(d => {
-      if (!filterCampaigns.includes('All') && !filterCampaigns.includes(d.campaignName)) return false;
+      let matchesCampaign = true;
+      if (!filterCampaigns.includes('All')) {
+        matchesCampaign = filterCampaigns.includes(d.campaignName);
+        // Special rule for Gulf Cup: Include all traffic for Gulfcup GA property if Gulf Cup tournament is selected
+        if (filterCampaigns.includes('Gulf Cup') && d.ga4Property === 'Gulfcup - Khaleeji27') {
+          matchesCampaign = true;
+        }
+      }
+      if (!matchesCampaign) return false;
+
       if (!filterMarkets.includes('All') && !filterMarkets.includes(d.country)) return false;
       if (!filterPaidOrganic.includes('All') && !filterPaidOrganic.includes(d.paidOrganic)) return false;
       if (!filterGa4Properties.includes('All') && !filterGa4Properties.includes(d.ga4Property)) return false;
