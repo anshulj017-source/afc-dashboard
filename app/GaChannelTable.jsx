@@ -37,7 +37,8 @@ export const GaChannelTable = ({ rawData, formatShort }) => {
         itemViews: d3.sum(v, d => d.itemViews),
         addToCarts: d3.sum(v, d => d.addToCarts),
         checkouts: d3.sum(v, d => d.checkouts),
-        purchases: d3.sum(v, d => d.purchases)
+        purchases: d3.sum(v, d => d.purchases),
+        gaTickets: d3.sum(v, d => d.gaTickets || 0)
       }),
       d => viewBy === 'sourceMedium' ? d.sourceMedium : viewBy === 'country' ? d.country : d.ga4Property
     )).map(([dimension, metrics]) => ({
@@ -120,6 +121,12 @@ export const GaChannelTable = ({ rawData, formatShort }) => {
         if (trendMetric === 'sessions') val = d3.sum(chRows, r => r.sessions);
         if (trendMetric === 'users') val = d3.sum(chRows, r => r.users);
         if (trendMetric === 'engagedSessions') val = d3.sum(chRows, r => r.engagedSessions);
+        if (trendMetric === 'newUsers') val = d3.sum(chRows, r => r.newUsers);
+        if (trendMetric === 'itemViews') val = d3.sum(chRows, r => r.itemViews);
+        if (trendMetric === 'addToCarts') val = d3.sum(chRows, r => r.addToCarts);
+        if (trendMetric === 'checkouts') val = d3.sum(chRows, r => r.checkouts);
+        if (trendMetric === 'purchases') val = d3.sum(chRows, r => r.purchases);
+        if (trendMetric === 'gaTickets') val = d3.sum(chRows, r => r.gaTickets || 0);
         obj[ch] = val;
       });
       return obj;
@@ -182,6 +189,7 @@ export const GaChannelTable = ({ rawData, formatShort }) => {
                 { key: 'addToCarts', label: 'Add to Carts' },
                 { key: 'checkouts', label: 'Checkouts' },
                 { key: 'purchases', label: 'Purchases' },
+                { key: 'gaTickets', label: 'Ticket Sales' },
               ].map(col => (
                 <th key={col.key} onClick={() => handleSort(col.key)} className="px-3 py-3 text-[10px] font-black text-[#6fa89f] uppercase tracking-widest whitespace-nowrap cursor-pointer hover:text-[#c88214] transition-colors">
                   <div className="flex items-center gap-1">
@@ -208,6 +216,7 @@ export const GaChannelTable = ({ rawData, formatShort }) => {
                 <td className="px-3 py-3 text-sm font-medium text-[#6fa89f]">{d3.format(",")(row.addToCarts)}</td>
                 <td className="px-3 py-3 text-sm font-medium text-[#6fa89f]">{d3.format(",")(row.checkouts)}</td>
                 <td className="px-3 py-3 text-sm font-medium text-[#6fa89f]">{d3.format(",")(row.purchases)}</td>
+                <td className="px-3 py-3 text-sm font-medium text-[#6fa89f]">{d3.format(",")(row.gaTickets)}</td>
               </tr>
             ))}
             {sortedAgg.length === 0 && <tr><td colSpan={7} className="px-6 py-8 text-center text-[#6fa89f] text-sm">No channels found</td></tr>}
@@ -222,6 +231,7 @@ export const GaChannelTable = ({ rawData, formatShort }) => {
               const tAddToCart = d3.sum(sortedAgg, d => d.addToCarts);
               const tCheckouts = d3.sum(sortedAgg, d => d.checkouts);
               const tPurchases = d3.sum(sortedAgg, d => d.purchases);
+              const tTickets = d3.sum(sortedAgg, d => d.gaTickets);
               
               return (
                 <tr className="bg-[#011414]/80 border-t-2 border-[#c88214]/50 hover:bg-[#c88214]/10 transition-colors">
@@ -236,6 +246,7 @@ export const GaChannelTable = ({ rawData, formatShort }) => {
                   <td className="px-3 py-3 text-sm font-black text-[#c88214]">{d3.format(",")(tAddToCart)}</td>
                   <td className="px-3 py-3 text-sm font-black text-[#c88214]">{d3.format(",")(tCheckouts)}</td>
                   <td className="px-3 py-3 text-sm font-black text-[#c88214]">{d3.format(",")(tPurchases)}</td>
+                  <td className="px-3 py-3 text-sm font-black text-[#c88214]">{d3.format(",")(tTickets)}</td>
                 </tr>
               );
             })()}
@@ -321,7 +332,8 @@ export const GaChannelTable = ({ rawData, formatShort }) => {
                     { key: 'itemViews', label: 'Item Views' },
                     { key: 'addToCarts', label: 'Add to Carts' },
                     { key: 'checkouts', label: 'Checkouts' },
-                    { key: 'purchases', label: 'Purchases' }
+                    { key: 'purchases', label: 'Purchases' },
+                    { key: 'gaTickets', label: 'Ticket Sales' }
                   ].map(metric => (
                     <button 
                       key={metric.key}
