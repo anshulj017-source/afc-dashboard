@@ -371,9 +371,10 @@ export default function App() {
         const countryDB = row['Country DB'] || row['Country'] || 'Unknown';
         const langDB = row['Language DB'] || row['Language'] || 'Unknown';
 
+        const dateVal = row['By Day'] || row['Date'];
         return {
-          date: row['Date'],
-          dateObj: row['Date'] ? new Date(row['Date']) : null,
+          date: dateVal,
+          dateObj: dateVal ? new Date(dateVal) : null,
           campaignName: cName,
           isAuxiliaryData: true,
           phase: phaseDB,
