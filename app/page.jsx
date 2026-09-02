@@ -33,7 +33,7 @@ const CHANNELS = [
   { name: 'Meta', gid: '796244792', viewsCol: 9, compCol: 11, purchCol: 12 }, // J=9, M=12
   { name: 'DV360', gid: '357397097', viewsCol: 9, compCol: 10, subCol: 11 }, // J=9, K=10, sub=L(11)
   { name: 'X', gid: '1750570025', viewsCol: 8, compCol: 11 }, // I=8
-  { name: 'Google', gid: '1637892512', viewsCol: 6, compCol: 7, subCol: 12 }, // G=6, H=7, sub=M(12)
+  { name: 'Google', gid: '1637892512', viewsCol: 6, compCol: 7, subCol: 13 }, // G=6, H=7, sub=N(13)
   { name: 'Amazon', gid: '770767992', viewsCol: 10, compCol: 10, subCol: 11 } // K=10, sub=L(11)
 ];
 const GA4_GID = '1861950282';
