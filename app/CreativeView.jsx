@@ -260,21 +260,13 @@ export default function CreativeView({ data, exRate = 1, exSym = '$', formatShor
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
           {paginatedData.map((c, i) => (
             <div key={i} className="card-surface backdrop-blur-2xl rounded-3xl border border-[#c88214]/20 shadow-xl overflow-hidden group flex flex-col hover:-translate-y-1 transition-transform">
-               <div 
-                  onMouseEnter={(e) => {
-                     const vid = e.currentTarget.querySelector('video');
-                     if(vid) { vid.play().catch(()=>{}); }
-                  }}
-                  onMouseLeave={(e) => {
-                     const vid = e.currentTarget.querySelector('video');
-                     if(vid) { vid.pause(); vid.currentTime = 0; }
-                  }}
-                  onClick={(e) => { 
+               <div onClick={(e) => { 
                   if(c.adImageUrl || c.videoUrl || c.postUrl) window.open(c.videoUrl || c.postUrl || c.adImageUrl, '_blank');
                }} className={`h-48 bg-[#011414] relative overflow-hidden flex items-center justify-center group-hover:bg-[#1A4D57] transition-colors block ${c.adImageUrl || c.videoUrl || c.postUrl ? 'cursor-pointer' : 'cursor-default'}`}>
                   {c.videoUrl && (
                      <video 
                         src={c.videoUrl} 
+                        autoPlay
                         muted 
                         loop 
                         playsInline
@@ -341,14 +333,6 @@ export default function CreativeView({ data, exRate = 1, exSym = '$', formatShor
                     <tr key={i} className="border-b border-[#c88214]/10 hover:bg-[#74FA93]/5 transition-colors group">
                        <td className="px-6 py-3">
                           <div 
-                             onMouseEnter={(e) => {
-                                const vid = e.currentTarget.querySelector('video');
-                                if(vid) { vid.play().catch(()=>{}); }
-                             }}
-                             onMouseLeave={(e) => {
-                                const vid = e.currentTarget.querySelector('video');
-                                if(vid) { vid.pause(); vid.currentTime = 0; }
-                             }}
                              onClick={(e) => { 
                                 if(c.adImageUrl || c.videoUrl || c.postUrl) window.open(c.videoUrl || c.postUrl || c.adImageUrl, '_blank');
                              }}
@@ -357,6 +341,7 @@ export default function CreativeView({ data, exRate = 1, exSym = '$', formatShor
                              {c.videoUrl && (
                                 <video 
                                    src={c.videoUrl} 
+                                   autoPlay
                                    muted 
                                    loop 
                                    playsInline
