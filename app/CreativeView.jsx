@@ -63,6 +63,7 @@ export default function CreativeView({ data, exRate = 1, exSym = '$', formatShor
   const CREATIVES_PER_PAGE = 24;
   const [creativePage, setCreativePage] = useState(1);
   const [creativeViewMode, setCreativeViewMode] = useState('grid');
+  const [searchQuery, setSearchQuery] = useState('');
   
   const [filterChannels, setFilterChannels] = useState(['All']);
   const [filterLanguages, setFilterLanguages] = useState(['All']);
@@ -79,6 +80,12 @@ export default function CreativeView({ data, exRate = 1, exSym = '$', formatShor
     const filtered = data.filter(d => {
       if (!filterChannels.includes('All') && !filterChannels.includes(d.channel)) return false;
       if (!filterLanguages.includes('All') && !filterLanguages.includes(d.language)) return false;
+      if (searchQuery) {
+        const sq = searchQuery.toLowerCase();
+        if (!(d.creativeName && d.creativeName.toLowerCase().includes(sq)) && !(d.adName && d.adName.toLowerCase().includes(sq))) {
+          return false;
+        }
+      }
       return true;
     });
 
@@ -112,7 +119,7 @@ export default function CreativeView({ data, exRate = 1, exSym = '$', formatShor
       };
     }).filter(c => filterStatuses.includes('All') || filterStatuses.includes(c.status))
     .sort((a,b) => b.cost - a.cost); // sort by spend
-  }, [data, filterChannels, filterLanguages, filterStatuses, exRate]);
+  }, [data, filterChannels, filterLanguages, filterStatuses, exRate, searchQuery]);
 
   const topCTR = [...creativeTabData].filter(x => x.impressions > 500).sort((a,b) => b.ctr - a.ctr).slice(0, 10);
   const topCPC = [...creativeTabData].filter(x => x.clicks > 10).sort((a,b) => a.cpc - b.cpc).slice(0, 10); // Lowest CPC
@@ -228,6 +235,13 @@ export default function CreativeView({ data, exRate = 1, exSym = '$', formatShor
         <MultiSelectDropdown label="Channel" options={uniqueChannels} selected={filterChannels} onChange={setFilterChannels} />
         <MultiSelectDropdown label="Language" options={uniqueLanguages} selected={filterLanguages} onChange={setFilterLanguages} />
         <MultiSelectDropdown label="Status" options={['Live', 'Paused']} selected={filterStatuses} onChange={setFilterStatuses} />
+        <div className="relative flex flex-col justify-end">
+           <span className="text-[10px] font-black text-[#6fa89f] uppercase tracking-widest mb-1.5 block">Search</span>
+           <div className="relative">
+             <Search className="w-4 h-4 text-[#6fa89f] absolute left-3 top-1/2 -translate-y-1/2" />
+             <input type="text" placeholder="Search creatives..." value={searchQuery} onChange={(e) => setSearchQuery(e.target.value)} className="w-full bg-[#011414] text-[#eef7f5] text-xs font-bold pl-9 pr-3 py-1.5 card-surface backdrop-blur-2xl border border-[#c88214]/30 rounded-lg outline-none focus:border-[#c88214] transition-colors" />
+           </div>
+        </div>
       </div>
 
       <div className="flex flex-wrap justify-between items-end gap-4 mb-6 mt-4">
