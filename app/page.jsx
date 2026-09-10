@@ -484,7 +484,7 @@ export default function App() {
         .then(json => {
           if (!json.success || !json.data) return [];
           return json.data.map(item => {
-            let cName = item.adName || 'Unknown'; // TikTok API fallback mapping for campaign name if present
+            let cName = item.campaignName || item.adName || 'Unknown'; 
             // Try to extract standard campaign names from TikTok naming conventions
             const cNameUpper = cName.toUpperCase();
             if (cNameUpper.includes('AC27')) cName = 'AC27';

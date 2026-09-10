@@ -97,7 +97,7 @@ export async function GET(request: Request) {
           // TikTok limits ad_ids filtering. We will chunk them in batches of 50.
           const videoIds: string[] = [];
           const imageIds: string[] = [];
-          const adToMediaMap: Record<string, { type: 'video' | 'image' | 'unknown', id: string, name: string, tiktokItemId?: string, status?: string }> = {};
+          const adToMediaMap: Record<string, { type: 'video' | 'image' | 'unknown', id: string, name: string, campaignName: string, tiktokItemId?: string, status?: string }> = {};
           
           for (let i = 0; i < adIds.length; i += 50) {
             const chunk = adIds.slice(i, i + 50);
@@ -114,16 +114,17 @@ export async function GET(request: Request) {
 
             adList.forEach((ad: any) => {
               const adName = ad.ad_name || ad.ad_id;
+              const campaignName = ad.campaign_name || '';
               const status = ad.operation_status === 'ENABLE' ? 'Live' : 'Paused';
               if (ad.video_id) {
                 videoIds.push(ad.video_id);
-                adToMediaMap[ad.ad_id] = { type: 'video', id: ad.video_id, name: adName, tiktokItemId: ad.tiktok_item_id, status };
+                adToMediaMap[ad.ad_id] = { type: 'video', id: ad.video_id, name: adName, campaignName, tiktokItemId: ad.tiktok_item_id, status };
               } else if (ad.image_ids && ad.image_ids.length > 0) {
                 imageIds.push(ad.image_ids[0]);
-                adToMediaMap[ad.ad_id] = { type: 'image', id: ad.image_ids[0], name: adName, tiktokItemId: ad.tiktok_item_id, status };
+                adToMediaMap[ad.ad_id] = { type: 'image', id: ad.image_ids[0], name: adName, campaignName, tiktokItemId: ad.tiktok_item_id, status };
               } else {
                 // Ensure adName is captured even without media
-                adToMediaMap[ad.ad_id] = { type: 'unknown', id: '', name: adName, tiktokItemId: ad.tiktok_item_id, status };
+                adToMediaMap[ad.ad_id] = { type: 'unknown', id: '', name: adName, campaignName, tiktokItemId: ad.tiktok_item_id, status };
               }
             });
           }
@@ -221,6 +222,7 @@ export async function GET(request: Request) {
               postUrl: mediaData ? (mediaData as any).postUrl : null,
               tiktokItemId: media?.tiktokItemId || null,
               adName: media ? media.name : adId,
+              campaignName: media ? media.campaignName : '',
               platform: 'tiktok', // Added platform flag for your UI
               status: media?.status || 'Unknown'
             };
