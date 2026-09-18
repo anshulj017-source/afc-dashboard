@@ -281,17 +281,15 @@ export default function App() {
           const langDB = row['Language DB'] || row['Language'] || 'Unknown';
           
           let finalChannel = ch.name;
+          if (ch.name === 'DV360') finalChannel = 'Programmatic';
+          if (ch.name === 'Google') finalChannel = 'Google Search';
+
           if (ch.subCol !== undefined && vals[ch.subCol] && vals[ch.subCol].trim() !== '') {
             const rawSub = vals[ch.subCol].trim();
             const lowerSub = rawSub.toLowerCase();
-            const knownMarkets = ['ksa', 'gcc', 'australia', 'jordan', 'vietnam', 'malaysia', 'singapore', 'thailand', 'qatar', 'uae', 'oman', 'bahrain', 'kuwait', 'iraq', 'yemen', 'china', 'japan', 'south korea', 'indonesia'];
             if (lowerSub === 'youtube') {
               finalChannel = 'YouTube';
-            } else if (!knownMarkets.includes(lowerSub)) {
-              finalChannel = rawSub;
             }
-          } else if (finalChannel === 'Google') {
-            finalChannel = 'Google Search';
           }
           if (finalChannel.toLowerCase() === 'meta') finalChannel = 'META';
 
@@ -314,7 +312,7 @@ export default function App() {
             country: countryDB,
             language: langDB,
             channel: finalChannel,
-            adName: row['Ad name'] || row['Ad Name'] || 'Unknown',
+            adName: (ch.name === 'Snapchat' || ch.name === 'X' || ch.name === 'DV360') ? vals[4] : (ch.name === 'Amazon' ? vals[5] : (ch.name === 'Google' ? vals[2] : (row['Ad name'] || row['Ad Name'] || 'Unknown'))),
             cost: rawCost,
             impressions: parseMetric(row['Impressions']),
             clicks: parseMetric(row['Clicks'] || row['Swipes'] || row['Link clicks'] || row['Click-throughs']),
@@ -451,6 +449,7 @@ export default function App() {
           return {
             date: row['Date'] ? new Date(row['Date']) : null,
             campaignName: cName,
+            phase: row['Phase DB'] || row['Phase'] || 'Unknown',
             adName: row['Ad name'] || 'Unknown',
             creativeName: row['Creative Name'] || row['Ad name'] || 'Unknown',
             adImageUrl: row['Ad creative image URL'] || '',
@@ -459,6 +458,7 @@ export default function App() {
             views: parseMetric(row['Three-second video views']),
             thruPlays: parseMetric(row['ThruPlay actions']),
             cost: parseMetric(row['Cost (USD)']),
+            purchases: parseMetric(row['Purchases']),
             market: row['Country DB'] || 'Unknown',
             language: row['Language DB'] || 'Unknown',
             status: row['Status'] || row['Ad Delivery'] || row['Operation Status'] || 'Unknown',
@@ -520,9 +520,40 @@ export default function App() {
         });
 
       Promise.all([fetchPlanned, fetchTikTok]).then(([plannedResults, tiktokResults]) => {
+        // Merge TikTok purchases
+        tiktokResults.forEach(tr => {
+          const matchingPurchases = tiktokPurchases.filter(tp => tp.adName === tr.adName);
+          tr.purchases = d3.sum(matchingPurchases, tp => tp.purchases);
+          tr.phase = matchingPurchases.length > 0 ? matchingPurchases[0].phase : 'Unknown';
+        });
+
+        // Extract other channels from combinedAds
+        const otherChannelsData = combinedAds
+          .filter(ad => ad.channel !== 'Meta' && ad.channel !== 'TikTok' && !ad.isAuxiliaryData)
+          .map(ad => ({
+            date: ad.dateObj,
+            campaignName: ad.campaignName,
+            phase: ad.phase || 'Unknown',
+            adName: ad.adName,
+            creativeName: ad.adName,
+            adImageUrl: '',
+            videoUrl: '',
+            postUrl: '',
+            impressions: ad.impressions || 0,
+            clicks: ad.clicks || 0,
+            views: ad.videoViews || 0,
+            thruPlays: 0,
+            cost: ad.cost || 0,
+            purchases: ad.purchases || 0,
+            market: ad.country || 'Unknown',
+            language: ad.language || 'Unknown',
+            status: 'Unknown',
+            channel: ad.channel
+          }));
+
         setAdData(combinedAds);
         setGaData(gaResults);
-        setCreativeData([...creativeResults, ...tiktokResults]);
+        setCreativeData([...creativeResults, ...tiktokResults, ...otherChannelsData]);
         setPlannedData(plannedResults);
         
         const allDates = [...combinedAds, ...gaResults]
