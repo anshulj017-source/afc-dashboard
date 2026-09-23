@@ -20,7 +20,7 @@ export async function GET(req) {
         uid: userRecord.uid,
         email: userRecord.email,
         role: userData.role || (userData.isAdmin ? 'admin' : 'standard'),
-        lastSignInTime: userRecord.metadata.lastSignInTime || null,
+        lastSignInTime: userData.lastActive || userRecord.metadata.lastSignInTime || null,
         creationTime: userRecord.metadata.creationTime || null,
       });
     }

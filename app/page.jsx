@@ -13,7 +13,7 @@ import 'react-tooltip/dist/react-tooltip.css';
 import { useRouter } from 'next/navigation';
 import { auth, db } from '../lib/firebase';
 import { onAuthStateChanged, signOut } from 'firebase/auth';
-import { doc, getDoc } from 'firebase/firestore';
+import { doc, getDoc, setDoc } from 'firebase/firestore';
 import { GaChannelTable } from './GaChannelTable';
 import AdminView from './AdminView';
 import dynamic from 'next/dynamic';
@@ -250,8 +250,12 @@ export default function App() {
           } else {
             setUserRole('standard');
           }
+          // Update lastActive
+          await setDoc(doc(db, 'users', user.uid), { 
+            lastActive: new Date().toISOString() 
+          }, { merge: true });
         } catch (e) {
-          console.error("Error fetching user role", e);
+          console.error("Error fetching/updating user", e);
         }
         setIsAuthLoading(false);
       } else {
