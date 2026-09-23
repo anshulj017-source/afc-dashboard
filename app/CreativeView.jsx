@@ -1,4 +1,4 @@
-import React, { useState, useMemo } from 'react';
+import React, { useState, useMemo, useEffect } from 'react';
 import * as d3 from 'd3';
 import { BarChart3, Zap, Grid, List, Check, Search, ChevronDown, MonitorPlay } from 'lucide-react';
 
@@ -72,6 +72,11 @@ export default function CreativeView({ data, exRate = 1, exSym = '$', formatShor
   const [selectedMetrics, setSelectedMetrics] = useState(availableMetrics);
 
   const [sortConfig, setSortConfig] = useState({ key: 'cost', direction: 'desc' });
+
+  useEffect(() => {
+    setCreativePage(1);
+  }, [filterChannels, filterLanguages, filterStatuses, filterPhases, searchQuery]);
+
 
   const handleSort = (key) => {
     let direction = 'desc';
