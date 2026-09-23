@@ -462,7 +462,7 @@ export default function App() {
             market: row['Country DB'] || 'Unknown',
             language: row['Language DB'] || 'Unknown',
             status: row['Status'] || row['Ad Delivery'] || row['Operation Status'] || 'Unknown',
-            channel: 'Meta'
+            channel: 'META'
           };
       });
 
@@ -529,7 +529,7 @@ export default function App() {
 
         // Extract other channels from combinedAds
         const otherChannelsData = combinedAds
-          .filter(ad => ad.channel !== 'Meta' && ad.channel !== 'TikTok' && !ad.isAuxiliaryData)
+          .filter(ad => ad.channel && ad.channel.toUpperCase() !== 'META' && ad.channel.toUpperCase() !== 'TIKTOK' && !ad.isAuxiliaryData)
           .map(ad => ({
             date: ad.dateObj,
             campaignName: ad.campaignName,
