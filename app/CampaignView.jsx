@@ -1,7 +1,7 @@
 import React, { useState, useMemo } from 'react';
 import InfoTooltip from './components/InfoTooltip';
 import * as d3 from 'd3';
-import { ChevronDown, Calendar, Layers, Activity, Search, Check } from 'lucide-react';
+import { ChevronDown, Calendar, Layers, Activity, Search, Check, Download } from 'lucide-react';
 
 const COLORS = ['#74FA93', '#c88214', '#00937b', '#EF4444', '#065c5d', '#10B981', '#eef7f5', '#6fa89f'];
 
@@ -302,6 +302,91 @@ export default function CampaignView({ adData, plannedData = [], exRate = 1, exS
     }
   }, [selectedCampaign, viewMode]);
 
+  const handleExportCSV = () => {
+    let csvContent = "data:text/csv;charset=utf-8,";
+    
+    if (viewMode === 'overall') {
+      const headers = ['Channel'];
+      if (userRole !== 'non-finance') headers.push('Spend');
+      headers.push('Impressions', 'Clicks', 'Video Views', 'Completed Views', 'Purchases', 'CTR');
+      if (userRole !== 'non-finance') headers.push('CPM', 'CPC', 'CPV');
+      
+      csvContent += headers.join(",") + "\r\n";
+      
+      tableData.forEach(row => {
+        const rowData = [row.channel];
+        if (userRole !== 'non-finance') rowData.push((row.spend * exRate).toFixed(2));
+        rowData.push(row.impressions, row.clicks, row.views, row.completions, row.purchases, row.ctr.toFixed(2) + '%');
+        if (userRole !== 'non-finance') rowData.push((row.cpm * exRate).toFixed(2), (row.cpc * exRate).toFixed(2), (row.cpv * exRate).toFixed(2));
+        csvContent += rowData.join(",") + "\r\n";
+      });
+      
+      // Add Totals row
+      if (tableData.length > 0) {
+        const tSpend = d3.sum(tableData, d => d.spend);
+        const tImp = d3.sum(tableData, d => d.impressions);
+        const tClicks = d3.sum(tableData, d => d.clicks);
+        const tViews = d3.sum(tableData, d => d.views);
+        const tCompletions = d3.sum(tableData, d => d.completions);
+        const tPurchases = d3.sum(tableData, d => d.purchases);
+        const tCtr = tImp > 0 ? (tClicks / tImp) * 100 : 0;
+        const tCpm = tImp > 0 ? (tSpend / tImp) * 1000 : 0;
+        const tCpc = tClicks > 0 ? tSpend / tClicks : 0;
+        const tCpv = tViews > 0 ? tSpend / tViews : 0;
+
+        const totalsRow = ['Total'];
+        if (userRole !== 'non-finance') totalsRow.push((tSpend * exRate).toFixed(2));
+        totalsRow.push(tImp, tClicks, tViews, tCompletions, tPurchases, tCtr.toFixed(2) + '%');
+        if (userRole !== 'non-finance') totalsRow.push((tCpm * exRate).toFixed(2), (tCpc * exRate).toFixed(2), (tCpv * exRate).toFixed(2));
+        csvContent += totalsRow.join(",") + "\r\n";
+      }
+
+    } else {
+      const headers = ['Channel', 'Buying Type', 'Planned Cost', 'Delivered Cost', 'Booked Units', 'Delivered Units'];
+      if (plannedMetrics.includes('% Delivered') || plannedMetrics.includes('All')) headers.push('% Delivered');
+      if (plannedMetrics.includes('% Pacing') || plannedMetrics.includes('All')) headers.push('% Pacing');
+      if (plannedMetrics.includes('Cost compare') || plannedMetrics.includes('All')) headers.push('Planned Unit Cost', 'Delivered Unit Cost');
+      if (plannedMetrics.includes('% difference of unit cost') || plannedMetrics.includes('All')) headers.push('% Diff Unit Cost');
+      
+      csvContent += headers.join(",") + "\r\n";
+      
+      plannedTableData.forEach(row => {
+        const rowData = [row.channel, row.buyingType, (row.plannedCost * exRate).toFixed(2), (row.deliveredCost * exRate).toFixed(2), row.bookedUnits, row.deliveredUnits];
+        if (plannedMetrics.includes('% Delivered') || plannedMetrics.includes('All')) rowData.push(row.pctDelivered.toFixed(2) + '%');
+        if (plannedMetrics.includes('% Pacing') || plannedMetrics.includes('All')) rowData.push(row.pctPacing.toFixed(2) + '%');
+        if (plannedMetrics.includes('Cost compare') || plannedMetrics.includes('All')) rowData.push((row.plannedUnitCost * exRate).toFixed(2), (row.deliveredUnitCost * exRate).toFixed(2));
+        if (plannedMetrics.includes('% difference of unit cost') || plannedMetrics.includes('All')) rowData.push(row.pctDiffUnitCost.toFixed(2) + '%');
+        csvContent += rowData.join(",") + "\r\n";
+      });
+
+      // Add Totals row
+      if (plannedTableData.length > 0) {
+        const tPlannedCost = d3.sum(plannedTableData, d => d.plannedCost);
+        const tDeliveredCost = d3.sum(plannedTableData, d => d.deliveredCost);
+        const tBookedUnits = d3.sum(plannedTableData, d => d.bookedUnits);
+        const tDeliveredUnits = d3.sum(plannedTableData, d => d.deliveredUnits);
+        const tPctDelivered = tBookedUnits > 0 ? (tDeliveredUnits / tBookedUnits) * 100 : 0;
+        const tPctPacing = tPlannedCost > 0 ? (tDeliveredCost / tPlannedCost) * 100 : 0;
+        
+        const totalsRow = ['Total', '', (tPlannedCost * exRate).toFixed(2), (tDeliveredCost * exRate).toFixed(2), tBookedUnits, tDeliveredUnits];
+        if (plannedMetrics.includes('% Delivered') || plannedMetrics.includes('All')) totalsRow.push(tPctDelivered.toFixed(2) + '%');
+        if (plannedMetrics.includes('% Pacing') || plannedMetrics.includes('All')) totalsRow.push(tPctPacing.toFixed(2) + '%');
+        if (plannedMetrics.includes('Cost compare') || plannedMetrics.includes('All')) totalsRow.push('-', '-');
+        if (plannedMetrics.includes('% difference of unit cost') || plannedMetrics.includes('All')) totalsRow.push('-');
+        csvContent += totalsRow.join(",") + "\r\n";
+      }
+    }
+
+    const encodedUri = encodeURI(csvContent);
+    const link = document.createElement("a");
+    link.setAttribute("href", encodedUri);
+    const dateStr = d3.timeFormat('%Y-%m-%d')(new Date());
+    link.setAttribute("download", `${selectedCampaign.replace(/\s+/g, '_')}_${viewMode}_Performance_${dateStr}.csv`);
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+  };
+
   return (
     <div className="flex flex-col gap-8 w-full max-w-7xl mx-auto">
       {/* Top Controls */}
@@ -501,6 +586,13 @@ export default function CampaignView({ adData, plannedData = [], exRate = 1, exS
             </h3>
             
             <div className="flex items-center gap-4">
+              <button
+                onClick={handleExportCSV}
+                className="px-3 py-2 flex items-center gap-2 rounded-lg bg-[#011414] border border-[#c88214]/20 text-[#c88214] hover:bg-[#c88214]/10 transition-colors shadow-[0_0_10px_rgba(200,130,20,0.1)] text-xs font-bold"
+                title="Export to CSV (Excel)"
+              >
+                <Download size={14} /> Export Table
+              </button>
               <div className="flex bg-[#011414] rounded-lg p-1 border border-[#c88214]/20">
                 <button 
                   onClick={() => setViewMode('overall')} 
