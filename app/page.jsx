@@ -564,7 +564,7 @@ export default function App() {
           .map(d => d.dateObj || d.date)
           .filter(d => d instanceof Date && !isNaN(d));
         if (allDates.length > 0) {
-          const maxDate = new Date(Math.max(...allDates));
+          const maxDate = new Date(allDates.reduce((max, d) => d > max ? d : max, allDates[0]));
           setLastUpdated(maxDate);
         } else {
           setLastUpdated(new Date());
