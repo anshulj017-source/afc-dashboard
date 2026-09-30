@@ -34,7 +34,8 @@ const CHANNELS = [
   { name: 'DV360', gid: '357397097', viewsCol: 9, compCol: 10, subCol: 11 }, // J=9, K=10, sub=L(11)
   { name: 'X', gid: '1750570025', viewsCol: 8, compCol: 11 }, // I=8
   { name: 'Google', gid: '1637892512', viewsCol: 6, compCol: 7, subCol: 13 }, // G=6, H=7, sub=N(13)
-  { name: 'Amazon', gid: '770767992', viewsCol: 10, compCol: 10, subCol: 11 } // K=10, sub=L(11)
+  { name: 'Amazon', gid: '770767992', viewsCol: 10, compCol: 10, subCol: 11 }, // K=10, sub=L(11)
+  { name: 'PMax', gid: '1969364887' }
 ];
 const GA4_GID = '1861950282';
 const META_CREATIVE_GID = '1841259885';
@@ -416,17 +417,54 @@ export default function App() {
       });
     });
 
+    const pmaxPurchasesPromise = d3.csv(`${BASE_URL}&gid=1398986317`).then(raw => {
+      return raw
+        .filter(row => row['Conversion category'] === 'Purchase/Sale')
+        .map(row => {
+          let cName = row['Campaign DB'] || row['Campaign name'] || 'Unknown';
+          const cNameUpper = cName.toUpperCase();
+          if (cNameUpper.includes('AC27')) cName = 'AC27';
+          else if (cNameUpper.includes('ACLE')) cName = 'ACLE';
+          else if (cNameUpper.includes('FAN ID')) cName = 'Fan ID';
+          else if (cNameUpper.includes('GULF CUP')) cName = 'Gulf Cup';
+          else if (cNameUpper.includes('UNDER 17') || cNameUpper.includes('U17')) cName = 'Under 17';
+
+          return {
+            date: row['Date'],
+            dateObj: row['Date'] ? parseDateFast(row['Date']) : null,
+            campaignName: cName,
+            isAuxiliaryData: true,
+            phase: row['Phase DB'] || row['Phase'] || 'Unknown',
+            buyingType: row['Buying Type DB'] || 'Unknown',
+            country: normalizeMarket(row['Country DB'] || row['Country'] || 'Unknown'),
+            language: row['Language DB'] || row['Language'] || 'Unknown',
+            channel: 'PMax',
+            adName: row['Ad group name'] || row['Campaign name'] || 'Unknown',
+            cost: 0,
+            impressions: 0,
+            clicks: 0,
+            videoViews: 0,
+            videoViews6s: 0,
+            videoViews15s: 0,
+            videoCompletions: 0,
+            purchases: parseMetric(row['Conversions'])
+          };
+      });
+    });
+
     Promise.all([
       Promise.all(fetchPromises),
       d3.csv(`${BASE_URL}&gid=${GA4_GID}`),
       d3.csv(`${BASE_URL}&gid=${META_CREATIVE_GID}`),
       googlePurchasesPromise,
-      tiktokPurchasesPromise
-    ]).then(([channelResults, ga4Raw, metaCreativeRaw, googlePurchases, tiktokPurchases]) => {
+      tiktokPurchasesPromise,
+      pmaxPurchasesPromise
+    ]).then(([channelResults, ga4Raw, metaCreativeRaw, googlePurchases, tiktokPurchases, pmaxPurchases]) => {
       let combinedAds = [];
       channelResults.forEach(res => combinedAds = combinedAds.concat(res));
       combinedAds = combinedAds.concat(googlePurchases);
       combinedAds = combinedAds.concat(tiktokPurchases);
+      combinedAds = combinedAds.concat(pmaxPurchases);
       
       const gaResults = ga4Raw.map(row => {
         const rawPaid = row['Paid/Organic'] || 'Unknown';
