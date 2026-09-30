@@ -42,7 +42,7 @@ const META_CREATIVE_GID = '1841259885';
 const GOOGLE_PURCHASES_GID = '88343342';
 
 // --- HELPERS ---
-const dateCache = new Map();
+const dateCache = new globalThis.Map();
 const parseDateFast = (dateStr) => {
   if (!dateStr) return null;
   if (dateCache.has(dateStr)) return dateCache.get(dateStr);
