@@ -1,5 +1,5 @@
 "use client";
-import React, { useState, useMemo, useEffect, useRef } from 'react';
+import React, { useState, useMemo, useEffect, useRef, useDeferredValue } from 'react';
 import * as d3 from 'd3';
 import { 
   TrendingUp, Globe, Layers, Activity, DollarSign, MousePointer2, 
@@ -41,6 +41,19 @@ const META_CREATIVE_GID = '1841259885';
 const GOOGLE_PURCHASES_GID = '88343342';
 
 // --- HELPERS ---
+const dateCache = new Map();
+const parseDateFast = (dateStr) => {
+  if (!dateStr) return null;
+  if (dateCache.has(dateStr)) return dateCache.get(dateStr);
+  const d = new Date(dateStr);
+  if (isNaN(d)) {
+    dateCache.set(dateStr, null);
+    return null;
+  }
+  dateCache.set(dateStr, d);
+  return d;
+};
+
 const formatShort = (num) => {
   if (num === null || num === undefined) return '0';
   if (num >= 1000000) return (num / 1000000).toFixed(1) + 'M';
@@ -218,6 +231,12 @@ export default function App() {
   const [filterMarkets, setFilterMarkets] = useState(['All']);
   const [filterPaidOrganic, setFilterPaidOrganic] = useState(['All']);
   const [filterGa4Properties, setFilterGa4Properties] = useState(['All']);
+
+  const deferredDateRange = useDeferredValue(dateRange);
+  const deferredFilterCampaigns = useDeferredValue(filterCampaigns);
+  const deferredFilterMarkets = useDeferredValue(filterMarkets);
+  const deferredFilterPaidOrganic = useDeferredValue(filterPaidOrganic);
+  const deferredFilterGa4Properties = useDeferredValue(filterGa4Properties);
   
   // State: Currency
   const [currency, setCurrency] = useState('SAR'); // 'USD' or 'SAR'
@@ -309,7 +328,7 @@ export default function App() {
 
           return {
             date: row['Date'],
-            dateObj: row['Date'] ? new Date(row['Date']) : null,
+            dateObj: row['Date'] ? parseDateFast(row['Date']) : null,
             campaignName: campDB,
             phase: phaseDB,
             buyingType: finalBuyingType,
@@ -344,7 +363,7 @@ export default function App() {
 
           return {
             date: row['Date'],
-            dateObj: row['Date'] ? new Date(row['Date']) : null,
+            dateObj: row['Date'] ? parseDateFast(row['Date']) : null,
             campaignName: cName,
             isAuxiliaryData: true,
             phase: row['Phase DB'] || row['Phase'] || 'Unknown',
@@ -376,7 +395,7 @@ export default function App() {
         const dateVal = row['By Day'] || row['Date'];
         return {
           date: dateVal,
-          dateObj: dateVal ? new Date(dateVal) : null,
+          dateObj: dateVal ? parseDateFast(dateVal) : null,
           campaignName: cName,
           isAuxiliaryData: true,
           phase: phaseDB,
@@ -422,7 +441,7 @@ export default function App() {
           
           return {
             date: row['Date'],
-            dateObj: row['Date'] ? new Date(row['Date']) : null,
+            dateObj: row['Date'] ? parseDateFast(row['Date']) : null,
             sourceMedium: row['Session source / medium'],
             country: normalizeMarket(row['Country']),
             sessions: parseMetric(row['Sessions']),
@@ -597,13 +616,13 @@ export default function App() {
   // Apply filters to Ad Data
   const filteredAdData = useMemo(() => {
     return adData.filter(d => {
-      if (!filterCampaigns.includes('All') && !filterCampaigns.includes(d.campaignName)) return false;
-      if (!filterMarkets.includes('All') && !filterMarkets.includes(d.country)) return false;
-      if (dateRange.start && d.dateObj && d.dateObj < new Date(dateRange.start)) return false;
-      if (dateRange.end && d.dateObj && d.dateObj > new Date(dateRange.end)) return false;
+      if (!deferredFilterCampaigns.includes('All') && !deferredFilterCampaigns.includes(d.campaignName)) return false;
+      if (!deferredFilterMarkets.includes('All') && !deferredFilterMarkets.includes(d.country)) return false;
+      if (deferredDateRange.start && d.dateObj && d.dateObj < new Date(deferredDateRange.start)) return false;
+      if (deferredDateRange.end && d.dateObj && d.dateObj > new Date(deferredDateRange.end)) return false;
       return true;
     });
-  }, [adData, filterCampaigns, filterMarkets, dateRange]);
+  }, [adData, deferredFilterCampaigns, deferredFilterMarkets, deferredDateRange]);
 
   const coreAdData = useMemo(() => filteredAdData.filter(d => !d.isAuxiliaryData), [filteredAdData]);
 
@@ -611,23 +630,23 @@ export default function App() {
   const filteredGaData = useMemo(() => {
     return gaData.filter(d => {
       let matchesCampaign = true;
-      if (!filterCampaigns.includes('All')) {
-        matchesCampaign = filterCampaigns.includes(d.campaignName);
+      if (!deferredFilterCampaigns.includes('All')) {
+        matchesCampaign = deferredFilterCampaigns.includes(d.campaignName);
         // Special rule for Gulf Cup: Include all traffic for Gulfcup GA property if Gulf Cup tournament is selected
-        if (filterCampaigns.includes('Gulf Cup') && d.ga4Property === 'Gulfcup - Khaleeji27') {
+        if (deferredFilterCampaigns.includes('Gulf Cup') && d.ga4Property === 'Gulfcup - Khaleeji27') {
           matchesCampaign = true;
         }
       }
       if (!matchesCampaign) return false;
 
-      if (!filterMarkets.includes('All') && !filterMarkets.includes(d.country)) return false;
-      if (!filterPaidOrganic.includes('All') && !filterPaidOrganic.includes(d.paidOrganic)) return false;
-      if (!filterGa4Properties.includes('All') && !filterGa4Properties.includes(d.ga4Property)) return false;
-      if (dateRange.start && d.dateObj && d.dateObj < new Date(dateRange.start)) return false;
-      if (dateRange.end && d.dateObj && d.dateObj > new Date(dateRange.end)) return false;
+      if (!deferredFilterMarkets.includes('All') && !deferredFilterMarkets.includes(d.country)) return false;
+      if (!deferredFilterPaidOrganic.includes('All') && !deferredFilterPaidOrganic.includes(d.paidOrganic)) return false;
+      if (!deferredFilterGa4Properties.includes('All') && !deferredFilterGa4Properties.includes(d.ga4Property)) return false;
+      if (deferredDateRange.start && d.dateObj && d.dateObj < new Date(deferredDateRange.start)) return false;
+      if (deferredDateRange.end && d.dateObj && d.dateObj > new Date(deferredDateRange.end)) return false;
       return true;
     });
-  }, [gaData, filterCampaigns, filterMarkets, filterPaidOrganic, filterGa4Properties, dateRange]);
+  }, [gaData, deferredFilterCampaigns, deferredFilterMarkets, deferredFilterPaidOrganic, deferredFilterGa4Properties, deferredDateRange]);
 
   const agg = useMemo(() => {
     const cost = d3.sum(filteredAdData, d => d.cost);
