@@ -1,7 +1,7 @@
 import React, { useState, useMemo, useEffect } from 'react';
 import { createPortal } from 'react-dom';
 import * as d3 from 'd3';
-import { Search, ChevronDown } from 'lucide-react';
+import { Search, ChevronDown, Download } from 'lucide-react';
 import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer, AreaChart, Area } from 'recharts';
 
 export const GaChannelTable = ({ rawData, formatShort }) => {
@@ -96,6 +96,56 @@ export const GaChannelTable = ({ rawData, formatShort }) => {
     setModalOpen(true);
   };
 
+  const handleDownloadCSV = () => {
+    const dataToDownload = selectedChannels.length > 0 
+      ? sortedAgg.filter(row => selectedChannels.includes(row.dimension))
+      : sortedAgg;
+
+    if (dataToDownload.length === 0) return;
+
+    const headers = [
+      viewBy === 'sourceMedium' ? 'Source / Medium' : viewBy === 'country' ? 'Country' : 'Property',
+      'Sessions',
+      'Users',
+      'Engaged',
+      'New Users',
+      'Avg Duration (s)',
+      'Item Views',
+      'Add to Carts',
+      'Checkouts',
+      'Purchases',
+      'Ticket Sales'
+    ];
+
+    const csvRows = [
+      headers.join(','),
+      ...dataToDownload.map(row => [
+        `"${row.dimension}"`,
+        row.sessions,
+        row.users,
+        row.engagedSessions,
+        row.newUsers,
+        row.avgSessionDuration.toFixed(1),
+        row.itemViews,
+        row.addToCarts,
+        row.checkouts,
+        row.purchases,
+        row.gaTickets
+      ].join(','))
+    ];
+
+    const csvString = csvRows.join('\n');
+    const blob = new Blob([csvString], { type: 'text/csv;charset=utf-8;' });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement("a");
+    link.setAttribute("href", url);
+    link.setAttribute("download", `web_traffic_${viewBy}.csv`);
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+    URL.revokeObjectURL(url);
+  };
+
   // Prepare chart data
   const chartData = useMemo(() => {
     if (!modalOpen) return [];
@@ -161,6 +211,14 @@ export const GaChannelTable = ({ rawData, formatShort }) => {
               className="bg-[#011414] text-[#eef7f5] text-sm pl-9 pr-4 py-2 rounded-full outline-none border border-[#c88214]/30 focus:border-[#c88214]"
             />
           </div>
+          <button 
+            onClick={handleDownloadCSV}
+            className="px-4 py-2 rounded-full text-sm font-bold bg-[#011414] text-[#c88214] border border-[#c88214]/30 hover:bg-[#c88214] hover:text-[#043e3f] transition-colors flex items-center gap-2"
+            title={selectedChannels.length > 0 ? "Download Selected CSV" : "Download CSV"}
+          >
+            <Download size={16} />
+            {selectedChannels.length > 0 ? `CSV (${selectedChannels.length})` : 'CSV'}
+          </button>
           <button 
             onClick={openCompare}
             disabled={selectedChannels.length === 0}

@@ -452,19 +452,53 @@ export default function App() {
       });
     });
 
+    const directBuysPromise = d3.csv(`${BASE_URL}&gid=767209121`).then(raw => {
+      return raw.map(row => {
+        let cName = row['Campaign DB'] || row['Campaign name'] || 'Unknown';
+        const cNameUpper = cName.toUpperCase();
+        if (cNameUpper.includes('AC27')) cName = 'AC27';
+        else if (cNameUpper.includes('ACLE')) cName = 'ACLE';
+        else if (cNameUpper.includes('FAN ID')) cName = 'Fan ID';
+        else if (cNameUpper.includes('GULF CUP')) cName = 'Gulf Cup';
+        else if (cNameUpper.includes('UNDER 17') || cNameUpper.includes('U17')) cName = 'Under 17';
+
+        return {
+          date: row['Date'],
+          dateObj: row['Date'] ? parseDateFast(row['Date']) : null,
+          campaignName: cName,
+          phase: row['Phase DB'] || row['Phase'] || 'Unknown',
+          buyingType: row['Buying Type DB'] || 'Direct Buy',
+          country: normalizeMarket(row['Country DB'] || row['Country\nDB'] || row['Country'] || 'Unknown'),
+          language: row['Language DB'] || row['Language'] || 'Unknown',
+          channel: row['Channel'] || 'Direct',
+          adName: 'Direct Buy Ad',
+          cost: parseMetric(row['Cost (USD)']),
+          impressions: parseMetric(row['Impressions']),
+          clicks: parseMetric(row['Clicks']),
+          videoViews: 0,
+          videoViews6s: 0,
+          videoViews15s: 0,
+          videoCompletions: 0,
+          purchases: 0
+        };
+      });
+    });
+
     Promise.all([
       Promise.all(fetchPromises),
       d3.csv(`${BASE_URL}&gid=${GA4_GID}`),
       d3.csv(`${BASE_URL}&gid=${META_CREATIVE_GID}`),
       googlePurchasesPromise,
       tiktokPurchasesPromise,
-      pmaxPurchasesPromise
-    ]).then(([channelResults, ga4Raw, metaCreativeRaw, googlePurchases, tiktokPurchases, pmaxPurchases]) => {
+      pmaxPurchasesPromise,
+      directBuysPromise
+    ]).then(([channelResults, ga4Raw, metaCreativeRaw, googlePurchases, tiktokPurchases, pmaxPurchases, directBuys]) => {
       let combinedAds = [];
       channelResults.forEach(res => combinedAds = combinedAds.concat(res));
       combinedAds = combinedAds.concat(googlePurchases);
       combinedAds = combinedAds.concat(tiktokPurchases);
       combinedAds = combinedAds.concat(pmaxPurchases);
+      combinedAds = combinedAds.concat(directBuys);
       
       const gaResults = ga4Raw.map(row => {
         const rawPaid = row['Paid/Organic'] || 'Unknown';
