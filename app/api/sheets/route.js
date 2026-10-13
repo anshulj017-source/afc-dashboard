@@ -1,5 +1,31 @@
 import { NextResponse } from 'next/server';
 
+// Next.js won't put responses over 2MB in its fetch cache, so large tabs were re-downloaded
+// from Google on every request. Keep CSVs in memory instead: fresh for CACHE_TTL_MS, then
+// served stale (up to CACHE_MAX_STALE_MS) while a fresh copy downloads in the background.
+const CACHE_TTL_MS = 60 * 1000;
+const CACHE_MAX_STALE_MS = 30 * 60 * 1000;
+const cache = new Map();
+const inFlight = new Map();
+
+function refresh(url) {
+  let pending = inFlight.get(url);
+  if (!pending) {
+    pending = fetch(url, { cache: 'no-store' })
+      .then(response => {
+        if (!response.ok) throw new Error('Failed to fetch from Google Sheets');
+        return response.text();
+      })
+      .then(text => {
+        cache.set(url, { text, fetchedAt: Date.now() });
+        return text;
+      })
+      .finally(() => inFlight.delete(url));
+    inFlight.set(url, pending);
+  }
+  return pending;
+}
+
 export async function GET(request) {
   const { searchParams } = new URL(request.url);
   const type = searchParams.get('type');
@@ -28,10 +54,15 @@ export async function GET(request) {
   }
 
   try {
-    const response = await fetch(url, { next: { revalidate: 60 } }); // Cache for 60 seconds
-    if (!response.ok) throw new Error('Failed to fetch from Google Sheets');
-    
-    const text = await response.text();
+    const cached = cache.get(url);
+    const age = cached ? Date.now() - cached.fetchedAt : Infinity;
+    let text;
+    if (cached && age < CACHE_MAX_STALE_MS) {
+      if (age >= CACHE_TTL_MS) refresh(url).catch(err => console.error('Error refreshing sheet:', err));
+      text = cached.text;
+    } else {
+      text = await refresh(url);
+    }
     
     return new NextResponse(text, {
       status: 200,
