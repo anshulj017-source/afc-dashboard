@@ -222,6 +222,7 @@ export default function App() {
   const [creativeData, setCreativeData] = useState([]);
   const [plannedData, setPlannedData] = useState([]);
   const [loading, setLoading] = useState(true);
+  const [tiktokLoading, setTiktokLoading] = useState(true);
   const [lastUpdated, setLastUpdated] = useState(null);
   const [activeTab, setActiveTab] = useState('summary');
   const [isGenerating, setIsGenerating] = useState(false);
@@ -292,6 +293,66 @@ export default function App() {
 
   useEffect(() => {
     if (!isAuthenticated) return;
+
+    let cancelled = false;
+
+    // Planned data and TikTok creatives are requested up front so they run in
+    // parallel with the sheet downloads rather than after them.
+    // Fetch Planned Data
+    const fetchPlanned = d3.csv("/api/sheets?type=planned").then(raw => {
+      return raw.map(row => ({
+        phase: row['Phase'] || 'Unknown',
+        channel: row['Channel'] || 'Unknown',
+        buyingType: row['Buying Type'] || 'Unknown',
+        bookedUnits: parseMetric(row['Booked Units'] || '0'),
+        plannedCost: parseFloat((row['Planned Budget'] || '0').replace(/[^0-9.-]+/g,"")),
+        targetMarket: normalizeMarket(row['Target Market'] || 'Unknown')
+      }));
+    }).catch(err => {
+      console.error("Error fetching planned data:", err);
+      return [];
+    });
+
+    // Fetch TikTok Creatives
+    const fetchTikTok = fetch('/api/tiktok/creatives?advertiser_id=7598486787190997008')
+      .then(res => res.json())
+      .then(json => {
+        if (!json.success || !json.data) return [];
+        return json.data.map(item => {
+          let cName = item.campaignName || item.adName || 'Unknown'; 
+          // Try to extract standard campaign names from TikTok naming conventions
+          const cNameUpper = cName.toUpperCase();
+          if (cNameUpper.includes('AC27')) cName = 'AC27';
+          else if (cNameUpper.includes('ACLE')) cName = 'ACLE';
+          else if (cNameUpper.includes('FAN ID')) cName = 'Fan ID';
+          else if (cNameUpper.includes('GULF CUP')) cName = 'Gulf Cup';
+          else if (cNameUpper.includes('UNDER 17') || cNameUpper.includes('U17')) cName = 'Under 17';
+          else cName = 'Unknown';
+          
+          return {
+            date: item.dimensions?.stat_time_day ? new Date(item.dimensions.stat_time_day) : null,
+            campaignName: cName,
+            adName: item.adName || 'Unknown',
+            creativeName: item.adName || 'Unknown',
+            adImageUrl: item.thumbnailUrl || '',
+            videoUrl: item.videoUrl || '',
+            postUrl: item.postUrl || '',
+            impressions: parseMetric(item.metrics?.impressions),
+            clicks: parseMetric(item.metrics?.clicks),
+            views: parseMetric(item.metrics?.video_play_actions), // Using video_play_actions if available, fallback mapped later if needed
+            thruPlays: 0,
+            cost: parseFloat(item.metrics?.spend) || 0,
+            market: 'Unknown',
+            language: 'Unknown',
+            status: item.status || 'Unknown',
+            channel: 'TikTok'
+          };
+        });
+      })
+      .catch(err => {
+        console.error("Error fetching TikTok creatives:", err);
+        return [];
+      });
 
     const fetchPromises = CHANNELS.map(ch => 
       d3.csv(`${BASE_URL}&gid=${ch.gid}`).then(raw => {
@@ -484,7 +545,7 @@ export default function App() {
       });
     });
 
-    Promise.all([
+    const sheetsPromise = Promise.all([
       Promise.all(fetchPromises),
       d3.csv(`${BASE_URL}&gid=${GA4_GID}`),
       d3.csv(`${BASE_URL}&gid=${META_CREATIVE_GID}`),
@@ -561,112 +622,87 @@ export default function App() {
           };
       });
 
-      // Fetch Planned Data
-      const fetchPlanned = d3.csv("/api/sheets?type=planned").then(raw => {
-        return raw.map(row => ({
-          phase: row['Phase'] || 'Unknown',
-          channel: row['Channel'] || 'Unknown',
-          buyingType: row['Buying Type'] || 'Unknown',
-          bookedUnits: parseMetric(row['Booked Units'] || '0'),
-          plannedCost: parseFloat((row['Planned Budget'] || '0').replace(/[^0-9.-]+/g,"")),
-          targetMarket: normalizeMarket(row['Target Market'] || 'Unknown')
+      // Extract other channels from combinedAds
+      const otherChannelsData = combinedAds
+        .filter(ad => ad.channel && ad.channel.toUpperCase() !== 'META' && ad.channel.toUpperCase() !== 'TIKTOK' && !ad.isAuxiliaryData)
+        .map(ad => ({
+          date: ad.dateObj,
+          campaignName: ad.campaignName,
+          phase: ad.phase || 'Unknown',
+          adName: ad.adName,
+          creativeName: ad.adName,
+          adImageUrl: '',
+          videoUrl: '',
+          postUrl: '',
+          impressions: ad.impressions || 0,
+          clicks: ad.clicks || 0,
+          views: ad.videoViews || 0,
+          thruPlays: 0,
+          cost: ad.cost || 0,
+          purchases: ad.purchases || 0,
+          market: ad.country || 'Unknown',
+          language: ad.language || 'Unknown',
+          status: 'Unknown',
+          channel: ad.channel
         }));
-      });
 
-      // Fetch TikTok Creatives
-      const fetchTikTok = fetch('/api/tiktok/creatives?advertiser_id=7598486787190997008')
-        .then(res => res.json())
-        .then(json => {
-          if (!json.success || !json.data) return [];
-          return json.data.map(item => {
-            let cName = item.campaignName || item.adName || 'Unknown'; 
-            // Try to extract standard campaign names from TikTok naming conventions
-            const cNameUpper = cName.toUpperCase();
-            if (cNameUpper.includes('AC27')) cName = 'AC27';
-            else if (cNameUpper.includes('ACLE')) cName = 'ACLE';
-            else if (cNameUpper.includes('FAN ID')) cName = 'Fan ID';
-            else if (cNameUpper.includes('GULF CUP')) cName = 'Gulf Cup';
-            else if (cNameUpper.includes('UNDER 17') || cNameUpper.includes('U17')) cName = 'Under 17';
-            else cName = 'Unknown';
-            
-            return {
-              date: item.dimensions?.stat_time_day ? new Date(item.dimensions.stat_time_day) : null,
-              campaignName: cName,
-              adName: item.adName || 'Unknown',
-              creativeName: item.adName || 'Unknown',
-              adImageUrl: item.thumbnailUrl || '',
-              videoUrl: item.videoUrl || '',
-              postUrl: item.postUrl || '',
-              impressions: parseMetric(item.metrics?.impressions),
-              clicks: parseMetric(item.metrics?.clicks),
-              views: parseMetric(item.metrics?.video_play_actions), // Using video_play_actions if available, fallback mapped later if needed
-              thruPlays: 0,
-              cost: parseFloat(item.metrics?.spend) || 0,
-              market: 'Unknown',
-              language: 'Unknown',
-              status: item.status || 'Unknown',
-              channel: 'TikTok'
-            };
-          });
-        })
-        .catch(err => {
-          console.error("Error fetching TikTok creatives:", err);
-          return [];
-        });
+      return { combinedAds, gaResults, creativeResults, otherChannelsData, tiktokPurchases };
+    });
 
-      Promise.all([fetchPlanned, fetchTikTok]).then(([plannedResults, tiktokResults]) => {
-        // Merge TikTok purchases
-        tiktokResults.forEach(tr => {
-          const matchingPurchases = tiktokPurchases.filter(tp => tp.adName === tr.adName);
-          tr.purchases = d3.sum(matchingPurchases, tp => tp.purchases);
-          tr.phase = matchingPurchases.length > 0 ? matchingPurchases[0].phase : 'Unknown';
-        });
+    // Creative data is published in two steps: sheet-based creatives as soon as the
+    // sheets load, then again with TikTok creatives once that (slower) request finishes.
+    let sheetCreatives = null;
+    let tiktokCreatives = [];
+    const publishCreatives = () => {
+      if (cancelled || !sheetCreatives) return;
+      setCreativeData([...sheetCreatives.creativeResults, ...tiktokCreatives, ...sheetCreatives.otherChannelsData]);
+    };
 
-        // Extract other channels from combinedAds
-        const otherChannelsData = combinedAds
-          .filter(ad => ad.channel && ad.channel.toUpperCase() !== 'META' && ad.channel.toUpperCase() !== 'TIKTOK' && !ad.isAuxiliaryData)
-          .map(ad => ({
-            date: ad.dateObj,
-            campaignName: ad.campaignName,
-            phase: ad.phase || 'Unknown',
-            adName: ad.adName,
-            creativeName: ad.adName,
-            adImageUrl: '',
-            videoUrl: '',
-            postUrl: '',
-            impressions: ad.impressions || 0,
-            clicks: ad.clicks || 0,
-            views: ad.videoViews || 0,
-            thruPlays: 0,
-            cost: ad.cost || 0,
-            purchases: ad.purchases || 0,
-            market: ad.country || 'Unknown',
-            language: ad.language || 'Unknown',
-            status: 'Unknown',
-            channel: ad.channel
-          }));
+    Promise.all([sheetsPromise, fetchPlanned]).then(([{ combinedAds, gaResults, creativeResults, otherChannelsData }, plannedResults]) => {
+      if (cancelled) return;
+      setAdData(combinedAds);
+      setGaData(gaResults);
+      setPlannedData(plannedResults);
+      sheetCreatives = { creativeResults, otherChannelsData };
+      publishCreatives();
 
-        setAdData(combinedAds);
-        setGaData(gaResults);
-        setCreativeData([...creativeResults, ...tiktokResults, ...otherChannelsData]);
-        setPlannedData(plannedResults);
-        
-        const allDates = [...combinedAds, ...gaResults]
-          .map(d => d.dateObj || d.date)
-          .filter(d => d instanceof Date && !isNaN(d));
-        if (allDates.length > 0) {
-          const maxDate = new Date(allDates.reduce((max, d) => d > max ? d : max, allDates[0]));
-          setLastUpdated(maxDate);
-        } else {
-          setLastUpdated(new Date());
-        }
-        
-        setLoading(false);
-      });
+      const allDates = [...combinedAds, ...gaResults]
+        .map(d => d.dateObj || d.date)
+        .filter(d => d instanceof Date && !isNaN(d));
+      if (allDates.length > 0) {
+        const maxDate = new Date(allDates.reduce((max, d) => d > max ? d : max, allDates[0]));
+        setLastUpdated(maxDate);
+      } else {
+        setLastUpdated(new Date());
+      }
+      
+      setLoading(false);
     }).catch(err => {
       console.error(err);
-      setLoading(false);
+      if (!cancelled) setLoading(false);
     });
+
+    // TikTok creatives load in the background and don't block the dashboard.
+    Promise.all([sheetsPromise, fetchTikTok]).then(([{ tiktokPurchases }, tiktokResults]) => {
+      if (cancelled) return;
+      // Index TikTok purchases by ad name once instead of scanning them for every creative row
+      const purchasesByAd = new globalThis.Map();
+      tiktokPurchases.forEach(tp => {
+        const entry = purchasesByAd.get(tp.adName);
+        if (entry) entry.purchases += tp.purchases;
+        else purchasesByAd.set(tp.adName, { purchases: tp.purchases, phase: tp.phase });
+      });
+      tiktokResults.forEach(tr => {
+        const match = purchasesByAd.get(tr.adName);
+        tr.purchases = match ? match.purchases : 0;
+        tr.phase = match ? match.phase : 'Unknown';
+      });
+      tiktokCreatives = tiktokResults;
+      publishCreatives();
+    }).catch(err => console.error("Error merging TikTok creatives:", err))
+      .finally(() => { if (!cancelled) setTiktokLoading(false); });
+
+    return () => { cancelled = true; };
   }, [isAuthenticated]);
 
   const resetFilters = () => {
@@ -1343,6 +1379,11 @@ export default function App() {
       });
       return (
         <div className="w-full h-full">
+          {tiktokLoading && (
+            <div className="mb-4 flex items-center gap-2 text-xs font-bold text-[#6fa89f]">
+              <RefreshCw className="w-3.5 h-3.5 animate-spin" /> Loading TikTok creatives…
+            </div>
+          )}
           <CreativeView data={filteredCreativeData} exRate={exRate} exSym={exSym} formatShort={formatShort} userRole={userRole} />
         </div>
       );
