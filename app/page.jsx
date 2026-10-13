@@ -702,7 +702,8 @@ export default function App() {
   const filteredGaData = useMemo(() => {
     return gaData.filter(d => {
       let matchesCampaign = true;
-      if (!deferredFilterCampaigns.includes('All')) {
+      // Tournament filter is disabled on the Web Traffic view
+      if (activeTab !== 'webtraffic' && !deferredFilterCampaigns.includes('All')) {
         matchesCampaign = deferredFilterCampaigns.includes(d.campaignName);
         // Special rule for Gulf Cup: Include all traffic for Gulfcup GA property if Gulf Cup tournament is selected
         if (deferredFilterCampaigns.includes('Gulf Cup') && d.ga4Property === 'Gulfcup - Khaleeji27') {
@@ -718,7 +719,7 @@ export default function App() {
       if (deferredDateRange.end && d.dateObj && d.dateObj > new Date(deferredDateRange.end)) return false;
       return true;
     });
-  }, [gaData, deferredFilterCampaigns, deferredFilterMarkets, deferredFilterPaidOrganic, deferredFilterGa4Properties, deferredDateRange]);
+  }, [gaData, activeTab, deferredFilterCampaigns, deferredFilterMarkets, deferredFilterPaidOrganic, deferredFilterGa4Properties, deferredDateRange]);
 
   const agg = useMemo(() => {
     const cost = d3.sum(filteredAdData, d => d.cost);
@@ -1377,7 +1378,7 @@ export default function App() {
              <input type="date" value={dateRange.end} onClick={e => e.target.showPicker && e.target.showPicker()} onChange={e => setDateRange(prev => ({...prev, end: e.target.value}))} className="w-[160px] cursor-pointer px-2.5 py-1.5 surface-inset border border-[#c88214]/30 rounded-lg text-xs font-bold text-[#eef7f5] outline-none focus:border-[#c88214] transition-colors [&::-webkit-calendar-picker-indicator]:cursor-pointer [&::-webkit-calendar-picker-indicator]:opacity-100" />
           </div>
 
-          { activeTab !== 'campaign' ? (
+          { (activeTab !== 'campaign' && activeTab !== 'webtraffic') ? (
             <MultiSelect label="Tournament" options={uniqueCampaigns} selected={filterCampaigns} onChange={setFilterCampaigns} />
           ) : (
             <div className="opacity-30 pointer-events-none" title="Tournament filter is disabled for this view">
