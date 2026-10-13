@@ -220,7 +220,6 @@ export default function App() {
   const [adData, setAdData] = useState([]);
   const [gaData, setGaData] = useState([]);
   const [creativeData, setCreativeData] = useState([]);
-  const [plannedData, setPlannedData] = useState([]);
   const [loading, setLoading] = useState(true);
   const [tiktokLoading, setTiktokLoading] = useState(true);
   const [lastUpdated, setLastUpdated] = useState(null);
@@ -296,23 +295,8 @@ export default function App() {
 
     let cancelled = false;
 
-    // Planned data and TikTok creatives are requested up front so they run in
-    // parallel with the sheet downloads rather than after them.
-    // Fetch Planned Data
-    const fetchPlanned = d3.csv("/api/sheets?type=planned").then(raw => {
-      return raw.map(row => ({
-        phase: row['Phase'] || 'Unknown',
-        channel: row['Channel'] || 'Unknown',
-        buyingType: row['Buying Type'] || 'Unknown',
-        bookedUnits: parseMetric(row['Booked Units'] || '0'),
-        plannedCost: parseFloat((row['Planned Budget'] || '0').replace(/[^0-9.-]+/g,"")),
-        targetMarket: normalizeMarket(row['Target Market'] || 'Unknown')
-      }));
-    }).catch(err => {
-      console.error("Error fetching planned data:", err);
-      return [];
-    });
-
+    // TikTok creatives are requested up front so they run in parallel with the
+    // sheet downloads rather than after them.
     // Fetch TikTok Creatives
     const fetchTikTok = fetch('/api/tiktok/creatives?advertiser_id=7598486787190997008')
       .then(res => res.json())
@@ -658,11 +642,10 @@ export default function App() {
       setCreativeData([...sheetCreatives.creativeResults, ...tiktokCreatives, ...sheetCreatives.otherChannelsData]);
     };
 
-    Promise.all([sheetsPromise, fetchPlanned]).then(([{ combinedAds, gaResults, creativeResults, otherChannelsData }, plannedResults]) => {
+    sheetsPromise.then(({ combinedAds, gaResults, creativeResults, otherChannelsData }) => {
       if (cancelled) return;
       setAdData(combinedAds);
       setGaData(gaResults);
-      setPlannedData(plannedResults);
       sheetCreatives = { creativeResults, otherChannelsData };
       publishCreatives();
 
@@ -1173,7 +1156,7 @@ export default function App() {
     if (activeTab === 'campaign') {
       return (
         <div className="w-full h-full">
-           <CampaignView adData={filteredAdData} plannedData={plannedData} exRate={exRate} exSym={exSym} formatShort={formatShort} userRole={userRole} filterMarkets={filterMarkets} />
+           <CampaignView adData={filteredAdData} exRate={exRate} exSym={exSym} formatShort={formatShort} userRole={userRole} />
         </div>
       );
     }
