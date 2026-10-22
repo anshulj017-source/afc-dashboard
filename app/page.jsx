@@ -184,24 +184,22 @@ const MultiSelect = ({ label, options, selected, onChange }) => {
 };
 
 const FilterBoxes = ({ label, options, selected, onChange }) => {
-  const isAll = selected.includes('All');
+  const isAll = selected.includes('All') || options.every(opt => selected.includes(opt));
 
   const handleToggle = (opt) => {
-    if (opt === 'All') {
-      onChange(['All']);
-      return;
-    }
-
-    if (isAll) {
-      onChange([opt]);
-      return;
-    }
-
-    if (selected.includes(opt)) {
-      const next = selected.filter(x => x !== opt);
-      onChange(next.length === 0 ? ['All'] : next);
+    const current = isAll ? [...options] : [...selected];
+    
+    if (current.includes(opt)) {
+      if (current.length === 1) {
+        // If it's the last selected option, toggle everything back on
+        onChange(['All']);
+      } else {
+        const next = current.filter(x => x !== opt);
+        onChange(next.length === options.length ? ['All'] : next);
+      }
     } else {
-      onChange([...selected, opt]);
+      const next = [...current, opt];
+      onChange(next.length === options.length ? ['All'] : next);
     }
   };
 
@@ -209,42 +207,27 @@ const FilterBoxes = ({ label, options, selected, onChange }) => {
     <div className="flex flex-col gap-1.5">
       <span className="text-[10px] font-black text-[#6fa89f] uppercase tracking-widest block">{label}</span>
       <div className="flex items-center gap-2 flex-wrap">
-        <button
-          type="button"
-          onClick={() => handleToggle('All')}
-          className={`px-3 py-1.5 rounded-xl text-xs font-bold transition-all border flex items-center gap-2 cursor-pointer select-none ${
-            isAll
-              ? 'gradient-gold text-[#043e3f] border-[#c88214] shadow-[0_0_12px_rgba(200,130,20,0.35)]'
-              : 'bg-[#011414] text-[#6fa89f] border-[#c88214]/25 hover:border-[#c88214]/60 hover:text-white'
-          }`}
-        >
-          <span className={`w-4 h-4 rounded-md flex items-center justify-center border transition-all ${
-            isAll ? 'bg-[#043e3f] border-[#043e3f] text-[#c88214]' : 'border-[#6fa89f]/40 bg-black/20 text-transparent'
-          }`}>
-            <Check className={`w-3 h-3 stroke-[3] transition-opacity ${isAll ? 'opacity-100' : 'opacity-0'}`} />
-          </span>
-          All
-        </button>
-
         {options.map((opt) => {
-          const isSelected = !isAll && selected.includes(opt);
+          const isSelected = isAll || selected.includes(opt);
           return (
             <button
               key={opt}
               type="button"
               onClick={() => handleToggle(opt)}
-              className={`px-3 py-1.5 rounded-xl text-xs font-bold transition-all border flex items-center gap-2 cursor-pointer select-none ${
+              className={`px-4 py-2 rounded-xl text-xs transition-all border flex items-center gap-2.5 cursor-pointer select-none hover:scale-[1.02] active:scale-[0.98] ${
                 isSelected
-                  ? 'gradient-gold text-[#043e3f] border-[#c88214] shadow-[0_0_12px_rgba(200,130,20,0.35)]'
-                  : 'bg-[#011414] text-[#6fa89f] border-[#c88214]/25 hover:border-[#c88214]/60 hover:text-white'
+                  ? 'bg-gradient-to-r from-[#e5a93b] to-[#c88214] text-[#011414] font-black border-[#ffe082] shadow-[0_0_16px_rgba(200,130,20,0.4)]'
+                  : 'bg-[#032020] text-[#eef7f5] font-bold border border-[#c88214]/35 hover:bg-[#063333] hover:border-[#c88214]/80 hover:text-white'
               }`}
             >
               <span className={`w-4 h-4 rounded-md flex items-center justify-center border transition-all ${
-                isSelected ? 'bg-[#043e3f] border-[#043e3f] text-[#c88214]' : 'border-[#6fa89f]/40 bg-black/20 text-transparent'
+                isSelected 
+                  ? 'bg-[#011414] border-[#011414] text-[#c88214]' 
+                  : 'border-2 border-[#6fa89f]/70 bg-[#011414]/70 text-transparent'
               }`}>
-                <Check className={`w-3 h-3 stroke-[3] transition-opacity ${isSelected ? 'opacity-100' : 'opacity-0'}`} />
+                <Check className={`w-3.5 h-3.5 stroke-[3.5] transition-opacity ${isSelected ? 'opacity-100' : 'opacity-0'}`} />
               </span>
-              <span>{opt}</span>
+              <span className="tracking-wide">{opt}</span>
             </button>
           );
         })}
