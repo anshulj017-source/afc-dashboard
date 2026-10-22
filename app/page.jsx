@@ -56,10 +56,13 @@ const parseDateFast = (dateStr) => {
 };
 
 const formatShort = (num) => {
-  if (num === null || num === undefined) return '0';
-  if (num >= 1000000) return (num / 1000000).toFixed(1) + 'M';
-  if (num >= 10000) return (num / 1000).toFixed(1) + 'K';
-  return d3.format(",.0f")(num);
+  if (num === null || num === undefined || isNaN(num)) return '0';
+  const abs = Math.abs(num);
+  const sign = num < 0 ? '-' : '';
+  if (abs >= 1e9) return sign + (abs / 1e9).toFixed(1) + 'B';
+  if (abs >= 1e6) return sign + (abs / 1e6).toFixed(1) + 'M';
+  if (abs >= 1e3) return sign + (abs / 1e3).toFixed(1) + 'K';
+  return sign + d3.format(",.0f")(abs);
 };
 
 const parseMetric = (val) => {
@@ -81,7 +84,7 @@ const normalizeMarket = (marketName) => {
     'PH': 'Philippines',
     'TH': 'Thailand',
     'VN': 'Vietnam',
-    'KR': 'South Korea', 'KOR': 'South Korea',
+    'KR': 'South Korea', 'KOR': 'South Korea', 'KOREA (SOUTH)': 'South Korea', 'KOREA, SOUTH': 'South Korea', 'REPUBLIC OF KOREA': 'South Korea', 'KOREA, REPUBLIC OF': 'South Korea',
     'JP': 'Japan', 'JPN': 'Japan',
     'KWT': 'Kuwait', 'KW': 'Kuwait', 'KUWAIT': 'Kuwait',
     'KSA': 'Saudi Arabia', 'SAU': 'Saudi Arabia', 'SA': 'Saudi Arabia', 'SAUDI ARABIA': 'Saudi Arabia',
@@ -90,8 +93,14 @@ const normalizeMarket = (marketName) => {
     'BHR': 'Bahrain', 'BH': 'Bahrain', 'BAHRAIN': 'Bahrain',
     'OMN': 'Oman', 'OM': 'Oman', 'OMAN': 'Oman',
     'EGY': 'Egypt', 'EG': 'Egypt', 'EGYPT': 'Egypt',
+    'SY': 'Syria', 'SYR': 'Syria', 'SYRIA': 'Syria', 'SYRIAN ARAB REPUBLIC': 'Syria', 'SYRIAN ARAB REPUBLIC (SYRIA)': 'Syria',
     'UK': 'United Kingdom', 'GBR': 'United Kingdom', 'GB': 'United Kingdom',
-    'US': 'United States', 'USA': 'United States'
+    'US': 'United States', 'USA': 'United States', 'UNITED STATES': 'United States', 'UNITED STATES OF AMERICA': 'United States',
+    'MM': 'Myanmar', 'MMR': 'Myanmar', 'MYANMAR': 'Myanmar', 'MYANMAR (BURMA)': 'Myanmar', 'BURMA': 'Myanmar',
+    'CG': 'Congo', 'CD': 'Congo', 'COD': 'Congo', 'COG': 'Congo', 'CONGO': 'Congo',
+    'CONGO - KINSHASA': 'Congo', 'CONGO - KINHASA': 'Congo', 'CONGO (KINSHASA)': 'Congo',
+    'CONGO - BRAZZAVILLE': 'Congo', 'CONGO (BRAZZAVILLE)': 'Congo',
+    'DEM. REP. CONGO': 'Congo', 'DEMOCRATIC REPUBLIC OF THE CONGO': 'Congo', 'REPUBLIC OF THE CONGO': 'Congo'
   };
   return aliases[upperName] || cleanName;
 };
@@ -1024,8 +1033,8 @@ export default function App() {
                     </defs>
                     <CartesianGrid strokeDasharray="3 3" stroke="#ffffff10" />
                     <XAxis dataKey="month" stroke="#6fa89f" fontSize={10} />
-                    <YAxis yAxisId="left" stroke="#00937b" fontSize={10} tickFormatter={(t) => userRole === 'non-finance' ? d3.format(",")(t) : `${exSym}${d3.format(",.2f")(t)}`} />
-                    <YAxis yAxisId="right" orientation="right" stroke="#6fa89f" fontSize={10} tickFormatter={(t) => d3.format(",")(t)} />
+                    <YAxis yAxisId="left" stroke="#00937b" fontSize={10} tickFormatter={(t) => userRole === 'non-finance' ? formatShort(t) : `${exSym}${formatShort(t)}`} />
+                    <YAxis yAxisId="right" orientation="right" stroke="#6fa89f" fontSize={10} tickFormatter={(t) => formatShort(t)} />
                     <Tooltip 
                       contentStyle={{ backgroundColor: '#043e3f', borderColor: '#c8821420', color: '#fff' }} 
                       formatter={(value, name) => [name === 'Spend' ? `${exSym}${d3.format(",.2f")(value)}` : (name === 'CTR' ? `${d3.format(".2f")(value)}%` : d3.format(",")(value)), name]}
@@ -1075,11 +1084,11 @@ export default function App() {
                     </defs>
                     <CartesianGrid strokeDasharray="3 3" stroke="#ffffff10" vertical={false} />
                     <XAxis dataKey="channel" stroke="#6fa89f" fontSize={10} />
-                    <YAxis stroke="#6fa89f" fontSize={10} tickFormatter={(t) => ['CPM', 'CPC'].includes(perfMetric) ? `${exSym}${d3.format(",.2f")(t)}` : perfMetric === 'CTR' ? `${t.toFixed(2)}%` : d3.format(",")(t)} />
+                    <YAxis stroke="#6fa89f" fontSize={10} tickFormatter={(t) => ['CPM', 'CPC'].includes(perfMetric) ? `${exSym}${d3.format(",.2f")(t)}` : perfMetric === 'CTR' ? `${t.toFixed(2)}%` : formatShort(t)} />
                     <Tooltip
                       contentStyle={{ backgroundColor: '#043e3f', borderColor: '#c8821420', color: '#fff' }}
                       cursor={{fill: '#ffffff10'}}
-                      formatter={(value) => [userRole === 'non-finance' ? (perfMetric === 'CTR' ? `${d3.format(".2f")(value)}%` : d3.format(",")(value)) : `${exSym}${d3.format(",.2f")(value)}`, perfMetric]}
+                      formatter={(value) => [userRole === 'non-finance' ? (perfMetric === 'CTR' ? `${d3.format(".2f")(value)}%` : formatShort(value)) : `${exSym}${d3.format(",.2f")(value)}`, perfMetric]}
                     />
                     <Bar dataKey={perfMetric.toLowerCase()} name={perfMetric} fill="url(#tealBarGradient)" radius={[4, 4, 0, 0]} />
                   </BarChart>
@@ -1106,8 +1115,8 @@ export default function App() {
                   </linearGradient>
                 </defs>
                 <CartesianGrid strokeDasharray="3 3" stroke="#ffffff10" horizontal={false} />
-                <XAxis type="number" stroke="#6fa89f" fontSize={10} tickFormatter={(t) => d3.format(",")(t)} />
-                <YAxis dataKey="country" type="category" stroke="#6fa89f" fontSize={10} width={80} />
+                <XAxis type="number" stroke="#6fa89f" fontSize={10} tickFormatter={(t) => formatShort(t)} />
+                <YAxis dataKey="country" type="category" stroke="#6fa89f" fontSize={10} width={110} />
                 <Tooltip
                   contentStyle={{ backgroundColor: '#043e3f', borderColor: '#c8821420', color: '#fff' }}
                   cursor={{fill: '#ffffff10'}}
@@ -1128,8 +1137,8 @@ export default function App() {
               <LineChart data={dailyGaChartData}>
                 <CartesianGrid strokeDasharray="3 3" stroke="#ffffff10" />
                 <XAxis dataKey="day" stroke="#6fa89f" fontSize={10} />
-                <YAxis yAxisId="left" stroke="#00937b" fontSize={10} tickFormatter={(t) => d3.format(",")(t)} />
-                <YAxis yAxisId="right" orientation="right" stroke="#c88214" fontSize={10} tickFormatter={(t) => d3.format(",")(t)} />
+                <YAxis yAxisId="left" stroke="#00937b" fontSize={10} tickFormatter={(t) => formatShort(t)} />
+                <YAxis yAxisId="right" orientation="right" stroke="#c88214" fontSize={10} tickFormatter={(t) => formatShort(t)} />
                 <Tooltip 
                   contentStyle={{ backgroundColor: '#043e3f', borderColor: '#c8821420', color: '#fff' }} 
                 />

@@ -451,13 +451,13 @@ export default function CampaignView({ adData, exRate = 1, exSym = '$', formatSh
                     <td className="py-4 px-4 text-sm font-medium text-[#6fa89f] text-right">{d3.format(",")(row.clicks)}</td>
                     <td className="py-4 px-4 text-sm font-medium text-[#c88214] text-right">{formatShort(row.views)}</td>
                     <td className="py-4 px-4 text-sm font-medium text-white text-right">{formatShort(row.completions)}</td>
-                    <td className="py-4 px-4 text-sm font-medium text-white text-right">{d3.format(",")(row.purchases)}</td>
+                    <td className="py-4 px-4 text-sm font-medium text-white text-right">{d3.format(",.0f")(row.purchases)}</td>
                     <td className="py-4 px-4 text-sm font-bold text-white text-right">{row.ctr.toFixed(2)}%</td>
                     {userRole !== 'non-finance' && (
                       <>
                         <td className="py-4 px-4 text-sm font-medium text-white text-right">{exSym}{d3.format(",.2f")(row.cpm * exRate)}</td>
                         <td className="py-4 px-4 text-sm font-medium text-white text-right">{exSym}{d3.format(",.2f")(row.cpc * exRate)}</td>
-                        <td className="py-4 px-4 text-sm font-medium text-white text-right">{exSym}{d3.format(",.2f")(row.cpv * exRate)}</td>
+                        <td className="py-4 px-4 text-sm font-medium text-white text-right">{exSym}{(row.cpv * exRate) > 0 && (row.cpv * exRate) < 0.01 ? d3.format(",.4f")(row.cpv * exRate) : d3.format(",.2f")(row.cpv * exRate)}</td>
                       </>
                     )}
                   </tr>
@@ -481,13 +481,13 @@ export default function CampaignView({ adData, exRate = 1, exSym = '$', formatSh
                       <td className="py-4 px-4 text-sm font-black text-[#c88214] text-right">{d3.format(",")(tClicks)}</td>
                       <td className="py-4 px-4 text-sm font-black text-[#c88214] text-right">{formatShort(tViews)}</td>
                       <td className="py-4 px-4 text-sm font-black text-[#c88214] text-right">{formatShort(tCompletions)}</td>
-                      <td className="py-4 px-4 text-sm font-black text-[#c88214] text-right">{d3.format(",")(tPurchases)}</td>
+                      <td className="py-4 px-4 text-sm font-black text-[#c88214] text-right">{d3.format(",.0f")(tPurchases)}</td>
                       <td className="py-4 px-4 text-sm font-black text-[#c88214] text-right">{tCtr.toFixed(2)}%</td>
                       {userRole !== 'non-finance' && (
                         <>
                           <td className="py-4 px-4 text-sm font-black text-[#c88214] text-right">{exSym}{d3.format(",.2f")(tCpm * exRate)}</td>
                           <td className="py-4 px-4 text-sm font-black text-[#c88214] text-right">{exSym}{d3.format(",.2f")(tCpc * exRate)}</td>
-                          <td className="py-4 px-4 text-sm font-black text-[#c88214] text-right">{exSym}{d3.format(",.2f")(tCpv * exRate)}</td>
+                          <td className="py-4 px-4 text-sm font-black text-[#c88214] text-right">{exSym}{(tCpv * exRate) > 0 && (tCpv * exRate) < 0.01 ? d3.format(",.4f")(tCpv * exRate) : d3.format(",.2f")(tCpv * exRate)}</td>
                         </>
                       )}
                     </tr>
