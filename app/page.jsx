@@ -183,6 +183,76 @@ const MultiSelect = ({ label, options, selected, onChange }) => {
   );
 };
 
+const FilterBoxes = ({ label, options, selected, onChange }) => {
+  const isAll = selected.includes('All');
+
+  const handleToggle = (opt) => {
+    if (opt === 'All') {
+      onChange(['All']);
+      return;
+    }
+
+    if (isAll) {
+      onChange([opt]);
+      return;
+    }
+
+    if (selected.includes(opt)) {
+      const next = selected.filter(x => x !== opt);
+      onChange(next.length === 0 ? ['All'] : next);
+    } else {
+      onChange([...selected, opt]);
+    }
+  };
+
+  return (
+    <div className="flex flex-col gap-1.5">
+      <span className="text-[10px] font-black text-[#6fa89f] uppercase tracking-widest block">{label}</span>
+      <div className="flex items-center gap-2 flex-wrap">
+        <button
+          type="button"
+          onClick={() => handleToggle('All')}
+          className={`px-3 py-1.5 rounded-xl text-xs font-bold transition-all border flex items-center gap-2 cursor-pointer select-none ${
+            isAll
+              ? 'gradient-gold text-[#043e3f] border-[#c88214] shadow-[0_0_12px_rgba(200,130,20,0.35)]'
+              : 'bg-[#011414] text-[#6fa89f] border-[#c88214]/25 hover:border-[#c88214]/60 hover:text-white'
+          }`}
+        >
+          <span className={`w-4 h-4 rounded-md flex items-center justify-center border transition-all ${
+            isAll ? 'bg-[#043e3f] border-[#043e3f] text-[#c88214]' : 'border-[#6fa89f]/40 bg-black/20 text-transparent'
+          }`}>
+            <Check className={`w-3 h-3 stroke-[3] transition-opacity ${isAll ? 'opacity-100' : 'opacity-0'}`} />
+          </span>
+          All
+        </button>
+
+        {options.map((opt) => {
+          const isSelected = !isAll && selected.includes(opt);
+          return (
+            <button
+              key={opt}
+              type="button"
+              onClick={() => handleToggle(opt)}
+              className={`px-3 py-1.5 rounded-xl text-xs font-bold transition-all border flex items-center gap-2 cursor-pointer select-none ${
+                isSelected
+                  ? 'gradient-gold text-[#043e3f] border-[#c88214] shadow-[0_0_12px_rgba(200,130,20,0.35)]'
+                  : 'bg-[#011414] text-[#6fa89f] border-[#c88214]/25 hover:border-[#c88214]/60 hover:text-white'
+              }`}
+            >
+              <span className={`w-4 h-4 rounded-md flex items-center justify-center border transition-all ${
+                isSelected ? 'bg-[#043e3f] border-[#043e3f] text-[#c88214]' : 'border-[#6fa89f]/40 bg-black/20 text-transparent'
+              }`}>
+                <Check className={`w-3 h-3 stroke-[3] transition-opacity ${isSelected ? 'opacity-100' : 'opacity-0'}`} />
+              </span>
+              <span>{opt}</span>
+            </button>
+          );
+        })}
+      </div>
+    </div>
+  );
+};
+
 const DataTable = ({ data, columns, totals }) => (
   <div className="overflow-x-auto card-surface rounded-2xl border border-[#c88214]/20 z-10 relative">
     <table className="w-full text-left border-collapse">
@@ -1240,15 +1310,13 @@ export default function App() {
 
       return (
         <div className="space-y-8">
-          <div className="flex justify-between items-center card-surface backdrop-blur-2xl p-6 rounded-3xl border border-[#c88214]/20 shadow-xl mb-4 flex-wrap gap-4 relative z-20">
-            <div className="flex items-center gap-6">
+          <div className="flex justify-between items-center card-surface backdrop-blur-2xl p-6 rounded-3xl border border-[#c88214]/20 shadow-xl mb-4 flex-wrap gap-6 relative z-20">
+            <div className="flex items-center gap-8 flex-wrap">
               <h2 className="text-2xl font-black text-white flex items-center gap-3"><MonitorPlay className="text-[#c88214]" /> Web Traffic (GA4)</h2>
-              <div className="flex items-end">
-                <MultiSelect label="GA4 Property" options={uniqueGa4Properties} selected={filterGa4Properties} onChange={setFilterGa4Properties} />
-              </div>
+              <FilterBoxes label="GA4 Property" options={uniqueGa4Properties} selected={filterGa4Properties} onChange={setFilterGa4Properties} />
             </div>
-            <div className="flex gap-4 items-end">
-              <MultiSelect label="Paid / Organic" options={uniquePaidOrganic} selected={filterPaidOrganic} onChange={setFilterPaidOrganic} />
+            <div className="flex items-center gap-4 flex-wrap">
+              <FilterBoxes label="Paid / Organic" options={uniquePaidOrganic} selected={filterPaidOrganic} onChange={setFilterPaidOrganic} />
             </div>
           </div>
 
