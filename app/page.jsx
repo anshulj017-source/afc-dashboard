@@ -763,7 +763,11 @@ export default function App() {
     const combined = [...adData.map(d => d.country), ...gaData.map(d => d.country)];
     return Array.from(new Set(combined)).filter(Boolean).sort();
   }, [adData, gaData]);
-  const uniquePaidOrganic = useMemo(() => Array.from(new Set(gaData.map(d => d.paidOrganic))).sort(), [gaData]);
+  const uniquePaidOrganic = useMemo(() => {
+    const order = ['Paid', 'Organic'];
+    const values = Array.from(new Set(gaData.map(d => d.paidOrganic)));
+    return [...order.filter(v => values.includes(v)), ...values.filter(v => !order.includes(v)).sort()];
+  }, [gaData]);
   const uniqueGa4Properties = useMemo(() => Array.from(new Set(gaData.map(d => d.ga4Property))).filter(Boolean).sort(), [gaData]);
 
   // Apply filters to Ad Data
