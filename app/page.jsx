@@ -40,6 +40,10 @@ const CHANNELS = [
 const GA4_GID = '1861950282';
 const META_CREATIVE_GID = '1841259885';
 const GOOGLE_PURCHASES_GID = '88343342';
+const SUMMARY_GA4_PROPERTY_BY_TOURNAMENT = {
+  AC27: 'ahlan.sa',
+  'Gulf Cup': 'gulfcup - khaleeji27',
+};
 
 // --- HELPERS ---
 const dateCache = new globalThis.Map();
@@ -69,6 +73,12 @@ const parseMetric = (val) => {
   if (!val) return 0;
   if (typeof val === 'number') return val;
   return parseFloat(val.toString().replace(/[$,]/g, '').trim()) || 0;
+};
+
+const formatDateInput = (value) => {
+  if (!value) return 'dd/mm/yyyy';
+  const [year, month, day] = value.split('-');
+  return `${day}/${month}/${year}`;
 };
 
 const normalizeMarket = (marketName) => {
@@ -197,9 +207,7 @@ const FilterBoxes = ({ label, options, selected, onChange }) => {
       onChange(next.length === 0 ? ['All'] : next);
     } else {
       // Add to highlighted set
-      const next = [...selected, opt];
-      // If all are now highlighted, revert to default (show all)
-      onChange(next.length === options.length ? ['All'] : next);
+      onChange([...selected, opt]);
     }
   };
 
@@ -776,23 +784,30 @@ export default function App() {
 
   const coreAdData = useMemo(() => filteredAdData.filter(d => !d.isAuxiliaryData), [filteredAdData]);
 
-  // Apply filters to GA Data (only Date and Market apply)
+  // Apply the Summary tournament-to-property mapping and the shared GA filters.
   const filteredGaData = useMemo(() => {
+    const summaryProperties = deferredFilterCampaigns.includes('All')
+      ? Object.values(SUMMARY_GA4_PROPERTY_BY_TOURNAMENT)
+      : deferredFilterCampaigns
+          .map(campaign => SUMMARY_GA4_PROPERTY_BY_TOURNAMENT[campaign])
+          .filter(Boolean);
+
     return gaData.filter(d => {
       let matchesCampaign = true;
-      // Tournament filter is disabled on the Web Traffic view
-      if (activeTab !== 'webtraffic' && !deferredFilterCampaigns.includes('All')) {
+
+      if (activeTab === 'summary') {
+        const property = (d.ga4Property || '').trim().toLowerCase();
+        matchesCampaign = summaryProperties.includes(property);
+      } else if (activeTab !== 'webtraffic' && !deferredFilterCampaigns.includes('All')) {
         matchesCampaign = deferredFilterCampaigns.includes(d.campaignName);
-        // Special rule for Gulf Cup: Include all traffic for Gulfcup GA property if Gulf Cup tournament is selected
-        if (deferredFilterCampaigns.includes('Gulf Cup') && d.ga4Property === 'Gulfcup - Khaleeji27') {
-          matchesCampaign = true;
-        }
       }
       if (!matchesCampaign) return false;
 
       if (!deferredFilterMarkets.includes('All') && !deferredFilterMarkets.includes(d.country)) return false;
-      if (!deferredFilterPaidOrganic.includes('All') && !deferredFilterPaidOrganic.includes(d.paidOrganic)) return false;
-      if (!deferredFilterGa4Properties.includes('All') && !deferredFilterGa4Properties.includes(d.ga4Property)) return false;
+      if (activeTab === 'webtraffic') {
+        if (!deferredFilterPaidOrganic.includes('All') && !deferredFilterPaidOrganic.includes(d.paidOrganic)) return false;
+        if (!deferredFilterGa4Properties.includes('All') && !deferredFilterGa4Properties.includes(d.ga4Property)) return false;
+      }
       if (deferredDateRange.start && d.dateObj && d.dateObj < new Date(deferredDateRange.start)) return false;
       if (deferredDateRange.end && d.dateObj && d.dateObj > new Date(deferredDateRange.end)) return false;
       return true;
@@ -1452,29 +1467,37 @@ export default function App() {
         <div className="flex gap-3 flex-wrap flex-1 justify-end items-end relative z-10">
           <div className="flex flex-col gap-1">
              <span className="text-[10px] font-black text-[#6fa89f] uppercase tracking-widest block">Start Date</span>
-             <input
-               type={dateRange.start ? "date" : "text"}
-               placeholder="dd/mm/yyyy"
-               value={dateRange.start}
-               onFocus={e => { e.target.type = 'date'; if (e.target.showPicker) { try { e.target.showPicker(); } catch(ex) {} } }}
-               onBlur={e => { if (!e.target.value) e.target.type = 'text'; }}
-               onClick={e => { if (e.target.type === 'date' && e.target.showPicker) { try { e.target.showPicker(); } catch(ex) {} } }}
-               onChange={e => setDateRange(prev => ({...prev, start: e.target.value}))}
-               className="w-[160px] cursor-pointer px-2.5 py-1.5 surface-inset border border-[#c88214]/30 rounded-lg text-xs font-bold text-[#eef7f5] placeholder:text-[#eef7f5]/40 outline-none focus:border-[#c88214] transition-colors [&::-webkit-calendar-picker-indicator]:cursor-pointer [&::-webkit-calendar-picker-indicator]:opacity-100"
-             />
+             <div className="relative w-[160px]">
+               <input
+                 type="date"
+                 aria-label="Start date"
+                 value={dateRange.start}
+                 onClick={e => { if (e.currentTarget.showPicker) { try { e.currentTarget.showPicker(); } catch {} } }}
+                 onChange={e => setDateRange(prev => ({...prev, start: e.target.value}))}
+                 className="w-full cursor-pointer px-2.5 py-1.5 surface-inset border border-[#c88214]/30 rounded-lg text-xs font-bold text-transparent outline-none focus:border-[#c88214] transition-colors"
+               />
+               <span aria-hidden="true" className={`absolute inset-px px-2.5 rounded-[7px] surface-inset pointer-events-none flex items-center justify-between text-xs font-bold ${dateRange.start ? 'text-[#eef7f5]' : 'text-[#eef7f5]/40'}`}>
+                 {formatDateInput(dateRange.start)}
+                 <Calendar className="w-3.5 h-3.5 text-[#6fa89f]" />
+               </span>
+             </div>
           </div>
           <div className="flex flex-col gap-1">
              <span className="text-[10px] font-black text-[#6fa89f] uppercase tracking-widest block">End Date</span>
-             <input
-               type={dateRange.end ? "date" : "text"}
-               placeholder="dd/mm/yyyy"
-               value={dateRange.end}
-               onFocus={e => { e.target.type = 'date'; if (e.target.showPicker) { try { e.target.showPicker(); } catch(ex) {} } }}
-               onBlur={e => { if (!e.target.value) e.target.type = 'text'; }}
-               onClick={e => { if (e.target.type === 'date' && e.target.showPicker) { try { e.target.showPicker(); } catch(ex) {} } }}
-               onChange={e => setDateRange(prev => ({...prev, end: e.target.value}))}
-               className="w-[160px] cursor-pointer px-2.5 py-1.5 surface-inset border border-[#c88214]/30 rounded-lg text-xs font-bold text-[#eef7f5] placeholder:text-[#eef7f5]/40 outline-none focus:border-[#c88214] transition-colors [&::-webkit-calendar-picker-indicator]:cursor-pointer [&::-webkit-calendar-picker-indicator]:opacity-100"
-             />
+             <div className="relative w-[160px]">
+               <input
+                 type="date"
+                 aria-label="End date"
+                 value={dateRange.end}
+                 onClick={e => { if (e.currentTarget.showPicker) { try { e.currentTarget.showPicker(); } catch {} } }}
+                 onChange={e => setDateRange(prev => ({...prev, end: e.target.value}))}
+                 className="w-full cursor-pointer px-2.5 py-1.5 surface-inset border border-[#c88214]/30 rounded-lg text-xs font-bold text-transparent outline-none focus:border-[#c88214] transition-colors"
+               />
+               <span aria-hidden="true" className={`absolute inset-px px-2.5 rounded-[7px] surface-inset pointer-events-none flex items-center justify-between text-xs font-bold ${dateRange.end ? 'text-[#eef7f5]' : 'text-[#eef7f5]/40'}`}>
+                 {formatDateInput(dateRange.end)}
+                 <Calendar className="w-3.5 h-3.5 text-[#6fa89f]" />
+               </span>
+             </div>
           </div>
 
           { (activeTab !== 'campaign' && activeTab !== 'webtraffic') ? (
