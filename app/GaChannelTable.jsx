@@ -269,12 +269,12 @@ export const GaChannelTable = ({ rawData, formatShort }) => {
                 <td className="px-3 py-3 text-sm font-medium text-[#eef7f5]">{d3.format(",")(row.users)}</td>
                 <td className="px-3 py-3 text-sm font-medium text-[#eef7f5]">{d3.format(",")(row.engagedSessions)}</td>
                 <td className="px-3 py-3 text-sm font-medium text-[#eef7f5]">{d3.format(",")(row.newUsers)}</td>
-                <td className="px-3 py-3 text-sm font-medium text-[#6fa89f]">{d3.format(",.1f")(row.avgSessionDuration)}s</td>
-                <td className="px-3 py-3 text-sm font-medium text-[#6fa89f]">{d3.format(",")(row.itemViews)}</td>
-                <td className="px-3 py-3 text-sm font-medium text-[#6fa89f]">{d3.format(",")(row.addToCarts)}</td>
-                <td className="px-3 py-3 text-sm font-medium text-[#6fa89f]">{d3.format(",")(row.checkouts)}</td>
-                <td className="px-3 py-3 text-sm font-medium text-[#6fa89f]">{d3.format(",")(row.purchases)}</td>
-                <td className="px-3 py-3 text-sm font-medium text-[#6fa89f]">{d3.format(",")(row.gaTickets)}</td>
+                <td className="px-3 py-3 text-sm font-medium text-white">{d3.format(",.1f")(row.avgSessionDuration)}s</td>
+                <td className="px-3 py-3 text-sm font-medium text-white">{d3.format(",")(row.itemViews)}</td>
+                <td className="px-3 py-3 text-sm font-medium text-white">{d3.format(",")(row.addToCarts)}</td>
+                <td className="px-3 py-3 text-sm font-medium text-white">{d3.format(",")(row.checkouts)}</td>
+                <td className="px-3 py-3 text-sm font-medium text-white">{d3.format(",")(row.purchases)}</td>
+                <td className="px-3 py-3 text-sm font-medium text-white">{d3.format(",")(row.gaTickets)}</td>
               </tr>
             ))}
             {sortedAgg.length === 0 && <tr><td colSpan={7} className="px-6 py-8 text-center text-[#6fa89f] text-sm">No channels found</td></tr>}
@@ -295,16 +295,16 @@ export const GaChannelTable = ({ rawData, formatShort }) => {
                 <tr className="bg-[#011414]/80 border-t-2 border-[#c88214]/50 hover:bg-[#c88214]/10 transition-colors">
                   <td className="px-3 py-3 w-12 text-center"></td>
                   <td className="px-3 py-3 text-sm font-black text-[#c88214]">Total</td>
-                  <td className="px-3 py-3 text-sm font-black text-[#c88214]">{d3.format(",")(tSessions)}</td>
-                  <td className="px-3 py-3 text-sm font-black text-[#c88214]">{d3.format(",")(tUsers)}</td>
-                  <td className="px-3 py-3 text-sm font-black text-[#c88214]">{d3.format(",")(tEngaged)}</td>
-                  <td className="px-3 py-3 text-sm font-black text-[#c88214]">{d3.format(",")(tNewUsers)}</td>
-                  <td className="px-3 py-3 text-sm font-black text-[#c88214]">{d3.format(",.1f")(tAvgDuration)}s</td>
-                  <td className="px-3 py-3 text-sm font-black text-[#c88214]">{d3.format(",")(tItemViews)}</td>
-                  <td className="px-3 py-3 text-sm font-black text-[#c88214]">{d3.format(",")(tAddToCart)}</td>
-                  <td className="px-3 py-3 text-sm font-black text-[#c88214]">{d3.format(",")(tCheckouts)}</td>
-                  <td className="px-3 py-3 text-sm font-black text-[#c88214]">{d3.format(",")(tPurchases)}</td>
-                  <td className="px-3 py-3 text-sm font-black text-[#c88214]">{d3.format(",")(tTickets)}</td>
+                  <td className="px-3 py-3 text-sm font-black text-white">{d3.format(",")(tSessions)}</td>
+                  <td className="px-3 py-3 text-sm font-black text-white">{d3.format(",")(tUsers)}</td>
+                  <td className="px-3 py-3 text-sm font-black text-white">{d3.format(",")(tEngaged)}</td>
+                  <td className="px-3 py-3 text-sm font-black text-white">{d3.format(",")(tNewUsers)}</td>
+                  <td className="px-3 py-3 text-sm font-black text-white">{d3.format(",.1f")(tAvgDuration)}s</td>
+                  <td className="px-3 py-3 text-sm font-black text-white">{d3.format(",")(tItemViews)}</td>
+                  <td className="px-3 py-3 text-sm font-black text-white">{d3.format(",")(tAddToCart)}</td>
+                  <td className="px-3 py-3 text-sm font-black text-white">{d3.format(",")(tCheckouts)}</td>
+                  <td className="px-3 py-3 text-sm font-black text-white">{d3.format(",")(tPurchases)}</td>
+                  <td className="px-3 py-3 text-sm font-black text-white">{d3.format(",")(tTickets)}</td>
                 </tr>
               );
             })()}

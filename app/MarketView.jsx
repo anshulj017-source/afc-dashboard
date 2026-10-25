@@ -299,7 +299,7 @@ export default function MarketView({ adData, gaData, exRate = 1, exSym = '$', fo
                 <p className="text-2xl font-black text-white truncate flex items-center gap-2">
                    {getFlagEmoji(topCards.impressions.country)} {topCards.impressions.country}
                 </p>
-                <p className="text-[#c88214] font-bold text-lg mt-2">{formatShort(topCards.impressions.impressions)} <span className="text-xs text-[#6fa89f] font-medium">Impressions</span></p>
+                <p className="text-white font-bold text-lg mt-2">{formatShort(topCards.impressions.impressions)} <span className="text-xs text-[#6fa89f] font-medium">Impressions</span></p>
               </div>
 
               <div className="bg-[#011414] border border-[#c88214]/20 rounded-2xl p-6 relative overflow-hidden group hover:border-[#c88214]/50 transition-colors">
@@ -308,7 +308,7 @@ export default function MarketView({ adData, gaData, exRate = 1, exSym = '$', fo
                 <p className="text-2xl font-black text-white truncate flex items-center gap-2">
                    {getFlagEmoji(topCards.sessions.country)} {topCards.sessions.country}
                 </p>
-                <p className="text-[#c88214] font-bold text-lg mt-2">{formatShort(topCards.sessions.sessions)} <span className="text-xs text-[#6fa89f] font-medium">Sessions (Paid)</span></p>
+                <p className="text-white font-bold text-lg mt-2">{formatShort(topCards.sessions.sessions)} <span className="text-xs text-[#6fa89f] font-medium">Sessions (Paid)</span></p>
               </div>
 
               {userRole !== 'non-finance' && (
@@ -318,7 +318,7 @@ export default function MarketView({ adData, gaData, exRate = 1, exSym = '$', fo
                   <p className="text-2xl font-black text-white truncate flex items-center gap-2">
                      {getFlagEmoji(topCards.efficiency.country)} {topCards.efficiency.country}
                   </p>
-                  <p className="text-[#c88214] font-bold text-lg mt-2">{exSym}{d3.format(",.2f")(topCards.efficiency.cpm * exRate)} <span className="text-xs text-[#6fa89f] font-medium">CPM</span></p>
+                  <p className="text-white font-bold text-lg mt-2">{exSym}{d3.format(",.2f")(topCards.efficiency.cpm * exRate)} <span className="text-xs text-[#6fa89f] font-medium">CPM</span></p>
                 </div>
               )}
             </div>
@@ -366,11 +366,11 @@ export default function MarketView({ adData, gaData, exRate = 1, exSym = '$', fo
                 <div className="mt-3 flex justify-between items-end">
                   <div>
                     <p className="text-[10px] text-[#6fa89f] uppercase tracking-wider">{userRole === 'non-finance' ? 'Clicks' : 'Spend'}</p>
-                    <p className="text-xs font-black text-white">{userRole === 'non-finance' ? formatShort(m.clicks) : `${exSym}${formatShort(m.spend * exRate)}`}</p>
+                    <p className={`text-xs font-black ${userRole === 'non-finance' ? 'text-white' : 'text-[#c88214]'}`}>{userRole === 'non-finance' ? formatShort(m.clicks) : `${exSym}${formatShort(m.spend * exRate)}`}</p>
                   </div>
                   <div className="text-right">
                     <p className="text-[10px] text-[#6fa89f] uppercase tracking-wider">GA4</p>
-                    <p className="text-xs font-bold text-[#c88214]">{formatShort(m.sessions)}</p>
+                    <p className="text-xs font-bold text-white">{formatShort(m.sessions)}</p>
                   </div>
                 </div>
               </button>
@@ -407,7 +407,7 @@ export default function MarketView({ adData, gaData, exRate = 1, exSym = '$', fo
                             {selectedMarkets.map(country => {
                                const stat = marketStats.find(c => c.country === country);
                                return (
-                                 <td key={country} className="px-4 py-4 text-sm font-medium text-white text-right">
+                                 <td key={country} className={`px-4 py-4 text-sm font-medium text-right ${metricKey === 'spend' ? 'text-[#c88214]' : 'text-white'}`}>
                                     {stat ? metricDef.format(stat[metricKey]) : '-'}
                                  </td>
                                );
@@ -544,7 +544,7 @@ export default function MarketView({ adData, gaData, exRate = 1, exSym = '$', fo
                            {getFlagEmoji(row.country)} {row.country}
                         </td>
                         {AVAILABLE_METRICS.filter(m => selectedMetrics.includes(m.key)).map(m => (
-                           <td key={m.key} className="px-4 py-4 text-sm font-medium text-[#c88214] text-right">
+                           <td key={m.key} className={`px-4 py-4 text-sm font-medium text-right ${m.key === 'spend' ? 'text-[#c88214]' : 'text-white'}`}>
                               {m.key === 'sessions' ? 'N/A' : m.format(row[m.key])}
                            </td>
                         ))}
@@ -582,7 +582,7 @@ export default function MarketView({ adData, gaData, exRate = 1, exSym = '$', fo
                             <td className="px-4 py-4 text-sm font-black text-[#c88214] sticky left-0 bg-[#011414] z-10">Total</td>
                             <td className="px-4 py-4 text-sm font-black text-[#c88214]"></td>
                             {AVAILABLE_METRICS.filter(m => selectedMetrics.includes(m.key)).map(m => (
-                               <td key={m.key} className="px-4 py-4 text-sm font-black text-[#c88214] text-right">
+                               <td key={m.key} className={`px-4 py-4 text-sm font-black text-right ${m.key === 'spend' ? 'text-[#c88214]' : 'text-white'}`}>
                                   {m.key === 'sessions' ? m.format(tSessions) : m.format(totals[m.key])}
                                </td>
                             ))}

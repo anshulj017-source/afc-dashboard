@@ -106,7 +106,7 @@ const normalizeMarket = (marketName) => {
 };
 
 // --- COMPONENTS ---
-const MetricCard = ({ label, value, color, icon: Icon, definition }) => (
+const MetricCard = ({ label, value, definition }) => (
   <div className="card-surface backdrop-blur-2xl p-6 rounded-2xl border border-[#c88214]/20 shadow-lg relative overflow-hidden group hover:-translate-y-1 transition-transform">
     <div className="absolute top-0 right-0 w-24 h-24 bg-[#c88214]/10 rounded-full blur-2xl -mr-8 -mt-8 group-hover:bg-[#c88214]/20 transition-colors duration-500"></div>
     <div className="flex justify-between items-start relative z-10">
@@ -115,7 +115,7 @@ const MetricCard = ({ label, value, color, icon: Icon, definition }) => (
           <p className="text-[10px] font-black text-[#6fa89f] uppercase tracking-widest">{label}</p>
           <InfoTooltip definition={definition} />
         </div>
-        <h3 className={`text-2xl font-black ${color} truncate`} title={value}>{value}</h3>
+        <h3 className={`text-2xl font-black ${label === 'Total Spend' ? 'text-[#c88214]' : 'text-white'} truncate`} title={value}>{value}</h3>
       </div>
     </div>
   </div>
@@ -243,7 +243,7 @@ const DataTable = ({ data, columns, totals }) => (
         {data.map((row, i) => (
           <tr key={i} className="border-b border-[#c88214]/10 hover:bg-[#c88214]/5 transition-colors">
             {columns.map((col, j) => (
-              <td key={j} className="px-6 py-4 text-sm font-medium text-[#eef7f5] whitespace-nowrap">
+              <td key={j} className={`px-6 py-4 text-sm font-medium whitespace-nowrap ${['cost', 'spend', 'totalSpend'].includes(col.key) ? 'text-[#c88214]' : 'text-white'}`}>
                 {col.format ? col.format(row[col.key], row) : row[col.key]}
               </td>
             ))}
@@ -252,7 +252,7 @@ const DataTable = ({ data, columns, totals }) => (
         {totals && data.length > 0 && (
           <tr className="bg-black/40 border-t-2 border-[#c88214]/50">
             {columns.map((col, j) => (
-              <td key={j} className="px-6 py-4 text-sm font-black text-[#c88214] whitespace-nowrap">
+              <td key={j} className={`px-6 py-4 text-sm font-black whitespace-nowrap ${['cost', 'spend', 'totalSpend'].includes(col.key) ? 'text-[#c88214]' : 'text-white'}`}>
                 {totals[col.key] !== undefined 
                   ? (col.format ? col.format(totals[col.key], totals) : totals[col.key])
                   : ''}
@@ -1452,11 +1452,29 @@ export default function App() {
         <div className="flex gap-3 flex-wrap flex-1 justify-end items-end relative z-10">
           <div className="flex flex-col gap-1">
              <span className="text-[10px] font-black text-[#6fa89f] uppercase tracking-widest block">Start Date</span>
-             <input type="date" value={dateRange.start} onClick={e => e.target.showPicker && e.target.showPicker()} onChange={e => setDateRange(prev => ({...prev, start: e.target.value}))} className="w-[160px] cursor-pointer px-2.5 py-1.5 surface-inset border border-[#c88214]/30 rounded-lg text-xs font-bold text-[#eef7f5] outline-none focus:border-[#c88214] transition-colors [&::-webkit-calendar-picker-indicator]:cursor-pointer [&::-webkit-calendar-picker-indicator]:opacity-100" />
+             <input
+               type={dateRange.start ? "date" : "text"}
+               placeholder="dd/mm/yyyy"
+               value={dateRange.start}
+               onFocus={e => { e.target.type = 'date'; if (e.target.showPicker) { try { e.target.showPicker(); } catch(ex) {} } }}
+               onBlur={e => { if (!e.target.value) e.target.type = 'text'; }}
+               onClick={e => { if (e.target.type === 'date' && e.target.showPicker) { try { e.target.showPicker(); } catch(ex) {} } }}
+               onChange={e => setDateRange(prev => ({...prev, start: e.target.value}))}
+               className="w-[160px] cursor-pointer px-2.5 py-1.5 surface-inset border border-[#c88214]/30 rounded-lg text-xs font-bold text-[#eef7f5] placeholder:text-[#eef7f5]/40 outline-none focus:border-[#c88214] transition-colors [&::-webkit-calendar-picker-indicator]:cursor-pointer [&::-webkit-calendar-picker-indicator]:opacity-100"
+             />
           </div>
           <div className="flex flex-col gap-1">
              <span className="text-[10px] font-black text-[#6fa89f] uppercase tracking-widest block">End Date</span>
-             <input type="date" value={dateRange.end} onClick={e => e.target.showPicker && e.target.showPicker()} onChange={e => setDateRange(prev => ({...prev, end: e.target.value}))} className="w-[160px] cursor-pointer px-2.5 py-1.5 surface-inset border border-[#c88214]/30 rounded-lg text-xs font-bold text-[#eef7f5] outline-none focus:border-[#c88214] transition-colors [&::-webkit-calendar-picker-indicator]:cursor-pointer [&::-webkit-calendar-picker-indicator]:opacity-100" />
+             <input
+               type={dateRange.end ? "date" : "text"}
+               placeholder="dd/mm/yyyy"
+               value={dateRange.end}
+               onFocus={e => { e.target.type = 'date'; if (e.target.showPicker) { try { e.target.showPicker(); } catch(ex) {} } }}
+               onBlur={e => { if (!e.target.value) e.target.type = 'text'; }}
+               onClick={e => { if (e.target.type === 'date' && e.target.showPicker) { try { e.target.showPicker(); } catch(ex) {} } }}
+               onChange={e => setDateRange(prev => ({...prev, end: e.target.value}))}
+               className="w-[160px] cursor-pointer px-2.5 py-1.5 surface-inset border border-[#c88214]/30 rounded-lg text-xs font-bold text-[#eef7f5] placeholder:text-[#eef7f5]/40 outline-none focus:border-[#c88214] transition-colors [&::-webkit-calendar-picker-indicator]:cursor-pointer [&::-webkit-calendar-picker-indicator]:opacity-100"
+             />
           </div>
 
           { (activeTab !== 'campaign' && activeTab !== 'webtraffic') ? (

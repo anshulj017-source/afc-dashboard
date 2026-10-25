@@ -215,21 +215,21 @@ export default function ChannelView({ adData, exRate = 1, exSym = '$', formatSho
                 <div className="absolute -right-4 -top-4 opacity-5 group-hover:opacity-10 transition-opacity"><Eye className="w-32 h-32 text-white" /></div>
                 <p className="text-[#6fa89f] text-xs font-bold uppercase tracking-widest mb-1 flex items-center gap-2"><Eye className="w-4 h-4 text-[#c88214]"/> Top by Impressions</p>
                 <p className="text-2xl font-black text-white truncate">{topCards.impressions.channel}</p>
-                <p className="text-[#c88214] font-bold text-lg mt-2">{formatShort(topCards.impressions.impressions)} <span className="text-xs text-[#6fa89f] font-medium">Impressions</span></p>
+                <p className="text-white font-bold text-lg mt-2">{formatShort(topCards.impressions.impressions)} <span className="text-xs text-[#6fa89f] font-medium">Impressions</span></p>
               </div>
               
               <div className="bg-[#011414] border border-[#c88214]/20 rounded-2xl p-6 relative overflow-hidden group hover:border-[#c88214]/50 transition-colors">
                 <div className="absolute -right-4 -top-4 opacity-5 group-hover:opacity-10 transition-opacity"><MousePointer2 className="w-32 h-32 text-white" /></div>
                 <p className="text-[#6fa89f] text-xs font-bold uppercase tracking-widest mb-1 flex items-center gap-2"><MousePointer2 className="w-4 h-4 text-[#c88214]"/> Top by Clicks</p>
                 <p className="text-2xl font-black text-white truncate">{topCards.clicks.channel}</p>
-                <p className="text-[#c88214] font-bold text-lg mt-2">{formatShort(topCards.clicks.clicks)} <span className="text-xs text-[#6fa89f] font-medium">Clicks</span></p>
+                <p className="text-white font-bold text-lg mt-2">{formatShort(topCards.clicks.clicks)} <span className="text-xs text-[#6fa89f] font-medium">Clicks</span></p>
               </div>
 
               <div className="bg-[#011414] border border-[#c88214]/20 rounded-2xl p-6 relative overflow-hidden group hover:border-[#c88214]/50 transition-colors">
                 <div className="absolute -right-4 -top-4 opacity-5 group-hover:opacity-10 transition-opacity"><Play className="w-32 h-32 text-white" /></div>
                 <p className="text-[#6fa89f] text-xs font-bold uppercase tracking-widest mb-1 flex items-center gap-2"><Play className="w-4 h-4 text-[#c88214]"/> Top by Video Views</p>
                 <p className="text-2xl font-black text-white truncate">{topCards.views.channel}</p>
-                <p className="text-[#c88214] font-bold text-lg mt-2">{formatShort(topCards.views.views)} <span className="text-xs text-[#6fa89f] font-medium">Views</span></p>
+                <p className="text-white font-bold text-lg mt-2">{formatShort(topCards.views.views)} <span className="text-xs text-[#6fa89f] font-medium">Views</span></p>
               </div>
 
               {userRole !== 'non-finance' && (
@@ -237,7 +237,7 @@ export default function ChannelView({ adData, exRate = 1, exSym = '$', formatSho
                   <div className="absolute -right-4 -top-4 opacity-5 group-hover:opacity-10 transition-opacity"><Target className="w-32 h-32 text-[#c88214]" /></div>
                   <p className="text-[#6fa89f] text-xs font-bold uppercase tracking-widest mb-1 flex items-center gap-2"><Target className="w-4 h-4 text-[#c88214]"/> Most Efficient</p>
                   <p className="text-2xl font-black text-white truncate">{topCards.efficiency.channel}</p>
-                  <p className="text-[#c88214] font-bold text-lg mt-2">{exSym}{d3.format(",.2f")(topCards.efficiency.cpc * exRate)} <span className="text-xs text-[#6fa89f] font-medium">CPC</span></p>
+                  <p className="text-white font-bold text-lg mt-2">{exSym}{d3.format(",.2f")(topCards.efficiency.cpc * exRate)} <span className="text-xs text-[#6fa89f] font-medium">CPC</span></p>
                 </div>
               )}
             </div>
@@ -283,7 +283,7 @@ export default function ChannelView({ adData, exRate = 1, exSym = '$', formatSho
                 </div>
                 <div className="mt-2">
                   <p className="text-[10px] text-[#6fa89f] uppercase tracking-wider">{userRole === 'non-finance' ? 'Clicks' : 'Spend'}</p>
-                  <p className="text-sm font-black text-white">{userRole === 'non-finance' ? formatShort(ch.clicks) : `${exSym}${formatShort(ch.spend * exRate)}`}</p>
+                  <p className={`text-sm font-black ${userRole === 'non-finance' ? 'text-white' : 'text-[#c88214]'}`}>{userRole === 'non-finance' ? formatShort(ch.clicks) : `${exSym}${formatShort(ch.spend * exRate)}`}</p>
                 </div>
               </button>
             )
@@ -318,7 +318,7 @@ export default function ChannelView({ adData, exRate = 1, exSym = '$', formatSho
                             {selectedChannels.map(ch => {
                                const stat = channelStats.find(c => c.channel === ch);
                                return (
-                                 <td key={ch} className="px-4 py-4 text-sm font-medium text-white text-right">
+                                 <td key={ch} className={`px-4 py-4 text-sm font-medium text-right ${metricKey === 'spend' ? 'text-[#c88214]' : 'text-white'}`}>
                                     {stat ? metricDef.format(stat[metricKey]) : '-'}
                                  </td>
                                );
@@ -428,7 +428,7 @@ export default function ChannelView({ adData, exRate = 1, exSym = '$', formatSho
                         <td className={`px-4 py-4 text-sm font-bold text-white sticky left-0 z-10 ${i % 2 === 0 ? 'card-surface backdrop-blur-2xl' : 'bg-[#011414]'}`}>{row.campaign}</td>
                         <td className="px-4 py-4 text-sm font-bold text-[#6fa89f]">{row.channel}</td>
                         {AVAILABLE_METRICS.filter(m => selectedMetrics.includes(m.key)).map(m => (
-                           <td key={m.key} className="px-4 py-4 text-sm font-medium text-[#c88214] text-right">{m.format(row[m.key])}</td>
+                           <td key={m.key} className={`px-4 py-4 text-sm font-medium text-right ${m.key === 'spend' ? 'text-[#c88214]' : 'text-white'}`}>{m.format(row[m.key])}</td>
                         ))}
                       </tr>
                     ))}
@@ -463,7 +463,7 @@ export default function ChannelView({ adData, exRate = 1, exSym = '$', formatSho
                             <td className="px-4 py-4 text-sm font-black text-[#c88214] sticky left-0 bg-[#011414] z-10">Total</td>
                             <td className="px-4 py-4 text-sm font-black text-[#c88214]"></td>
                             {AVAILABLE_METRICS.filter(m => selectedMetrics.includes(m.key)).map(m => (
-                               <td key={m.key} className="px-4 py-4 text-sm font-black text-[#c88214] text-right">{m.format(totals[m.key])}</td>
+                               <td key={m.key} className={`px-4 py-4 text-sm font-black text-right ${m.key === 'spend' ? 'text-[#c88214]' : 'text-white'}`}>{m.format(totals[m.key])}</td>
                             ))}
                          </tr>
                       )

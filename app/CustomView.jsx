@@ -16,12 +16,12 @@ const getWeekNumber = (d) => {
     return `Week ${weekNo}`;
 };
 
-const MetricCard = ({ label, value, color = "text-[#c88214]" }) => {
+const MetricCard = ({ label, value }) => {
   return (
     <div className="card-surface backdrop-blur-2xl/80 backdrop-blur-xl p-6 rounded-[1.5rem] border border-[#c88214]/10 shadow-xl transition-all hover:shadow-[0_0_20px_rgba(116,250,147,0.15)] hover:-translate-y-1 relative overflow-hidden group">
       <div className="absolute top-0 right-0 w-32 h-32 bg-gradient-to-br from-[#74FA93]/5 to-transparent rounded-full blur-2xl -mr-10 -mt-10 group-hover:bg-[#c88214]/10 transition-colors duration-500"></div>
-      <p className={`text-[10px] font-black ${color} uppercase tracking-widest mb-2 relative z-10`}>{label}</p>
-      <h3 className="text-2xl font-black text-white truncate relative z-10" title={value}>{value}</h3>
+      <p className="text-[10px] font-black text-[#6fa89f] uppercase tracking-widest mb-2 relative z-10">{label}</p>
+      <h3 className={`text-2xl font-black ${label === 'Total Spend' ? 'text-[#c88214]' : 'text-white'} truncate relative z-10`} title={value}>{value}</h3>
     </div>
   );
 };
@@ -461,7 +461,7 @@ export default function CustomView({ adData = [], exRate = 1, exSym = "$", forma
                              const mDef = AVAILABLE_METRICS.find(m => m.key === metricKey);
                              if (!mDef) return null;
                              return (
-                               <td key={metricKey} className="py-4 px-4 text-white text-sm font-bold text-right">
+                               <td key={metricKey} className={`py-4 px-4 text-sm font-bold text-right ${metricKey === 'cost' ? 'text-[#c88214]' : 'text-white'}`}>
                                  {mDef.format(d[metricKey])}
                                </td>
                              )

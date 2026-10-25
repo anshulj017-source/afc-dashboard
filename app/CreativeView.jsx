@@ -358,13 +358,13 @@ export default function CreativeView({ data, exRate = 1, exSym = '$', formatShor
                             {c.status}
                           </span>
                        </td>
-                       {selectedMetrics.includes('Spend') && <td className="px-6 py-4 text-sm font-bold text-rose-400 whitespace-nowrap">{exSym}{formatShort(c.cost)}</td>}
+                       {selectedMetrics.includes('Spend') && <td className="px-6 py-4 text-sm font-bold text-[#c88214] whitespace-nowrap">{exSym}{formatShort(c.cost)}</td>}
                        {selectedMetrics.includes('Impressions') && <td className="px-6 py-4 text-sm font-bold text-[#eef7f5] whitespace-nowrap">{formatShort(c.impressions)}</td>}
                        {selectedMetrics.includes('Clicks') && <td className="px-6 py-4 text-sm font-bold text-[#eef7f5] whitespace-nowrap">{formatShort(c.clicks)}</td>}
-                       {selectedMetrics.includes('CTR') && <td className="px-6 py-4 text-sm font-bold text-[#c88214] whitespace-nowrap">{(c.ctr*100).toFixed(2)}%</td>}
-                       {selectedMetrics.includes('CPC') && <td className="px-6 py-4 text-sm font-bold text-[#c88214] whitespace-nowrap">{exSym}{d3.format(",.2f")(c.cpc)}</td>}
-                       {selectedMetrics.includes('Views') && <td className="px-6 py-4 text-sm font-bold text-amber-400 whitespace-nowrap">{formatShort(c.views)}</td>}
-                       {selectedMetrics.includes('Purchases') && <td className="px-6 py-4 text-sm font-bold text-[#74FA93] whitespace-nowrap">{formatShort(c.purchases)}</td>}
+                       {selectedMetrics.includes('CTR') && <td className="px-6 py-4 text-sm font-bold text-white whitespace-nowrap">{(c.ctr*100).toFixed(2)}%</td>}
+                       {selectedMetrics.includes('CPC') && <td className="px-6 py-4 text-sm font-bold text-white whitespace-nowrap">{exSym}{d3.format(",.2f")(c.cpc)}</td>}
+                       {selectedMetrics.includes('Views') && <td className="px-6 py-4 text-sm font-bold text-white whitespace-nowrap">{formatShort(c.views)}</td>}
+                       {selectedMetrics.includes('Purchases') && <td className="px-6 py-4 text-sm font-bold text-white whitespace-nowrap">{formatShort(c.purchases)}</td>}
 
                     </tr>
                  ))}
