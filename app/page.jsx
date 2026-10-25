@@ -184,21 +184,21 @@ const MultiSelect = ({ label, options, selected, onChange }) => {
 };
 
 const FilterBoxes = ({ label, options, selected, onChange }) => {
-  const isAll = selected.includes('All') || options.every(opt => selected.includes(opt));
+  const noneSelected = selected.includes('All') || selected.length === 0;
 
   const handleToggle = (opt) => {
-    const current = isAll ? [...options] : [...selected];
-    
-    if (current.includes(opt)) {
-      if (current.length === 1) {
-        // If it's the last selected option, toggle everything back on
-        onChange(['All']);
-      } else {
-        const next = current.filter(x => x !== opt);
-        onChange(next.length === options.length ? ['All'] : next);
-      }
+    if (noneSelected) {
+      // Nothing highlighted → highlight just this one
+      onChange([opt]);
+    } else if (selected.includes(opt)) {
+      // Already highlighted → unhighlight it
+      const next = selected.filter(x => x !== opt);
+      // If nothing left, go back to default (show all)
+      onChange(next.length === 0 ? ['All'] : next);
     } else {
-      const next = [...current, opt];
+      // Add to highlighted set
+      const next = [...selected, opt];
+      // If all are now highlighted, revert to default (show all)
       onChange(next.length === options.length ? ['All'] : next);
     }
   };
@@ -208,25 +208,18 @@ const FilterBoxes = ({ label, options, selected, onChange }) => {
       <span className="text-[10px] font-black text-[#6fa89f] uppercase tracking-widest block">{label}</span>
       <div className="flex items-center gap-2 flex-wrap">
         {options.map((opt) => {
-          const isSelected = isAll || selected.includes(opt);
+          const isActive = !noneSelected && selected.includes(opt);
           return (
             <button
               key={opt}
               type="button"
               onClick={() => handleToggle(opt)}
-              className={`px-4 py-2 rounded-xl text-xs transition-all border flex items-center gap-2.5 cursor-pointer select-none hover:scale-[1.02] active:scale-[0.98] ${
-                isSelected
+              className={`px-4 py-2 rounded-xl text-xs transition-all border cursor-pointer select-none hover:scale-[1.02] active:scale-[0.98] ${
+                isActive
                   ? 'bg-gradient-to-r from-[#e5a93b] to-[#c88214] text-[#011414] font-black border-[#ffe082] shadow-[0_0_16px_rgba(200,130,20,0.4)]'
-                  : 'bg-[#032020] text-[#eef7f5] font-bold border border-[#c88214]/35 hover:bg-[#063333] hover:border-[#c88214]/80 hover:text-white'
+                  : 'bg-[#032020] text-[#eef7f5]/70 font-semibold border-[#c88214]/25 hover:bg-[#063333] hover:border-[#c88214]/60 hover:text-white'
               }`}
             >
-              <span className={`w-4 h-4 rounded-md flex items-center justify-center border transition-all ${
-                isSelected 
-                  ? 'bg-[#011414] border-[#011414] text-[#c88214]' 
-                  : 'border-2 border-[#6fa89f]/70 bg-[#011414]/70 text-transparent'
-              }`}>
-                <Check className={`w-3.5 h-3.5 stroke-[3.5] transition-opacity ${isSelected ? 'opacity-100' : 'opacity-0'}`} />
-              </span>
               <span className="tracking-wide">{opt}</span>
             </button>
           );
