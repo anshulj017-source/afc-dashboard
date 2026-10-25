@@ -15,6 +15,7 @@ import { auth, db } from '../lib/firebase';
 import { onAuthStateChanged, signOut } from 'firebase/auth';
 import { doc, getDoc, setDoc } from 'firebase/firestore';
 import { GaChannelTable } from './GaChannelTable';
+import { GaItemFunnelTable } from './GaItemFunnelTable';
 import AdminView from './AdminView';
 import dynamic from 'next/dynamic';
 import CampaignView from './CampaignView';
@@ -38,6 +39,7 @@ const CHANNELS = [
   { name: 'PMax', gid: '1969364887' }
 ];
 const GA4_GID = '1861950282';
+const GA4_MATCH_GID = '674570209';
 const META_CREATIVE_GID = '1841259885';
 const GOOGLE_PURCHASES_GID = '88343342';
 const SUMMARY_GA4_PROPERTY_BY_TOURNAMENT = {
@@ -282,6 +284,7 @@ export default function App() {
   const [isAuthLoading, setIsAuthLoading] = useState(true);
   const [adData, setAdData] = useState([]);
   const [gaData, setGaData] = useState([]);
+  const [gaItemFunnelData, setGaItemFunnelData] = useState([]);
   const [creativeData, setCreativeData] = useState([]);
   const [loading, setLoading] = useState(true);
   const [tiktokLoading, setTiktokLoading] = useState(true);
@@ -595,12 +598,13 @@ export default function App() {
     const sheetsPromise = Promise.all([
       Promise.all(fetchPromises),
       d3.csv(`${BASE_URL}&gid=${GA4_GID}`),
+      d3.csv(`${BASE_URL}&gid=${GA4_MATCH_GID}`),
       d3.csv(`${BASE_URL}&gid=${META_CREATIVE_GID}`),
       googlePurchasesPromise,
       tiktokPurchasesPromise,
       pmaxPurchasesPromise,
       directBuysPromise
-    ]).then(([channelResults, ga4Raw, metaCreativeRaw, googlePurchases, tiktokPurchases, pmaxPurchases, directBuys]) => {
+    ]).then(([channelResults, ga4Raw, ga4MatchRaw, metaCreativeRaw, googlePurchases, tiktokPurchases, pmaxPurchases, directBuys]) => {
       let combinedAds = [];
       channelResults.forEach(res => combinedAds = combinedAds.concat(res));
       combinedAds = combinedAds.concat(googlePurchases);
@@ -638,6 +642,31 @@ export default function App() {
             paidOrganic,
             ga4Property: row['GA4 property'] || 'Unknown'
           };
+      });
+
+      const gaItemFunnelResults = ga4MatchRaw.map(row => {
+        const rawPaid = row['Paid/Organic'] || 'Unknown';
+        let paidOrganic = rawPaid;
+        if (rawPaid.toLowerCase() === 'paid') paidOrganic = 'Paid';
+        else if (rawPaid.toLowerCase() === 'organic') paidOrganic = 'Organic';
+
+        const campKey = Object.keys(row).find(key => key && key.trim() === 'Campaign DB');
+        const rawCampaign = campKey ? row[campKey] : 'Unknown';
+
+        return {
+          date: row['Date'],
+          dateObj: row['Date'] ? parseDateFast(row['Date']) : null,
+          sourceMedium: row['Session source / medium'],
+          country: normalizeMarket(row['Country']),
+          campaignName: (rawCampaign || 'Unknown').replace(/\r/g, '').trim(),
+          paidOrganic,
+          ga4Property: row['GA4 property'] || 'Unknown',
+          itemName: (row['Item name EN'] || 'Unknown').trim(),
+          itemsViewed: parseMetric(row['Items viewed']),
+          itemsAddedToCart: parseMetric(row['Items added to cart']),
+          itemsCheckedOut: parseMetric(row['Items checked out']),
+          itemPurchaseQuantity: parseMetric(row['item purchase quantity'] || row['Item purchase quantity']),
+        };
       });
 
       const creativeResults = metaCreativeRaw.map(row => {
@@ -693,7 +722,7 @@ export default function App() {
           channel: ad.channel
         }));
 
-      return { combinedAds, gaResults, creativeResults, otherChannelsData, tiktokPurchases };
+      return { combinedAds, gaResults, gaItemFunnelResults, creativeResults, otherChannelsData, tiktokPurchases };
     });
 
     // Creative data is published in two steps: sheet-based creatives as soon as the
@@ -705,14 +734,15 @@ export default function App() {
       setCreativeData([...sheetCreatives.creativeResults, ...tiktokCreatives, ...sheetCreatives.otherChannelsData]);
     };
 
-    sheetsPromise.then(({ combinedAds, gaResults, creativeResults, otherChannelsData }) => {
+    sheetsPromise.then(({ combinedAds, gaResults, gaItemFunnelResults, creativeResults, otherChannelsData }) => {
       if (cancelled) return;
       setAdData(combinedAds);
       setGaData(gaResults);
+      setGaItemFunnelData(gaItemFunnelResults);
       sheetCreatives = { creativeResults, otherChannelsData };
       publishCreatives();
 
-      const allDates = [...combinedAds, ...gaResults]
+      const allDates = [...combinedAds, ...gaResults, ...gaItemFunnelResults]
         .map(d => d.dateObj || d.date)
         .filter(d => d instanceof Date && !isNaN(d));
       if (allDates.length > 0) {
@@ -761,15 +791,15 @@ export default function App() {
 
   const uniqueCampaigns = useMemo(() => Array.from(new Set(adData.map(d => d.campaignName))).sort(), [adData]);
   const uniqueMarkets = useMemo(() => {
-    const combined = [...adData.map(d => d.country), ...gaData.map(d => d.country)];
+    const combined = [...adData.map(d => d.country), ...gaData.map(d => d.country), ...gaItemFunnelData.map(d => d.country)];
     return Array.from(new Set(combined)).filter(Boolean).sort();
-  }, [adData, gaData]);
+  }, [adData, gaData, gaItemFunnelData]);
   const uniquePaidOrganic = useMemo(() => {
     const order = ['Paid', 'Organic'];
-    const values = Array.from(new Set(gaData.map(d => d.paidOrganic)));
+    const values = Array.from(new Set([...gaData, ...gaItemFunnelData].map(d => d.paidOrganic)));
     return [...order.filter(v => values.includes(v)), ...values.filter(v => !order.includes(v)).sort()];
-  }, [gaData]);
-  const uniqueGa4Properties = useMemo(() => Array.from(new Set(gaData.map(d => d.ga4Property))).filter(Boolean).sort(), [gaData]);
+  }, [gaData, gaItemFunnelData]);
+  const uniqueGa4Properties = useMemo(() => Array.from(new Set([...gaData, ...gaItemFunnelData].map(d => d.ga4Property))).filter(Boolean).sort(), [gaData, gaItemFunnelData]);
 
   // Apply filters to Ad Data
   const filteredAdData = useMemo(() => {
@@ -813,6 +843,15 @@ export default function App() {
       return true;
     });
   }, [gaData, activeTab, deferredFilterCampaigns, deferredFilterMarkets, deferredFilterPaidOrganic, deferredFilterGa4Properties, deferredDateRange]);
+
+  const filteredGaItemFunnelData = useMemo(() => gaItemFunnelData.filter(d => {
+    if (!deferredFilterMarkets.includes('All') && !deferredFilterMarkets.includes(d.country)) return false;
+    if (!deferredFilterPaidOrganic.includes('All') && !deferredFilterPaidOrganic.includes(d.paidOrganic)) return false;
+    if (!deferredFilterGa4Properties.includes('All') && !deferredFilterGa4Properties.includes(d.ga4Property)) return false;
+    if (deferredDateRange.start && d.dateObj && d.dateObj < new Date(deferredDateRange.start)) return false;
+    if (deferredDateRange.end && d.dateObj && d.dateObj > new Date(deferredDateRange.end)) return false;
+    return true;
+  }), [gaItemFunnelData, deferredFilterMarkets, deferredFilterPaidOrganic, deferredFilterGa4Properties, deferredDateRange]);
 
   const agg = useMemo(() => {
     const cost = d3.sum(filteredAdData, d => d.cost);
@@ -1422,6 +1461,7 @@ export default function App() {
           </div>
 
           <GaChannelTable rawData={filteredGaData} formatShort={formatShort} />
+          <GaItemFunnelTable rawData={filteredGaItemFunnelData} />
         </div>
       );
     }

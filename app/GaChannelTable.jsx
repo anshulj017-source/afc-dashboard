@@ -5,7 +5,6 @@ import { Search, ChevronDown, Download } from 'lucide-react';
 import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer, AreaChart, Area } from 'recharts';
 
 export const GaChannelTable = ({ rawData, formatShort }) => {
-  const [viewBy, setViewBy] = useState('sourceMedium'); // 'sourceMedium' or 'country'
   const [searchTerm, setSearchTerm] = useState('');
   const [sortKey, setSortKey] = useState('sessions');
   const [sortDir, setSortDir] = useState('desc');
@@ -40,12 +39,12 @@ export const GaChannelTable = ({ rawData, formatShort }) => {
         purchases: d3.sum(v, d => d.purchases),
         gaTickets: d3.sum(v, d => d.gaTickets || 0)
       }),
-      d => viewBy === 'sourceMedium' ? d.sourceMedium : viewBy === 'country' ? d.country : d.ga4Property
+      d => d.country
     )).map(([dimension, metrics]) => ({
       dimension,
       ...metrics
     }));
-  }, [rawData, viewBy]);
+  }, [rawData]);
 
   const filteredAgg = aggData.filter(d => d.dimension.toLowerCase().includes(searchTerm.toLowerCase()));
   const sortedAgg = [...filteredAgg].sort((a, b) => {
@@ -59,7 +58,7 @@ export const GaChannelTable = ({ rawData, formatShort }) => {
   useEffect(() => {
     setCurrentPage(1);
     setSelectedChannels([]);
-  }, [searchTerm, sortKey, sortDir, rowsPerPage, viewBy]);
+  }, [searchTerm, sortKey, sortDir, rowsPerPage]);
 
   const totalPages = Math.ceil(sortedAgg.length / rowsPerPage);
   const paginatedAgg = sortedAgg.slice((currentPage - 1) * rowsPerPage, currentPage * rowsPerPage);
@@ -104,7 +103,7 @@ export const GaChannelTable = ({ rawData, formatShort }) => {
     if (dataToDownload.length === 0) return;
 
     const headers = [
-      viewBy === 'sourceMedium' ? 'Source / Medium' : viewBy === 'country' ? 'Country' : 'Property',
+      'Country',
       'Sessions',
       'Users',
       'Engaged',
@@ -139,7 +138,7 @@ export const GaChannelTable = ({ rawData, formatShort }) => {
     const url = URL.createObjectURL(blob);
     const link = document.createElement("a");
     link.setAttribute("href", url);
-    link.setAttribute("download", `web_traffic_${viewBy}.csv`);
+    link.setAttribute("download", 'web_traffic_country.csv');
     document.body.appendChild(link);
     link.click();
     document.body.removeChild(link);
@@ -149,7 +148,7 @@ export const GaChannelTable = ({ rawData, formatShort }) => {
   // Prepare chart data
   const chartData = useMemo(() => {
     if (!modalOpen) return [];
-    const relevantRaw = rawData.filter(d => modalChannels.includes(viewBy === 'sourceMedium' ? d.sourceMedium : d.country) && d.dateObj);
+    const relevantRaw = rawData.filter(d => modalChannels.includes(d.country) && d.dateObj);
     
     const timeKeyFunc = trendTimeframe === 'Daily' 
       ? d => d3.timeFormat("%b %d")(d.dateObj)
@@ -166,7 +165,7 @@ export const GaChannelTable = ({ rawData, formatShort }) => {
     return sortedGrouped.map(([timeLabel, rows]) => {
       const obj = { time: timeLabel };
       modalChannels.forEach(ch => {
-        const chRows = rows.filter(r => (viewBy === 'sourceMedium' ? r.sourceMedium : r.country) === ch);
+        const chRows = rows.filter(r => r.country === ch);
         let val = 0;
         if (trendMetric === 'sessions') val = d3.sum(chRows, r => r.sessions);
         if (trendMetric === 'users') val = d3.sum(chRows, r => r.users);
@@ -190,22 +189,11 @@ export const GaChannelTable = ({ rawData, formatShort }) => {
       <div className="flex justify-between items-center mb-6 flex-wrap gap-4">
         <h3 className="text-xl font-black text-[#eef7f5]">Web Traffic Analysis</h3>
         <div className="flex items-center gap-4">
-          <div className="flex bg-[#011414] rounded-full p-1 border border-[#c88214]/20">
-            {['sourceMedium', 'country', 'ga4Property'].map(v => (
-              <button 
-                key={v} 
-                onClick={() => setViewBy(v)} 
-                className={`px-4 py-1.5 rounded-full text-xs font-bold transition-all ${viewBy === v ? 'gradient-gold text-[#043e3f]' : 'text-[#c88214] hover:text-white'}`}
-              >
-                {v === 'sourceMedium' ? 'Source / Medium' : v === 'country' ? 'Country' : 'Property'}
-              </button>
-            ))}
-          </div>
           <div className="relative">
             <Search size={16} className="absolute left-3 top-1/2 transform -translate-y-1/2 text-[#c88214]" />
             <input 
               type="text" 
-              placeholder="Search channels..." 
+              placeholder="Search countries..."
               value={searchTerm}
               onChange={e => setSearchTerm(e.target.value)}
               className="bg-[#011414] text-[#eef7f5] text-sm pl-9 pr-4 py-2 rounded-full outline-none border border-[#c88214]/30 focus:border-[#c88214]"
@@ -237,7 +225,7 @@ export const GaChannelTable = ({ rawData, formatShort }) => {
                 <input type="checkbox" checked={selectedChannels.length === sortedAgg.length && sortedAgg.length > 0} onChange={toggleAll} className="accent-[#c88214] cursor-pointer" />
               </th>
               {[
-                { key: 'dimension', label: viewBy === 'sourceMedium' ? 'Source / Medium' : viewBy === 'country' ? 'Country' : 'Property' },
+                { key: 'dimension', label: 'Country' },
                 { key: 'sessions', label: 'Sessions' },
                 { key: 'users', label: 'Users' },
                 { key: 'engagedSessions', label: 'Engaged' },
@@ -355,7 +343,7 @@ export const GaChannelTable = ({ rawData, formatShort }) => {
             <div className="p-6 border-b border-[#c88214]/20 flex justify-between items-start bg-[#011414]">
               <div>
                 <h2 className="text-2xl font-black text-white mb-2">
-                  {modalMode === 'single' ? modalChannels[0] : 'Channel Comparison'}
+                  {modalMode === 'single' ? modalChannels[0] : 'Country Comparison'}
                 </h2>
                 {modalMode === 'compare' && (
                   <div className="flex flex-wrap gap-2">
