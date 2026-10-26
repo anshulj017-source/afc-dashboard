@@ -825,7 +825,7 @@ export default function App() {
     return gaData.filter(d => {
       let matchesCampaign = true;
 
-      if (activeTab === 'summary') {
+      if (activeTab === 'summary' || activeTab === 'market') {
         const property = (d.ga4Property || '').trim().toLowerCase();
         matchesCampaign = summaryProperties.includes(property);
       } else if (activeTab !== 'webtraffic' && !deferredFilterCampaigns.includes('All')) {
@@ -934,6 +934,29 @@ export default function App() {
       tickets: d3.sum(vals, d => d.gaTickets || 0)
     })).sort((a,b) => a.sortDate - b.sortDate);
   }, [filteredGaData]);
+
+  const dailyWebGaChartData = useMemo(() => {
+    const formatKey = d3.timeFormat("%Y-%m-%d");
+    const formatDisplay = d3.timeFormat("%b %d");
+    const dailyData = new globalThis.Map();
+
+    filteredGaData.filter(d => d.dateObj && !isNaN(d.dateObj)).forEach(row => {
+      const key = formatKey(row.dateObj);
+      const entry = dailyData.get(key) || { key, sortDate: row.dateObj, purchases: 0, tickets: 0 };
+      entry.purchases += row.purchases || 0;
+      dailyData.set(key, entry);
+    });
+    filteredGaItemFunnelData.filter(d => d.dateObj && !isNaN(d.dateObj)).forEach(row => {
+      const key = formatKey(row.dateObj);
+      const entry = dailyData.get(key) || { key, sortDate: row.dateObj, purchases: 0, tickets: 0 };
+      entry.tickets += row.itemPurchaseQuantity || 0;
+      dailyData.set(key, entry);
+    });
+
+    return Array.from(dailyData.values())
+      .map(entry => ({ ...entry, day: formatDisplay(entry.sortDate) }))
+      .sort((a, b) => a.sortDate - b.sortDate);
+  }, [filteredGaData, filteredGaItemFunnelData]);
 
   const channelPerformance = useMemo(() => {
     const grouped = d3.groups(filteredAdData, d => d.channel);
@@ -1243,8 +1266,8 @@ export default function App() {
                 <XAxis dataKey="day" stroke="#6fa89f" fontSize={10} />
                 <YAxis yAxisId="left" stroke="#00937b" fontSize={10} tickFormatter={(t) => formatShort(t)} />
                 <YAxis yAxisId="right" orientation="right" stroke="#c88214" fontSize={10} tickFormatter={(t) => formatShort(t)} />
-                <Tooltip 
-                  contentStyle={{ backgroundColor: '#043e3f', borderColor: '#c8821420', color: '#fff' }} 
+                <Tooltip
+                  contentStyle={{ backgroundColor: '#043e3f', borderColor: '#c8821420', color: '#fff' }}
                 />
                 <Legend />
                 <Line yAxisId="left" type="monotone" dataKey="purchases" name="Purchases" stroke="#00937b" strokeWidth={3} dot={false} />
@@ -1304,11 +1327,11 @@ export default function App() {
       const totalGaEngaged = d3.sum(filteredGaData, d => d.engagedSessions);
       const totalGaNewUsers = d3.sum(filteredGaData, d => d.newUsers);
       
-      const totalItemViews = d3.sum(filteredGaData, d => d.itemViews);
-      const totalAddToCart = d3.sum(filteredGaData, d => d.addToCarts);
-      const totalCheckouts = d3.sum(filteredGaData, d => d.checkouts);
+      const totalItemViews = d3.sum(filteredGaItemFunnelData, d => d.itemsViewed);
+      const totalAddToCart = d3.sum(filteredGaItemFunnelData, d => d.itemsAddedToCart);
+      const totalCheckouts = d3.sum(filteredGaItemFunnelData, d => d.itemsCheckedOut);
       const totalPurchases = d3.sum(filteredGaData, d => d.purchases);
-      const totalGaTickets = d3.sum(filteredGaData, d => d.gaTickets || 0);
+      const totalGaTickets = d3.sum(filteredGaItemFunnelData, d => d.itemPurchaseQuantity);
       
       const gaWithSessions = filteredGaData.filter(d => d.sessions > 0);
       const totalGaMarkets = new Set(gaWithSessions.map(d => d.country)).size;
@@ -1360,12 +1383,37 @@ export default function App() {
             <MetricCard definition="The number of users who interacted with your site or launched your app for the first time." label="New Users" value={formatShort(totalGaNewUsers)} icon={TrendingUp} color="text-white" />
             <MetricCard definition="The total number of unique users who logged an event." label="Total Users" value={formatShort(totalGaUsers)} icon={MousePointer2} color="text-[#c88214]" />
             
-            <MetricCard definition="The total number of times items were viewed." label="Item Views" value={formatShort(totalItemViews)} icon={Eye} color="text-[#6fa89f]" />
+            <MetricCard definition="The total number of times tickets were viewed." label="Ticket Views" value={formatShort(totalItemViews)} icon={Eye} color="text-[#6fa89f]" />
             <MetricCard definition="The total number of times items were added to the cart." label="Add to Carts" value={formatShort(totalAddToCart)} icon={Activity} color="text-white" />
             <MetricCard definition="The total number of times users initiated a checkout." label="Checkouts" value={formatShort(totalCheckouts)} icon={MousePointer2} color="text-[#c88214]" />
             <MetricCard definition="The total number of completed purchases." label="Purchases" value={formatShort(totalPurchases)} icon={TrendingUp} color="text-[#6fa89f]" />
             <MetricCard definition="The average duration (in seconds) of user sessions." label="Avg Session (s)" value={d3.format(",.1f")(avgDuration)} icon={List} color="text-white" />
             <MetricCard definition="The total quantity of tickets sold reported by GA4." label="GA4 Tickets Sales" value={formatShort(totalGaTickets)} icon={ShoppingCart} color="text-[#c88214]" />
+          </div>
+
+          <GaChannelTable rawData={filteredGaData} itemRawData={filteredGaItemFunnelData} formatShort={formatShort} />
+          <GaItemFunnelTable rawData={filteredGaItemFunnelData} />
+
+          {/* Daily GA4 Sales Trend */}
+          <div className="card-surface backdrop-blur-2xl p-6 rounded-3xl border border-[#c88214]/20 shadow-xl h-[400px] mb-8 export-slide" data-title="Daily GA4 Sales Trend">
+            <h3 className="text-[#eef7f5] font-black mb-4 flex items-center gap-2">
+              Daily GA4 Sales Trend
+              <InfoTooltip definition="Daily trend of Purchases and Ticket Sales reported by GA4." />
+            </h3>
+            <ResponsiveContainer width="100%" height="90%">
+              <LineChart data={dailyWebGaChartData}>
+                <CartesianGrid strokeDasharray="3 3" stroke="#ffffff10" />
+                <XAxis dataKey="day" stroke="#6fa89f" fontSize={10} />
+                <YAxis yAxisId="left" stroke="#00937b" fontSize={10} tickFormatter={(t) => d3.format(",")(t)} />
+                <YAxis yAxisId="right" orientation="right" stroke="#c88214" fontSize={10} tickFormatter={(t) => d3.format(",")(t)} />
+                <Tooltip
+                  contentStyle={{ backgroundColor: '#043e3f', borderColor: '#c8821420', color: '#fff' }}
+                />
+                <Legend />
+                <Line yAxisId="left" type="monotone" dataKey="purchases" name="Purchases" stroke="#00937b" strokeWidth={3} dot={false} />
+                <Line yAxisId="right" type="monotone" dataKey="tickets" name="Ticket Sales" stroke="#c88214" strokeWidth={3} dot={false} />
+              </LineChart>
+            </ResponsiveContainer>
           </div>
 
           <div className="card-surface backdrop-blur-2xl p-6 rounded-3xl border border-[#c88214]/20 shadow-xl relative">
@@ -1437,31 +1485,6 @@ export default function App() {
               <ReactTooltip id="map-tooltip" style={{ backgroundColor: '#043e3f', color: '#c88214', fontWeight: 'bold' }} />
             </div>
           </div>
-          
-          {/* Daily GA4 Sales Trend */}
-          <div className="card-surface backdrop-blur-2xl p-6 rounded-3xl border border-[#c88214]/20 shadow-xl h-[400px] mb-8 export-slide" data-title="Daily GA4 Sales Trend">
-            <h3 className="text-[#eef7f5] font-black mb-4 flex items-center gap-2">
-              Daily GA4 Sales Trend
-              <InfoTooltip definition="Daily trend of Purchases and Ticket Sales reported by GA4." />
-            </h3>
-            <ResponsiveContainer width="100%" height="90%">
-              <LineChart data={dailyGaChartData}>
-                <CartesianGrid strokeDasharray="3 3" stroke="#ffffff10" />
-                <XAxis dataKey="day" stroke="#6fa89f" fontSize={10} />
-                <YAxis yAxisId="left" stroke="#00937b" fontSize={10} tickFormatter={(t) => d3.format(",")(t)} />
-                <YAxis yAxisId="right" orientation="right" stroke="#c88214" fontSize={10} tickFormatter={(t) => d3.format(",")(t)} />
-                <Tooltip 
-                  contentStyle={{ backgroundColor: '#043e3f', borderColor: '#c8821420', color: '#fff' }} 
-                />
-                <Legend />
-                <Line yAxisId="left" type="monotone" dataKey="purchases" name="Purchases" stroke="#00937b" strokeWidth={3} dot={false} />
-                <Line yAxisId="right" type="monotone" dataKey="tickets" name="Ticket Sales" stroke="#c88214" strokeWidth={3} dot={false} />
-              </LineChart>
-            </ResponsiveContainer>
-          </div>
-
-          <GaChannelTable rawData={filteredGaData} formatShort={formatShort} />
-          <GaItemFunnelTable rawData={filteredGaItemFunnelData} />
         </div>
       );
     }

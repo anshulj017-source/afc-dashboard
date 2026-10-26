@@ -4,7 +4,7 @@ import * as d3 from 'd3';
 import { Search, ChevronDown, Download } from 'lucide-react';
 import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer, AreaChart, Area } from 'recharts';
 
-export const GaChannelTable = ({ rawData, formatShort }) => {
+export const GaChannelTable = ({ rawData, itemRawData = [], formatShort }) => {
   const [searchTerm, setSearchTerm] = useState('');
   const [sortKey, setSortKey] = useState('sessions');
   const [sortDir, setSortDir] = useState('desc');
@@ -26,25 +26,44 @@ export const GaChannelTable = ({ rawData, formatShort }) => {
   }, []);
 
   const aggData = useMemo(() => {
-    return Array.from(d3.rollup(rawData, 
-      v => ({
-        sessions: d3.sum(v, d => d.sessions),
-        users: d3.sum(v, d => d.users),
-        engagedSessions: d3.sum(v, d => d.engagedSessions),
-        newUsers: d3.sum(v, d => d.newUsers),
-        avgSessionDuration: d3.mean(v.filter(d => d.sessions > 0), d => d.avgSessionDuration) || 0,
-        itemViews: d3.sum(v, d => d.itemViews),
-        addToCarts: d3.sum(v, d => d.addToCarts),
-        checkouts: d3.sum(v, d => d.checkouts),
-        purchases: d3.sum(v, d => d.purchases),
-        gaTickets: d3.sum(v, d => d.gaTickets || 0)
+    const trafficByCountry = d3.rollup(rawData,
+      rows => ({
+        sessions: d3.sum(rows, row => row.sessions),
+        users: d3.sum(rows, row => row.users),
+        engagedSessions: d3.sum(rows, row => row.engagedSessions),
+        newUsers: d3.sum(rows, row => row.newUsers),
+        avgSessionDuration: d3.mean(rows.filter(row => row.sessions > 0), row => row.avgSessionDuration) || 0,
+        purchases: d3.sum(rows, row => row.purchases),
       }),
-      d => d.country
-    )).map(([dimension, metrics]) => ({
+      row => row.country
+    );
+    const itemMetricsByCountry = d3.rollup(itemRawData,
+      rows => ({
+        itemViews: d3.sum(rows, row => row.itemsViewed),
+        addToCarts: d3.sum(rows, row => row.itemsAddedToCart),
+        checkouts: d3.sum(rows, row => row.itemsCheckedOut),
+        gaTickets: d3.sum(rows, row => row.itemPurchaseQuantity),
+      }),
+      row => row.country
+    );
+    const countries = new Set([...trafficByCountry.keys(), ...itemMetricsByCountry.keys()]);
+
+    return Array.from(countries, dimension => ({
       dimension,
-      ...metrics
+      sessions: 0,
+      users: 0,
+      engagedSessions: 0,
+      newUsers: 0,
+      avgSessionDuration: 0,
+      purchases: 0,
+      itemViews: 0,
+      addToCarts: 0,
+      checkouts: 0,
+      gaTickets: 0,
+      ...trafficByCountry.get(dimension),
+      ...itemMetricsByCountry.get(dimension),
     }));
-  }, [rawData]);
+  }, [rawData, itemRawData]);
 
   const filteredAgg = aggData.filter(d => d.dimension.toLowerCase().includes(searchTerm.toLowerCase()));
   const sortedAgg = [...filteredAgg].sort((a, b) => {
@@ -109,7 +128,7 @@ export const GaChannelTable = ({ rawData, formatShort }) => {
       'Engaged',
       'New Users',
       'Avg Duration (s)',
-      'Item Views',
+      'Ticket Views',
       'Add to Carts',
       'Checkouts',
       'Purchases',
@@ -148,7 +167,15 @@ export const GaChannelTable = ({ rawData, formatShort }) => {
   // Prepare chart data
   const chartData = useMemo(() => {
     if (!modalOpen) return [];
-    const relevantRaw = rawData.filter(d => modalChannels.includes(d.country) && d.dateObj);
+    const itemMetricAccessors = {
+      itemViews: row => row.itemsViewed,
+      addToCarts: row => row.itemsAddedToCart,
+      checkouts: row => row.itemsCheckedOut,
+      gaTickets: row => row.itemPurchaseQuantity,
+    };
+    const metricAccessor = itemMetricAccessors[trendMetric];
+    const metricData = metricAccessor ? itemRawData : rawData;
+    const relevantRaw = metricData.filter(d => modalChannels.includes(d.country) && d.dateObj);
     
     const timeKeyFunc = trendTimeframe === 'Daily' 
       ? d => d3.timeFormat("%b %d")(d.dateObj)
@@ -171,23 +198,20 @@ export const GaChannelTable = ({ rawData, formatShort }) => {
         if (trendMetric === 'users') val = d3.sum(chRows, r => r.users);
         if (trendMetric === 'engagedSessions') val = d3.sum(chRows, r => r.engagedSessions);
         if (trendMetric === 'newUsers') val = d3.sum(chRows, r => r.newUsers);
-        if (trendMetric === 'itemViews') val = d3.sum(chRows, r => r.itemViews);
-        if (trendMetric === 'addToCarts') val = d3.sum(chRows, r => r.addToCarts);
-        if (trendMetric === 'checkouts') val = d3.sum(chRows, r => r.checkouts);
+        if (metricAccessor) val = d3.sum(chRows, metricAccessor);
         if (trendMetric === 'purchases') val = d3.sum(chRows, r => r.purchases);
-        if (trendMetric === 'gaTickets') val = d3.sum(chRows, r => r.gaTickets || 0);
         obj[ch] = val;
       });
       return obj;
     });
-  }, [modalOpen, rawData, modalChannels, trendTimeframe, trendMetric]);
+  }, [modalOpen, rawData, itemRawData, modalChannels, trendTimeframe, trendMetric]);
 
   const COLORS = ['#c88214', '#eef7f5', '#6fa89f', '#00937b', '#EF4444', '#10B981', '#c88214', '#065c5d'];
 
   return (
     <div className="card-surface backdrop-blur-2xl p-6 rounded-3xl border border-[#c88214]/20 shadow-xl relative">
       <div className="flex justify-between items-center mb-6 flex-wrap gap-4">
-        <h3 className="text-xl font-black text-[#eef7f5]">Web Traffic Analysis</h3>
+        <h3 className="text-xl font-black text-[#eef7f5]">Tickets Sales by Market</h3>
         <div className="flex items-center gap-4">
           <div className="relative">
             <Search size={16} className="absolute left-3 top-1/2 transform -translate-y-1/2 text-[#c88214]" />
@@ -231,7 +255,7 @@ export const GaChannelTable = ({ rawData, formatShort }) => {
                 { key: 'engagedSessions', label: 'Engaged' },
                 { key: 'newUsers', label: 'New Users' },
                 { key: 'avgSessionDuration', label: 'Avg Duration' },
-                { key: 'itemViews', label: 'Item Views' },
+                { key: 'itemViews', label: 'Ticket Views' },
                 { key: 'addToCarts', label: 'Add to Carts' },
                 { key: 'checkouts', label: 'Checkouts' },
                 { key: 'purchases', label: 'Purchases' },
@@ -265,7 +289,7 @@ export const GaChannelTable = ({ rawData, formatShort }) => {
                 <td className="px-3 py-3 text-sm font-medium text-white">{d3.format(",")(row.gaTickets)}</td>
               </tr>
             ))}
-            {sortedAgg.length === 0 && <tr><td colSpan={7} className="px-6 py-8 text-center text-[#6fa89f] text-sm">No channels found</td></tr>}
+            {sortedAgg.length === 0 && <tr><td colSpan={12} className="px-6 py-8 text-center text-[#6fa89f] text-sm">No countries found</td></tr>}
             {sortedAgg.length > 0 && (() => {
               const tSessions = d3.sum(sortedAgg, d => d.sessions);
               const tUsers = d3.sum(sortedAgg, d => d.users);
@@ -375,7 +399,7 @@ export const GaChannelTable = ({ rawData, formatShort }) => {
                     { key: 'users', label: 'Users' },
                     { key: 'engagedSessions', label: 'Engaged' },
                     { key: 'newUsers', label: 'New Users' },
-                    { key: 'itemViews', label: 'Item Views' },
+                    { key: 'itemViews', label: 'Ticket Views' },
                     { key: 'addToCarts', label: 'Add to Carts' },
                     { key: 'checkouts', label: 'Checkouts' },
                     { key: 'purchases', label: 'Purchases' },

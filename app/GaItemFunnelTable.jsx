@@ -89,7 +89,7 @@ export const GaItemFunnelTable = ({ rawData }) => {
   return (
     <div className="card-surface backdrop-blur-2xl p-6 rounded-3xl border border-[#c88214]/20 shadow-xl relative">
       <div className="flex justify-between items-center mb-6 flex-wrap gap-4">
-        <h3 className="text-xl font-black text-[#eef7f5]">Item Funnel</h3>
+        <h3 className="text-xl font-black text-[#eef7f5]">Ticket Sales by Match</h3>
         <div className="flex items-center gap-4">
           <div className="relative">
             <Search size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-[#c88214]" />

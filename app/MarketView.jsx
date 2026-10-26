@@ -7,6 +7,14 @@ import { Eye, DollarSign, Activity, TrendingUp, BarChart3, Target, CheckCircle2,
 import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip as RechartsTooltip, ResponsiveContainer, BarChart, Bar, Legend } from 'recharts';
 
 const COLORS = ['#74FA93', '#c88214', '#00937b', '#eef7f5', '#007542'];
+const TOURNAMENT_BY_GA4_PROPERTY = {
+  'ahlan.sa': 'AC27',
+  'gulfcup - khaleeji27': 'Gulf Cup',
+};
+
+const getTournamentForGa4Property = property => (
+  TOURNAMENT_BY_GA4_PROPERTY[(property || '').trim().toLowerCase()]
+);
 
 const getFlagEmoji = (countryName) => {
   const codes = {
@@ -189,6 +197,13 @@ export default function MarketView({ adData, gaData, exRate = 1, exSym = '$', fo
   // Campaign breakdown
   const campaignBreakdown = useMemo(() => {
     if (selectedMarketAdData.length === 0) return [];
+
+    const paidSessionsByMarketAndTournament = d3.rollup(
+      selectedMarketGaData.filter(row => getTournamentForGa4Property(row.ga4Property)),
+      rows => d3.sum(rows, row => row.sessions),
+      row => row.country,
+      row => getTournamentForGa4Property(row.ga4Property)
+    );
     
     // Group by Country -> Campaign
     const grouped = d3.groups(selectedMarketAdData, d => d.country, d => d.campaignName);
@@ -203,6 +218,10 @@ export default function MarketView({ adData, gaData, exRate = 1, exSym = '$', fo
         const views6s = d3.sum(vals, d => d.videoViews6s);
         const views15s = d3.sum(vals, d => d.videoViews15s);
         const completions = d3.sum(vals, d => d.videoCompletions);
+        const mappedTournament = Object.values(TOURNAMENT_BY_GA4_PROPERTY).includes(campaign);
+        const sessions = mappedTournament
+          ? (paidSessionsByMarketAndTournament.get(country)?.get(campaign) || 0)
+          : null;
         
         flattened.push({
           country,
@@ -214,6 +233,7 @@ export default function MarketView({ adData, gaData, exRate = 1, exSym = '$', fo
           views6s,
           views15s,
           completions,
+          sessions,
           ctr: impressions > 0 ? (clicks / impressions) * 100 : 0,
           cpc: clicks > 0 ? spend / clicks : 0,
           cpm: impressions > 0 ? (spend / impressions) * 1000 : 0,
@@ -223,7 +243,7 @@ export default function MarketView({ adData, gaData, exRate = 1, exSym = '$', fo
       });
     });
     return flattened.sort((a,b) => b.spend - a.spend);
-  }, [selectedMarketAdData]);
+  }, [selectedMarketAdData, selectedMarketGaData]);
 
   const campaignChartData = useMemo(() => {
      if (selectedMarketAdData.length === 0) return [];
@@ -545,7 +565,7 @@ export default function MarketView({ adData, gaData, exRate = 1, exSym = '$', fo
                         </td>
                         {AVAILABLE_METRICS.filter(m => selectedMetrics.includes(m.key)).map(m => (
                            <td key={m.key} className={`px-4 py-4 text-sm font-medium text-right ${m.key === 'spend' ? 'text-[#c88214]' : 'text-white'}`}>
-                              {m.key === 'sessions' ? 'N/A' : m.format(row[m.key])}
+                              {m.key === 'sessions' && row.sessions === null ? 'N/A' : m.format(row[m.key])}
                            </td>
                         ))}
                       </tr>
@@ -559,7 +579,7 @@ export default function MarketView({ adData, gaData, exRate = 1, exSym = '$', fo
                       const tViews15s = d3.sum(campaignBreakdown, d => d.views15s);
                       const tCompletions = d3.sum(campaignBreakdown, d => d.completions);
                       
-                      const tSessions = d3.sum(selectedMarkets.map(m => marketStats.find(s => s.country === m)?.sessions || 0));
+                      const tSessions = d3.sum(campaignBreakdown, d => d.sessions || 0);
 
                       const totals = {
                         spend: tSpend,
