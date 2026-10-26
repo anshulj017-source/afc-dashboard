@@ -304,6 +304,11 @@ export default function App() {
   const deferredFilterMarkets = useDeferredValue(filterMarkets);
   const deferredFilterPaidOrganic = useDeferredValue(filterPaidOrganic);
   const deferredFilterGa4Properties = useDeferredValue(filterGa4Properties);
+  const isFiltering = dateRange !== deferredDateRange
+    || filterCampaigns !== deferredFilterCampaigns
+    || filterMarkets !== deferredFilterMarkets
+    || filterPaidOrganic !== deferredFilterPaidOrganic
+    || filterGa4Properties !== deferredFilterGa4Properties;
   
   // State: Currency
   const [currency, setCurrency] = useState('SAR'); // 'USD' or 'SAR'
@@ -1380,6 +1385,7 @@ export default function App() {
           <div className="grid grid-cols-2 md:grid-cols-5 lg:grid-cols-5 gap-4">
             <MetricCard definition="A session is a group of user interactions with your website that take place within a given time frame." label="Sessions" value={formatShort(totalGaSessions)} icon={Eye} color="text-white" />
             <MetricCard definition="The number of sessions that lasted longer than 10 seconds, had a conversion event, or had 2 or more screen or page views." label="Engaged Sessions" value={formatShort(totalGaEngaged)} icon={Activity} color="text-[#6fa89f]" />
+            <MetricCard definition="The average duration (in seconds) of user sessions." label="Avg Session Duration (s)" value={d3.format(",.1f")(avgDuration)} icon={List} color="text-white" />
             <MetricCard definition="The number of users who interacted with your site or launched your app for the first time." label="New Users" value={formatShort(totalGaNewUsers)} icon={TrendingUp} color="text-white" />
             <MetricCard definition="The total number of unique users who logged an event." label="Total Users" value={formatShort(totalGaUsers)} icon={MousePointer2} color="text-[#c88214]" />
             
@@ -1387,7 +1393,6 @@ export default function App() {
             <MetricCard definition="The total number of times items were added to the cart." label="Add to Carts" value={formatShort(totalAddToCart)} icon={Activity} color="text-white" />
             <MetricCard definition="The total number of times users initiated a checkout." label="Checkouts" value={formatShort(totalCheckouts)} icon={MousePointer2} color="text-[#c88214]" />
             <MetricCard definition="The total number of completed purchases." label="Purchases" value={formatShort(totalPurchases)} icon={TrendingUp} color="text-[#6fa89f]" />
-            <MetricCard definition="The average duration (in seconds) of user sessions." label="Avg Session (s)" value={d3.format(",.1f")(avgDuration)} icon={List} color="text-white" />
             <MetricCard definition="The total quantity of tickets sold reported by GA4." label="GA4 Tickets Sales" value={formatShort(totalGaTickets)} icon={ShoppingCart} color="text-[#c88214]" />
           </div>
 
@@ -1511,6 +1516,14 @@ export default function App() {
 
   return (
     <div className="h-screen overflow-hidden app-bg font-sans selection:bg-[#c88214]/30 text-white flex flex-col">
+      <div role="status" aria-live="polite" aria-atomic="true" className="fixed top-3 right-4 z-[100000] pointer-events-none">
+        {isFiltering && (
+          <div className="flex items-center gap-2 rounded-full border border-[#c88214]/40 bg-[#011414]/95 px-4 py-2 text-xs font-bold text-[#c88214] shadow-xl backdrop-blur-md">
+            <RefreshCw aria-hidden="true" className="h-4 w-4 animate-spin" />
+            Updating dashboard…
+          </div>
+        )}
+      </div>
       {/* HEADER */}
       <header className="sticky top-0 z-50 bg-[#011414]/95 backdrop-blur-xl border-b border-[#c88214]/20 px-8 py-4 flex flex-wrap gap-4 items-center justify-between shadow-2xl relative">
         <div className="pattern-overlay absolute inset-0 z-0 pointer-events-none"></div>
@@ -1640,7 +1653,7 @@ export default function App() {
         {activeTab === 'admin' ? (
           <AdminView />
         ) : (
-        <main className="flex-1 overflow-y-auto p-8 custom-scrollbar relative z-10">
+        <main aria-busy={isFiltering} className="flex-1 overflow-y-auto p-8 custom-scrollbar relative z-10">
           <div className="absolute top-0 right-0 w-full h-[500px] bg-gradient-to-br from-[#062f2e]/20 via-transparent to-transparent pointer-events-none -z-10"></div>
           {renderContent()}
         </main>

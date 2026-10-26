@@ -5,11 +5,11 @@ import { ChevronDown, Download, Search } from 'lucide-react';
 import { Area, AreaChart, CartesianGrid, Legend, Line, LineChart, ResponsiveContainer, Tooltip, XAxis, YAxis } from 'recharts';
 
 const COLUMNS = [
-  { key: 'itemName', label: 'Item Name EN' },
-  { key: 'itemsViewed', label: 'Items Viewed' },
-  { key: 'itemsAddedToCart', label: 'Items Added to Cart' },
-  { key: 'itemsCheckedOut', label: 'Items Checked Out' },
-  { key: 'itemPurchaseQuantity', label: 'Item Purchase Quantity' },
+  { key: 'itemName', label: 'Match Name' },
+  { key: 'itemsViewed', label: 'Ticket Views' },
+  { key: 'itemsAddedToCart', label: 'Add to Carts' },
+  { key: 'itemsCheckedOut', label: 'Checkouts' },
+  { key: 'itemPurchaseQuantity', label: 'GA4 Tickets Sales' },
 ];
 
 const escapeCsv = value => `"${String(value).replace(/"/g, '""')}"`;
@@ -138,7 +138,7 @@ export const GaItemFunnelTable = ({ rawData, formatShort = value => d3.format('~
     const url = URL.createObjectURL(blob);
     const link = document.createElement('a');
     link.href = url;
-    link.download = 'ga4_item_funnel.csv';
+    link.download = 'ticket_sales_by_match.csv';
     document.body.appendChild(link);
     link.click();
     document.body.removeChild(link);
@@ -154,7 +154,7 @@ export const GaItemFunnelTable = ({ rawData, formatShort = value => d3.format('~
             <Search size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-[#c88214]" />
             <input
               type="text"
-              placeholder="Search items..."
+              placeholder="Search matches..."
               value={searchTerm}
               onChange={event => {
                 setSearchTerm(event.target.value);
@@ -231,7 +231,7 @@ export const GaItemFunnelTable = ({ rawData, formatShort = value => d3.format('~
             {sortedData.length === 0 && (
               <tr>
                 <td colSpan={COLUMNS.length + 1} className="px-6 py-8 text-center text-[#6fa89f] text-sm">
-                  No item funnel data available
+                  No matches found
                 </td>
               </tr>
             )}
