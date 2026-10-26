@@ -27,7 +27,6 @@ import CreativeView from './CreativeView';
 
 const GEO_URL = "https://unpkg.com/world-atlas@2.0.2/countries-110m.json";
 
-const BASE_URL = "/api/sheets?type=afc";
 const CHANNELS = [
   { name: 'TikTok', gid: '0', viewsCol: 9, compCol: 11 }, // J=9, L=11
   { name: 'Snapchat', gid: '1220368554', viewsCol: 8, compCol: 10, purchCol: 11 }, // I=8, L=11
@@ -291,6 +290,9 @@ export default function App() {
   const [lastUpdated, setLastUpdated] = useState(null);
   const [activeTab, setActiveTab] = useState('summary');
   const [isGenerating, setIsGenerating] = useState(false);
+  const [refreshVersion, setRefreshVersion] = useState(0);
+  const [isRefreshing, setIsRefreshing] = useState(false);
+  const [refreshError, setRefreshError] = useState('');
   
   // State: Global Filters
   const [dateRange, setDateRange] = useState({ start: '', end: '' });
@@ -365,6 +367,7 @@ export default function App() {
     if (!isAuthenticated) return;
 
     let cancelled = false;
+    const BASE_URL = `/api/sheets?type=afc${refreshVersion > 0 ? `&refresh=1&request=${refreshVersion}` : ''}`;
 
     // TikTok creatives are requested up front so they run in parallel with the
     // sheet downloads rather than after them.
@@ -760,7 +763,10 @@ export default function App() {
       setLoading(false);
     }).catch(err => {
       console.error(err);
-      if (!cancelled) setLoading(false);
+      if (!cancelled) {
+        setLoading(false);
+        if (refreshVersion > 0) setRefreshError('Refresh failed. Please try again.');
+      }
     });
 
     // TikTok creatives load in the background and don't block the dashboard.
@@ -783,8 +789,20 @@ export default function App() {
     }).catch(err => console.error("Error merging TikTok creatives:", err))
       .finally(() => { if (!cancelled) setTiktokLoading(false); });
 
+    Promise.allSettled([sheetsPromise, fetchTikTok]).then(() => {
+      if (!cancelled) setIsRefreshing(false);
+    });
+
     return () => { cancelled = true; };
-  }, [isAuthenticated]);
+  }, [isAuthenticated, refreshVersion]);
+
+  const refreshData = () => {
+    if (isRefreshing) return;
+    setRefreshError('');
+    setIsRefreshing(true);
+    setTiktokLoading(true);
+    setRefreshVersion(version => version + 1);
+  };
 
   const resetFilters = () => {
     setFilterCampaigns(['All']);
@@ -1516,13 +1534,19 @@ export default function App() {
 
   return (
     <div className="h-screen overflow-hidden app-bg font-sans selection:bg-[#c88214]/30 text-white flex flex-col">
-      <div role="status" aria-live="polite" aria-atomic="true" className="fixed top-3 right-4 z-[100000] pointer-events-none">
-        {isFiltering && (
-          <div className="flex items-center gap-2 rounded-full border border-[#c88214]/40 bg-[#011414]/95 px-4 py-2 text-xs font-bold text-[#c88214] shadow-xl backdrop-blur-md">
-            <RefreshCw aria-hidden="true" className="h-4 w-4 animate-spin" />
-            Updating dashboard…
-          </div>
-        )}
+      <div className="fixed top-3 right-4 z-[100000] flex flex-col items-end gap-2">
+        <button
+          type="button"
+          onClick={refreshData}
+          disabled={isRefreshing || isFiltering}
+          className="flex items-center gap-2 rounded-full border border-[#c88214]/40 bg-[#011414]/95 px-4 py-2 text-xs font-bold text-[#c88214] shadow-xl backdrop-blur-md hover:border-[#c88214] disabled:cursor-wait"
+        >
+          <RefreshCw aria-hidden="true" className={`h-4 w-4 ${isRefreshing || isFiltering ? 'animate-spin' : ''}`} />
+          {isRefreshing ? 'Refreshing data…' : isFiltering ? 'Updating dashboard…' : 'Refresh Data'}
+        </button>
+        <span role="status" aria-live="polite" aria-atomic="true" className={refreshError ? 'rounded-lg bg-[#011414] px-3 py-2 text-xs text-red-400' : 'sr-only'}>
+          {refreshError || (isRefreshing ? 'Refreshing data' : isFiltering ? 'Updating dashboard' : '')}
+        </span>
       </div>
       {/* HEADER */}
       <header className="sticky top-0 z-50 bg-[#011414]/95 backdrop-blur-xl border-b border-[#c88214]/20 px-8 py-4 flex flex-wrap gap-4 items-center justify-between shadow-2xl relative">

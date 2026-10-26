@@ -29,6 +29,7 @@ function refresh(url) {
 export async function GET(request) {
   const { searchParams } = new URL(request.url);
   const type = searchParams.get('type');
+  const forceRefresh = searchParams.get('refresh') === '1';
 
   let url;
   if (type === 'combined') {
@@ -55,7 +56,9 @@ export async function GET(request) {
     const cached = cache.get(url);
     const age = cached ? Date.now() - cached.fetchedAt : Infinity;
     let text;
-    if (cached && age < CACHE_MAX_STALE_MS) {
+    if (forceRefresh) {
+      text = await refresh(url);
+    } else if (cached && age < CACHE_MAX_STALE_MS) {
       if (age >= CACHE_TTL_MS) refresh(url).catch(err => console.error('Error refreshing sheet:', err));
       text = cached.text;
     } else {
@@ -66,7 +69,7 @@ export async function GET(request) {
       status: 200,
       headers: {
         'Content-Type': 'text/csv',
-        'Cache-Control': 's-maxage=60, stale-while-revalidate=120',
+        'Cache-Control': forceRefresh ? 'no-store' : 's-maxage=60, stale-while-revalidate=120',
       },
     });
   } catch (error) {
