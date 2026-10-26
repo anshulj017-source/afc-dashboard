@@ -1392,7 +1392,7 @@ export default function App() {
           </div>
 
           <GaChannelTable rawData={filteredGaData} itemRawData={filteredGaItemFunnelData} formatShort={formatShort} />
-          <GaItemFunnelTable rawData={filteredGaItemFunnelData} />
+          <GaItemFunnelTable rawData={filteredGaItemFunnelData} formatShort={formatShort} />
 
           {/* Daily GA4 Sales Trend */}
           <div className="card-surface backdrop-blur-2xl p-6 rounded-3xl border border-[#c88214]/20 shadow-xl h-[400px] mb-8 export-slide" data-title="Daily GA4 Sales Trend">
