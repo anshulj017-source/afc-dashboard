@@ -412,8 +412,14 @@ export default function App() {
         return [];
       });
 
+    const fetchCsvSafe = (url, label) =>
+      d3.csv(url).catch(err => {
+        console.warn(`Failed to load sheet (${label}):`, err);
+        return [];
+      });
+
     const fetchPromises = CHANNELS.map(ch => 
-      d3.csv(`${BASE_URL}&gid=${ch.gid}`).then(raw => {
+      fetchCsvSafe(`${BASE_URL}&gid=${ch.gid}`, ch.name).then(raw => {
         return raw.map(row => {
           const vals = Object.values(row);
           // Find 'DB' prefixed columns dynamically if they exist, otherwise fallback
@@ -469,7 +475,7 @@ export default function App() {
       })
     );
 
-    const googlePurchasesPromise = d3.csv(`${BASE_URL}&gid=${GOOGLE_PURCHASES_GID}`).then(raw => {
+    const googlePurchasesPromise = fetchCsvSafe(`${BASE_URL}&gid=${GOOGLE_PURCHASES_GID}`, 'Google Purchases').then(raw => {
       return raw
         .filter(row => row['Conversion category'] === 'Purchase/Sale')
         .map(row => {
@@ -504,7 +510,7 @@ export default function App() {
       });
     });
 
-    const tiktokPurchasesPromise = d3.csv(`${BASE_URL}&gid=1963494707`).then(raw => {
+    const tiktokPurchasesPromise = fetchCsvSafe(`${BASE_URL}&gid=1963494707`, 'TikTok Purchases').then(raw => {
       return raw.map(row => {
         const vals = Object.values(row);
         let cName = row['Campaign DB'] || row['Campaign name'] || 'Unknown';
@@ -536,7 +542,7 @@ export default function App() {
       });
     });
 
-    const pmaxPurchasesPromise = d3.csv(`${BASE_URL}&gid=1398986317`).then(raw => {
+    const pmaxPurchasesPromise = fetchCsvSafe(`${BASE_URL}&gid=1398986317`, 'PMax Purchases').then(raw => {
       return raw
         .filter(row => row['Conversion category'] === 'Purchase/Sale')
         .map(row => {
@@ -571,7 +577,7 @@ export default function App() {
       });
     });
 
-    const directBuysPromise = d3.csv(`${BASE_URL}&gid=767209121`).then(raw => {
+    const directBuysPromise = fetchCsvSafe(`${BASE_URL}&gid=767209121`, 'Direct Buys').then(raw => {
       return raw.map(row => {
         let cName = row['Campaign DB'] || row['Campaign name'] || 'Unknown';
         const cNameUpper = cName.toUpperCase();
@@ -605,9 +611,9 @@ export default function App() {
 
     const sheetsPromise = Promise.all([
       Promise.all(fetchPromises),
-      d3.csv(`${BASE_URL}&gid=${GA4_GID}`),
-      d3.csv(`${BASE_URL}&gid=${GA4_MATCH_GID}`),
-      d3.csv(`${BASE_URL}&gid=${META_CREATIVE_GID}`),
+      fetchCsvSafe(`${BASE_URL}&gid=${GA4_GID}`, 'GA4'),
+      fetchCsvSafe(`${BASE_URL}&gid=${GA4_MATCH_GID}`, 'GA4 Match'),
+      fetchCsvSafe(`${BASE_URL}&gid=${META_CREATIVE_GID}`, 'Meta Creatives'),
       googlePurchasesPromise,
       tiktokPurchasesPromise,
       pmaxPurchasesPromise,
