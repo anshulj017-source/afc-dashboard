@@ -228,6 +228,7 @@ export default function AdminView() {
                   <option value="admin">Admin</option>
                   <option value="standard">Standard</option>
                   <option value="non-finance">Non-Finance</option>
+                  <option value="executive">Executive</option>
                 </select>
               </div>
               
@@ -294,6 +295,7 @@ export default function AdminView() {
                             <option value="admin">Admin</option>
                             <option value="standard">Standard</option>
                             <option value="non-finance">Non-Finance</option>
+                            <option value="executive">Executive</option>
                            </select>
                         </div>
                       </td>

@@ -38,7 +38,7 @@ const CHANNELS = [
   { name: 'PMax', gid: '1969364887' }
 ];
 const GA4_GID = '1861950282';
-const GA4_MATCH_GID = '674570209';
+const EXECUTIVE_GA4_PROPERTY = 'ahlan.sa';
 const META_CREATIVE_GID = '1841259885';
 const GOOGLE_PURCHASES_GID = '88343342';
 const SUMMARY_GA4_PROPERTY_BY_TOURNAMENT = {
@@ -339,7 +339,9 @@ export default function App() {
           const userDoc = await getDoc(doc(db, 'users', user.uid));
           if (userDoc.exists()) {
             const data = userDoc.data();
-            setUserRole(data.role || (data.isAdmin ? 'admin' : 'standard'));
+            const role = data.role || (data.isAdmin ? 'admin' : 'standard');
+            setUserRole(role);
+            if (role === 'executive') setActiveTab('webtraffic');
           } else {
             setUserRole('standard');
           }
@@ -864,6 +866,7 @@ export default function App() {
           .filter(Boolean);
 
     return gaData.filter(d => {
+      if (userRole === 'executive' && (d.ga4Property || '').trim().toLowerCase() !== EXECUTIVE_GA4_PROPERTY) return false;
       let matchesCampaign = true;
 
       if (activeTab === 'summary' || activeTab === 'market') {
@@ -883,7 +886,7 @@ export default function App() {
       if (deferredDateRange.end && d.dateObj && d.dateObj > new Date(deferredDateRange.end)) return false;
       return true;
     });
-  }, [gaData, activeTab, deferredFilterCampaigns, deferredFilterMarkets, deferredFilterPaidOrganic, deferredFilterGa4Properties, deferredDateRange]);
+  }, [gaData, userRole, activeTab, deferredFilterCampaigns, deferredFilterMarkets, deferredFilterPaidOrganic, deferredFilterGa4Properties, deferredDateRange]);
 
   const filteredGaItemFunnelData = useMemo(() => {
     const summaryProperties = deferredFilterCampaigns.includes('All')
@@ -893,6 +896,7 @@ export default function App() {
           .filter(Boolean);
 
     return gaItemFunnelData.filter(d => {
+      if (userRole === 'executive' && (d.ga4Property || '').trim().toLowerCase() !== EXECUTIVE_GA4_PROPERTY) return false;
       if (activeTab === 'summary' || activeTab === 'market') {
         const property = (d.ga4Property || '').trim().toLowerCase();
         if (!summaryProperties.includes(property)) return false;
@@ -906,7 +910,7 @@ export default function App() {
       if (deferredDateRange.end && d.dateObj && d.dateObj > new Date(deferredDateRange.end)) return false;
       return true;
     });
-  }, [gaItemFunnelData, activeTab, deferredFilterCampaigns, deferredFilterMarkets, deferredFilterPaidOrganic, deferredFilterGa4Properties, deferredDateRange]);
+  }, [gaItemFunnelData, userRole, activeTab, deferredFilterCampaigns, deferredFilterMarkets, deferredFilterPaidOrganic, deferredFilterGa4Properties, deferredDateRange]);
 
   const agg = useMemo(() => {
     const cost = d3.sum(filteredAdData, d => d.cost);
@@ -1061,6 +1065,9 @@ export default function App() {
     { id: 'webtraffic', label: 'Web Traffic', icon: Users },
     { id: 'creative', label: 'Creative View', icon: LayoutTemplate },
   ];
+  const visibleNavItems = userRole === 'executive'
+    ? NAV_ITEMS.filter(item => item.id === 'webtraffic')
+    : NAV_ITEMS;
 
   // Admin button is rendered separately at the bottom left
 
@@ -1425,7 +1432,7 @@ export default function App() {
           <div className="flex justify-between items-center card-surface backdrop-blur-2xl p-6 rounded-3xl border border-[#c88214]/20 shadow-xl mb-4 flex-wrap gap-6 relative z-20">
             <div className="flex items-center gap-8 flex-wrap">
               <h2 className="text-2xl font-black text-white flex items-center gap-3"><MonitorPlay className="text-[#c88214]" /> Web Traffic (GA4)</h2>
-              <FilterBoxes label="GA4 Property" options={uniqueGa4Properties} selected={filterGa4Properties} onChange={setFilterGa4Properties} />
+              <FilterBoxes label="GA4 Property" options={userRole === 'executive' ? [EXECUTIVE_GA4_PROPERTY] : uniqueGa4Properties} selected={filterGa4Properties} onChange={setFilterGa4Properties} />
             </div>
             <div className="flex items-center gap-4 flex-wrap">
               <FilterBoxes label="Paid / Organic" options={uniquePaidOrganic} selected={filterPaidOrganic} onChange={setFilterPaidOrganic} />
@@ -1632,13 +1639,13 @@ export default function App() {
              </div>
           </div>
 
-          { (activeTab !== 'campaign' && activeTab !== 'webtraffic') ? (
+          {userRole !== 'executive' && (activeTab !== 'campaign' && activeTab !== 'webtraffic') ? (
             <MultiSelect label="Tournament" options={uniqueCampaigns} selected={filterCampaigns} onChange={setFilterCampaigns} />
-          ) : (
+          ) : userRole !== 'executive' ? (
             <div className="opacity-30 pointer-events-none" title="Tournament filter is disabled for this view">
               <MultiSelect label="Tournament" options={uniqueCampaigns} selected={filterCampaigns} onChange={setFilterCampaigns} />
             </div>
-          )}
+          ) : null}
           <MultiSelect label="Market" options={uniqueMarkets} selected={filterMarkets} onChange={setFilterMarkets} />
           
           <div className="flex items-end gap-3 ml-2">
@@ -1673,7 +1680,7 @@ export default function App() {
           <div className="pattern-overlay absolute inset-0 z-0 pointer-events-none" style={{ opacity: 0.20 }}></div>
           <div className="p-6 pb-2 relative z-10">
             <div className="text-[10px] font-black text-[#6fa89f] uppercase tracking-widest mb-4 px-4">Navigation</div>
-          {NAV_ITEMS.map(t => {
+          {visibleNavItems.map(t => {
             const active = activeTab === t.id;
             return (
               <button 
