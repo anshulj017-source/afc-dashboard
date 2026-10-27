@@ -1432,7 +1432,9 @@ export default function App() {
           <div className="flex justify-between items-center card-surface backdrop-blur-2xl p-6 rounded-3xl border border-[#c88214]/20 shadow-xl mb-4 flex-wrap gap-6 relative z-20">
             <div className="flex items-center gap-8 flex-wrap">
               <h2 className="text-2xl font-black text-white flex items-center gap-3"><MonitorPlay className="text-[#c88214]" /> Web Traffic (GA4)</h2>
-              <FilterBoxes label="GA4 Property" options={userRole === 'executive' ? [EXECUTIVE_GA4_PROPERTY] : uniqueGa4Properties} selected={filterGa4Properties} onChange={setFilterGa4Properties} />
+              {userRole !== 'executive' && (
+                <FilterBoxes label="GA4 Property" options={uniqueGa4Properties} selected={filterGa4Properties} onChange={setFilterGa4Properties} />
+              )}
             </div>
             <div className="flex items-center gap-4 flex-wrap">
               <FilterBoxes label="Paid / Organic" options={uniquePaidOrganic} selected={filterPaidOrganic} onChange={setFilterPaidOrganic} />
@@ -1450,7 +1452,7 @@ export default function App() {
             <MetricCard definition="The total number of times items were added to the cart." label="Add to Carts" value={formatShort(totalAddToCart)} icon={Activity} color="text-white" />
             <MetricCard definition="The total number of times users initiated a checkout." label="Checkouts" value={formatShort(totalCheckouts)} icon={MousePointer2} color="text-[#c88214]" />
             <MetricCard definition="The total number of completed purchases." label="Purchases" value={formatShort(totalPurchases)} icon={TrendingUp} color="text-[#6fa89f]" />
-            <MetricCard definition="The total quantity of tickets sold reported by GA4." label="GA4 Tickets Sales" value={formatShort(totalGaTickets)} icon={ShoppingCart} color="text-[#c88214]" />
+            <MetricCard definition="The total quantity of tickets sold reported by GA4." label="Ticket Sales" value={formatShort(totalGaTickets)} icon={ShoppingCart} color="text-[#c88214]" />
           </div>
 
           <GaChannelTable rawData={filteredGaData} itemRawData={filteredGaItemFunnelData} formatShort={formatShort} />

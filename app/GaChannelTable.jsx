@@ -6,7 +6,7 @@ import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, Legend, Responsi
 
 export const GaChannelTable = ({ rawData, itemRawData = [], formatShort }) => {
   const [searchTerm, setSearchTerm] = useState('');
-  const [sortKey, setSortKey] = useState('sessions');
+  const [sortKey, setSortKey] = useState('gaTickets');
   const [sortDir, setSortDir] = useState('desc');
   const [selectedChannels, setSelectedChannels] = useState([]);
   

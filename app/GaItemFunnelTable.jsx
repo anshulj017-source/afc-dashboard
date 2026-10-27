@@ -9,7 +9,7 @@ const COLUMNS = [
   { key: 'itemsViewed', label: 'Ticket Views' },
   { key: 'itemsAddedToCart', label: 'Add to Carts' },
   { key: 'itemsCheckedOut', label: 'Checkouts' },
-  { key: 'itemPurchaseQuantity', label: 'GA4 Tickets Sales' },
+  { key: 'itemPurchaseQuantity', label: 'Ticket Sales' },
 ];
 
 const escapeCsv = value => `"${String(value).replace(/"/g, '""')}"`;
@@ -17,7 +17,7 @@ const COLORS = ['#c88214', '#eef7f5', '#6fa89f', '#00937b', '#EF4444', '#10B981'
 
 export const GaItemFunnelTable = ({ rawData, formatShort = value => d3.format('~s')(value) }) => {
   const [searchTerm, setSearchTerm] = useState('');
-  const [sortKey, setSortKey] = useState('itemsViewed');
+  const [sortKey, setSortKey] = useState('itemPurchaseQuantity');
   const [sortDir, setSortDir] = useState('desc');
   const [rowsPerPage, setRowsPerPage] = useState(10);
   const [currentPage, setCurrentPage] = useState(1);
