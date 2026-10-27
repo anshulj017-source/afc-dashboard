@@ -26,6 +26,10 @@ function refresh(url) {
   return pending;
 }
 
+const GA4_MATCH_CSV_URL =
+  process.env.GA4_MATCH_CSV_URL ||
+  'https://docs.google.com/spreadsheets/d/e/2PACX-1vTlIGiifN63JuYADmDNqNrDYRQocZzjObe-ykV27pTUAV9uIIU2GNS3nrMN8zU0jMi0fyikUgbqMQWW/pub?output=csv';
+
 export async function GET(request) {
   const { searchParams } = new URL(request.url);
   const type = searchParams.get('type');
@@ -38,12 +42,18 @@ export async function GET(request) {
     url = process.env.RAW_ADJUST_CSV_URL;
   } else if (type === 'creative') {
     url = process.env.CREATIVE_CSV_URL;
+  } else if (type === 'ga4_match') {
+    url = GA4_MATCH_CSV_URL;
   } else if (type === 'afc') {
     const gid = searchParams.get('gid');
     if (!gid) {
       return new NextResponse('Missing gid for afc sheet', { status: 400 });
     }
-    url = `${process.env.AFC_SHEET_BASE_URL}&gid=${gid}`;
+    if (gid === '674570209') {
+      url = GA4_MATCH_CSV_URL;
+    } else {
+      url = `${process.env.AFC_SHEET_BASE_URL}&gid=${gid}`;
+    }
   } else {
     return new NextResponse('Invalid sheet type', { status: 400 });
   }

@@ -368,6 +368,7 @@ export default function App() {
 
     let cancelled = false;
     const BASE_URL = `/api/sheets?type=afc${refreshVersion > 0 ? `&refresh=1&request=${refreshVersion}` : ''}`;
+    const GA4_MATCH_URL = `/api/sheets?type=ga4_match${refreshVersion > 0 ? `&refresh=1&request=${refreshVersion}` : ''}`;
 
     // TikTok creatives are requested up front so they run in parallel with the
     // sheet downloads rather than after them.
@@ -612,7 +613,7 @@ export default function App() {
     const sheetsPromise = Promise.all([
       Promise.all(fetchPromises),
       fetchCsvSafe(`${BASE_URL}&gid=${GA4_GID}`, 'GA4'),
-      fetchCsvSafe(`${BASE_URL}&gid=${GA4_MATCH_GID}`, 'GA4 Match'),
+      fetchCsvSafe(GA4_MATCH_URL, 'GA4 Match'),
       fetchCsvSafe(`${BASE_URL}&gid=${META_CREATIVE_GID}`, 'Meta Creatives'),
       googlePurchasesPromise,
       tiktokPurchasesPromise,
@@ -627,7 +628,7 @@ export default function App() {
       combinedAds = combinedAds.concat(directBuys);
       
       const gaResults = ga4Raw.map(row => {
-        const rawPaid = row['Paid/Organic'] || 'Unknown';
+        const rawPaid = (row['Paid/Organic'] || 'Unknown').trim();
         let paidOrganic = 'Unknown';
         if (rawPaid.toLowerCase() === 'paid') paidOrganic = 'Paid';
         else if (rawPaid.toLowerCase() === 'organic') paidOrganic = 'Organic';
@@ -654,12 +655,13 @@ export default function App() {
             gaTickets: parseMetric(row['Item purchase quantity']),
             campaignName,
             paidOrganic,
-            ga4Property: row['GA4 property'] || 'Unknown'
+            ga4Property: (row['GA4 property'] || 'Unknown').trim()
           };
       });
 
       const gaItemFunnelResults = ga4MatchRaw.map(row => {
-        const rawPaid = row['Paid/Organic'] || 'Unknown';
+        const vals = Object.values(row);
+        const rawPaid = (row['Paid/Organic'] || 'Unknown').trim();
         let paidOrganic = rawPaid;
         if (rawPaid.toLowerCase() === 'paid') paidOrganic = 'Paid';
         else if (rawPaid.toLowerCase() === 'organic') paidOrganic = 'Organic';
@@ -674,12 +676,17 @@ export default function App() {
           country: normalizeMarket(row['Country']),
           campaignName: (rawCampaign || 'Unknown').replace(/\r/g, '').trim(),
           paidOrganic,
-          ga4Property: row['GA4 property'] || 'Unknown',
-          itemName: (row['Item name EN'] || 'Unknown').trim(),
-          itemsViewed: parseMetric(row['Items viewed']),
-          itemsAddedToCart: parseMetric(row['Items added to cart']),
-          itemsCheckedOut: parseMetric(row['Items checked out']),
-          itemPurchaseQuantity: parseMetric(row['item purchase quantity'] || row['Item purchase quantity']),
+          ga4Property: (row['GA4 property'] || 'Unknown').trim(),
+          itemName: (row['Item name EN'] || row['Item name'] || 'Unknown').trim(),
+          itemsViewed: parseMetric(row['Items viewed'] ?? vals[7]),
+          itemsAddedToCart: parseMetric(row['Items added to cart'] ?? vals[8]),
+          itemsCheckedOut: parseMetric(row['Items checked out'] ?? vals[9]),
+          itemPurchaseQuantity: parseMetric(
+            row['Items purchase quantity'] ??
+            row['Item purchase quantity'] ??
+            row['item purchase quantity'] ??
+            vals[10]
+          ),
         };
       });
 
@@ -825,10 +832,15 @@ export default function App() {
   }, [adData, gaData, gaItemFunnelData]);
   const uniquePaidOrganic = useMemo(() => {
     const order = ['Paid', 'Organic'];
-    const values = Array.from(new Set([...gaData, ...gaItemFunnelData].map(d => d.paidOrganic)));
+    const values = Array.from(new Set([...gaData, ...gaItemFunnelData].map(d => d.paidOrganic)))
+      .filter(v => v && v.toLowerCase() !== 'unknown');
     return [...order.filter(v => values.includes(v)), ...values.filter(v => !order.includes(v)).sort()];
   }, [gaData, gaItemFunnelData]);
-  const uniqueGa4Properties = useMemo(() => Array.from(new Set([...gaData, ...gaItemFunnelData].map(d => d.ga4Property))).filter(Boolean).sort(), [gaData, gaItemFunnelData]);
+  const uniqueGa4Properties = useMemo(() => (
+    Array.from(new Set([...gaData, ...gaItemFunnelData].map(d => d.ga4Property)))
+      .filter(v => v && v.toLowerCase() !== 'unknown')
+      .sort()
+  ), [gaData, gaItemFunnelData]);
 
   // Apply filters to Ad Data
   const filteredAdData = useMemo(() => {
@@ -873,14 +885,28 @@ export default function App() {
     });
   }, [gaData, activeTab, deferredFilterCampaigns, deferredFilterMarkets, deferredFilterPaidOrganic, deferredFilterGa4Properties, deferredDateRange]);
 
-  const filteredGaItemFunnelData = useMemo(() => gaItemFunnelData.filter(d => {
-    if (!deferredFilterMarkets.includes('All') && !deferredFilterMarkets.includes(d.country)) return false;
-    if (!deferredFilterPaidOrganic.includes('All') && !deferredFilterPaidOrganic.includes(d.paidOrganic)) return false;
-    if (!deferredFilterGa4Properties.includes('All') && !deferredFilterGa4Properties.includes(d.ga4Property)) return false;
-    if (deferredDateRange.start && d.dateObj && d.dateObj < new Date(deferredDateRange.start)) return false;
-    if (deferredDateRange.end && d.dateObj && d.dateObj > new Date(deferredDateRange.end)) return false;
-    return true;
-  }), [gaItemFunnelData, deferredFilterMarkets, deferredFilterPaidOrganic, deferredFilterGa4Properties, deferredDateRange]);
+  const filteredGaItemFunnelData = useMemo(() => {
+    const summaryProperties = deferredFilterCampaigns.includes('All')
+      ? Object.values(SUMMARY_GA4_PROPERTY_BY_TOURNAMENT)
+      : deferredFilterCampaigns
+          .map(campaign => SUMMARY_GA4_PROPERTY_BY_TOURNAMENT[campaign])
+          .filter(Boolean);
+
+    return gaItemFunnelData.filter(d => {
+      if (activeTab === 'summary' || activeTab === 'market') {
+        const property = (d.ga4Property || '').trim().toLowerCase();
+        if (!summaryProperties.includes(property)) return false;
+      }
+      if (!deferredFilterMarkets.includes('All') && !deferredFilterMarkets.includes(d.country)) return false;
+      if (activeTab === 'webtraffic') {
+        if (!deferredFilterPaidOrganic.includes('All') && !deferredFilterPaidOrganic.includes(d.paidOrganic)) return false;
+        if (!deferredFilterGa4Properties.includes('All') && !deferredFilterGa4Properties.includes(d.ga4Property)) return false;
+      }
+      if (deferredDateRange.start && d.dateObj && d.dateObj < new Date(deferredDateRange.start)) return false;
+      if (deferredDateRange.end && d.dateObj && d.dateObj > new Date(deferredDateRange.end)) return false;
+      return true;
+    });
+  }, [gaItemFunnelData, activeTab, deferredFilterCampaigns, deferredFilterMarkets, deferredFilterPaidOrganic, deferredFilterGa4Properties, deferredDateRange]);
 
   const agg = useMemo(() => {
     const cost = d3.sum(filteredAdData, d => d.cost);
@@ -893,9 +919,9 @@ export default function App() {
     const purchases = d3.sum(filteredAdData, d => d.purchases || 0);
     const sessions = d3.sum(filteredGaData, d => d.sessions);
     const gaPurchases = d3.sum(filteredGaData, d => d.purchases || 0);
-    const gaTickets = d3.sum(filteredGaData, d => d.gaTickets || 0);
+    const gaTickets = d3.sum(filteredGaItemFunnelData, d => d.itemPurchaseQuantity || 0);
     return { cost, impressions, clicks, views, completions, views6s, views15s, sessions, purchases, gaPurchases, gaTickets };
-  }, [filteredAdData, filteredGaData]);
+  }, [filteredAdData, filteredGaData, filteredGaItemFunnelData]);
 
   const gaSourceData = useMemo(() => {
     return Array.from(d3.rollup(filteredGaData, 
@@ -1430,7 +1456,7 @@ export default function App() {
               <InfoTooltip definition="Daily trend of Purchases and Ticket Sales reported by GA4." />
             </h3>
             <ResponsiveContainer width="100%" height="90%">
-              <LineChart data={dailyWebGaChartData}>
+              <LineChart data={dailyGaChartData}>
                 <CartesianGrid strokeDasharray="3 3" stroke="#ffffff10" />
                 <XAxis dataKey="day" stroke="#6fa89f" fontSize={10} />
                 <YAxis yAxisId="left" stroke="#00937b" fontSize={10} tickFormatter={(t) => d3.format(",")(t)} />
